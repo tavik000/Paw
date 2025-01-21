@@ -3,6 +3,7 @@
 
 #include "PawMultiplayerSessionSubsystem.h"
 #include "OnlineSubsystem.h"
+#include "OnlineSubsystemUtils.h"
 
 void PrintString(const FString& Str)
 {
@@ -18,14 +19,13 @@ UPawMultiplayerSessionSubsystem::UPawMultiplayerSessionSubsystem()
 	ShouldCreateServerAfterDestroy = false;
 	DestroyServerName = "";
 	ServerNameToFind = "";
-	MySessionName = FName("Co-op Adventure Session Name");
+	MySessionName = FName("Paw Session Name");
 }
 
 void UPawMultiplayerSessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	IOnlineSubsystem* OnlineSubsystem = IOnlineSubsystem::Get();
-	if (OnlineSubsystem)
+	if (IOnlineSubsystem* OnlineSubsystem = Online::GetSubsystem(GetWorld()))
 	{
 		// PrintString("MSS Initialize");
 
@@ -83,11 +83,11 @@ void UPawMultiplayerSessionSubsystem::CreateServer(FString ServerName)
 	SessionSettings.bAllowJoinInProgress = true;
 	SessionSettings.bIsDedicated = false;
 	SessionSettings.bShouldAdvertise = true;
-	SessionSettings.NumPublicConnections = 2;
+	SessionSettings.NumPublicConnections = 5;
 	SessionSettings.bUseLobbiesIfAvailable = true;
 	SessionSettings.bUsesPresence = true;
 	SessionSettings.bAllowJoinViaPresence = true;
-	bool IsLAN = IOnlineSubsystem::Get()->GetSubsystemName() == "NULL";
+	bool IsLAN = Online::GetSubsystem(GetWorld())->GetSubsystemName() == "NULL";
 	SessionSettings.bIsLANMatch = IsLAN;
 	SessionSettings.Set(FName("SERVER_NAME"), ServerName, EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
 
@@ -107,7 +107,7 @@ void UPawMultiplayerSessionSubsystem::FindServer(FString ServerName)
 	}
 
 	SessionSearch = MakeShareable(new FOnlineSessionSearch());
-	bool IsLAN = IOnlineSubsystem::Get()->GetSubsystemName() == "NULL";
+	bool IsLAN = Online::GetSubsystem(GetWorld())->GetSubsystemName() == "NULL";
 	SessionSearch->bIsLanQuery = IsLAN;
 	SessionSearch->MaxSearchResults = 9999;
 	SessionSearch->QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals);
@@ -122,7 +122,7 @@ void UPawMultiplayerSessionSubsystem::OnCreateSessionComplete(FName ToCreateSess
 	ServerCreateDel.Broadcast(WasSuccessful);
 	if (WasSuccessful)
 	{
-		FString Path = "/Game/ThirdPerson/Maps/ThirdPersonMap?listen";
+		FString Path = "/Game/Main/Demo/Maps/L_Demo?listen";
 		if (!GameMapPath.IsEmpty())
 		{
 			Path = FString::Printf(TEXT("%s?listen"), *GameMapPath);
@@ -205,7 +205,7 @@ void UPawMultiplayerSessionSubsystem::OnFindSessionsComplete(bool WasSuccessful)
 }
 
 void UPawMultiplayerSessionSubsystem::OnJoinSessionComplete(FName ToJoinSessionName,
-                                                          EOnJoinSessionCompleteResult::Type Result)
+                                                            EOnJoinSessionCompleteResult::Type Result)
 {
 	if (!Result == EOnJoinSessionCompleteResult::Success)
 	{
