@@ -3,7 +3,9 @@
 ---
 
 ## Game Overview
-**Shadow Bubble: Hide and Seek** is a 3-5 player asymmetric multiplayer game combining stealth, strategy, and light mechanics. Players split into two roles—**Seekers** and **Hiders**—and compete in a shadowy arena filled with interactive objects and dynamic lighting.
+**Shadow Bubble: Hide and Seek** is a 3-5 player asymmetric multiplayer game combining stealth, strategy, and light mechanics.
+ Players split into two roles—**Seekers** and **Hiders**—and compete in a shadowy arena filled with interactive objects like bubbles and dynamic lighting.
+ Hider can turn invisible in the shadow. but the lighting and shadow are dynamic and always moving and changing.
 
 ---
 
@@ -14,7 +16,7 @@
   - **Spotlight**: Illuminate and damage Hiders.
   - **FPS Bubble Gun**: Fires a single shot with a long cooldown to trap Hiders in bubbles.
     - **Bubble Effect**: Trapped Hiders remain in the bubble unless rescued by teammates within a set time.
-- **Character**: Bubble Ghost (Asset Required).
+- **Character**: Bubble Ghost (TBD).
 
 ### **Hider**
 - **Abilities**:
@@ -29,9 +31,9 @@
 ## Gameplay Elements
 - **Breakable Objects**: Provide temporary cover but can be destroyed.
 - **Pushable Objects**: Manipulate shadows or block paths strategically.
-- **Bubble Lightbulbs**: Pop to progress as Hiders but beware of their explosive consequences.
-- **Bubble Blocks**: Interactive bubble objects in the environment.
-- **Point Lights**: Additional light sources to avoid as Hiders.
+- **Bubble Lightbulbs**: Pop to progress as Hiders. It provide light source that shadow other object as hiding place. and it is movable.
+- **Bubble Blocks**: Movable bubble, provide block in the air that generate shadow when the lighting source are around. if break, the block drop down.
+- **Point Lights**: Additional light sources to avoid as Hiders. might be switchable.
 
 ---
 
@@ -60,8 +62,9 @@
 ---
 
 ## Why Unreal Engine 5?
-- **Lighting**: Stunning real-time lighting and shadow effects using **Lumen**.
-- **Physics**: Advanced object interactions for breakable and pushable elements.
-- **Multiplayer Framework**: Robust tools for creating seamless multiplayer experiences.
+- **Lighting**: Stunning real-time dynamic lighting and shadow effects with GI and reflections using **Lumen** with Real-Time Ray Tracing!!! Let's go! Thanks to Nvidia RTX series, Microsoft DirectX12, and Epic Games Unreal Engine 5.
+- **Physics(Chaos Destruction)**: Advanced object interactions for breakable and pushable elements.
+- **Multiplayer Framework**: Robust tools for creating seamless multiplayer experiences. Online Subsystem.
+- **Virtual Shadow Map**: High-resolution real-time shadowing.
 
 ---
