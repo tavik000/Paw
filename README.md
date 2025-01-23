@@ -22,7 +22,7 @@ Hider can turn invisible in the shadow. but the lighting and shadow are dynamic 
 ### **Seeker**
 
 -   **Abilities**:
-    -   **Spotlight**: Illuminate and damage Hiders.
+    -   **Flashlight**: Illuminate and damage Hiders.
     -   **FPS Bubble Gun**: Fires a single shot with a long cooldown to trap Hiders in bubbles.
         -   **Bubble Effect**: Trapped Hiders remain in the bubble unless rescued by teammates within a set time.
 -   **Character**: Bubble Ghost (TBD).
