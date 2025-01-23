@@ -1,9 +1,19 @@
-# Shadow Bubble: Hide and Seek
+<p align="center">
+  <h1 align="center">Shadow Bubble: Hide and Seek Chaos </h1>
+  <p align="center">Global Game Jam 2025　Unreal Engine 5　Project</p>
+</p> 
+
+
+
+### Keyword
+> `UE` `Unreal Engine 5` `C++` `Hide and Seek` `Asymmetric Multiplayer` `FPS`
+
+
 
 ---
 
 ## Game Overview
-**Shadow Bubble: Hide and Seek** is a 3-5 player asymmetric multiplayer game combining stealth, strategy, and light mechanics.
+**Shadow Bubble: Hide and Seek Chaos** is a 3-5 player asymmetric multiplayer game combining stealth, strategy, and light mechanics.
  Players split into two roles—**Seekers** and **Hiders**—and compete in a shadowy arena filled with interactive objects like bubbles and dynamic lighting.
  Hider can turn invisible in the shadow. but the lighting and shadow are dynamic and always moving and changing.
 
