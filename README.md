@@ -33,7 +33,7 @@ Hider can turn invisible in the shadow. but the lighting and shadow are dynamic 
     -   **Shadow Cloak**: Become invisible and regenerate health while in shadows.
     -   **Sprint**: Speed boost for 3-5 seconds (leaves a trail of small bubbles).
     -   **Rescue**: Free teammates trapped in bubbles.
-    -   **Bubble Vulnerability**: Popping bubble lightbulbs will cause an explosion.
+    -   **Bubble Vulnerability**: Popping bubble.
 -   **Character**: Black Cat.
 
 ---
