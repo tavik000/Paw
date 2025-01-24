@@ -11,10 +11,13 @@ APawBubbleBase::APawBubbleBase()
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
 	AActor::SetReplicateMovement(true);
+	SceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("SceneComponent"));
 	BubbleMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BubbleMesh"));
+	SetRootComponent(BubbleMesh);
 	BubbleMesh->SetupAttachment(RootComponent);
+	BubbleMesh->SetIsReplicated(true);
 	MovementPathSpline = CreateDefaultSubobject<USplineComponent>(TEXT("MovementPathSpline"));
-	MovementPathSpline->SetupAttachment(RootComponent);
+	MovementPathSpline->SetupAttachment(SceneComponent);
 	MovementPathSpline->SetWorldLocation(GetActorLocation());
 }
 
@@ -37,7 +40,12 @@ void APawBubbleBase::Deactivate()
 
 void APawBubbleBase::Break_Implementation()
 {
+	if (!HasAuthority())
+	{
+		return;
+	}
 	IPawCollideBreakableInterface::Break_Implementation();
+	Deactivate();
 	MulticastSpawnBreakEffect();
 }
 
@@ -64,6 +72,16 @@ void APawBubbleBase::OnBreakEffectLoaded()
 void APawBubbleBase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	if (!IsValid(MovementPathSpline))
+	{
+		return;
+	}
 
 	if (!IsActivated)
 	{

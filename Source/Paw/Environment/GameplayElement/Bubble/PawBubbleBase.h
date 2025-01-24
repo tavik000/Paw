@@ -48,6 +48,9 @@ protected:
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastSpawnBreakEffect();
 
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<USceneComponent> SceneComponent;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<UStaticMeshComponent> BubbleMesh;
 
