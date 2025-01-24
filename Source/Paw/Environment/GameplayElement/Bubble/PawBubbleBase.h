@@ -66,6 +66,9 @@ protected:
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UNiagaraComponent> BreakEffect;
 
+	UPROPERTY(EditAnywhere)
+	float BreakEffectScale = 1.0f;
+
 	
 public:
 	virtual void Tick(float DeltaTime) override;

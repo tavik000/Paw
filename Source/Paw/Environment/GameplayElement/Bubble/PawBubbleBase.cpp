@@ -53,7 +53,7 @@ void APawBubbleBase::MulticastSpawnBreakEffect_Implementation()
 {
 	BreakEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), BreakEffectAsset.Get(), GetActorLocation(),
 	                                                             GetActorRotation(),
-	                                                             FVector::One(), true, true, ENCPoolMethod::AutoRelease,
+	                                                             FVector::One() * BreakEffectScale, true, true, ENCPoolMethod::AutoRelease,
 	                                                             true);
 }
 
