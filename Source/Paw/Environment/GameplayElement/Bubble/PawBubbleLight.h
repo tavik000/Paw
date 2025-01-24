@@ -18,6 +18,11 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+	virtual void Break() override;
+
+	UFUNCTION(Server, Reliable, WithValidation, BlueprintCallable)
+	void ServerDestroy();
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<UStaticMeshComponent> LightBulbMesh;
 	

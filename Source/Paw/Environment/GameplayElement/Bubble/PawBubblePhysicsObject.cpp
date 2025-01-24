@@ -7,6 +7,8 @@
 APawBubblePhysicsObject::APawBubblePhysicsObject()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	PhysicsObjectMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PhysicsObjectMesh"));
+	PhysicsObjectMesh->SetupAttachment(RootComponent);
 }
 
 void APawBubblePhysicsObject::BeginPlay()

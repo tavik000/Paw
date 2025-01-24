@@ -19,6 +19,22 @@ void APawBubbleLight::BeginPlay()
 	
 }
 
+void APawBubbleLight::Break()
+{
+	Super::Break();
+	ServerDestroy();
+}
+
+void APawBubbleLight::ServerDestroy_Implementation()
+{
+	Destroy();
+}
+
+bool APawBubbleLight::ServerDestroy_Validate()
+{
+	return HasAuthority();
+}
+
 void APawBubbleLight::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
