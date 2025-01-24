@@ -3,16 +3,16 @@
 #pragma once
 
 #include "CoreMinimal.h"
-
-#include "PawGameplayElementBase.generated.h"
+#include "PawBubbleBase.h"
+#include "PawBubblePhysicsObject.generated.h"
 
 UCLASS()
-class PAW_API APawGameplayElementBase : public AActor
+class PAW_API APawBubblePhysicsObject : public APawBubbleBase
 {
 	GENERATED_BODY()
 
 public:
-	APawGameplayElementBase();
+	APawBubblePhysicsObject();
 
 protected:
 	virtual void BeginPlay() override;
