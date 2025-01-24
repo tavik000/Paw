@@ -5,6 +5,3 @@
 
 
 // Add default functionality here for any IPawCollideBreakableInterface functions that are not pure virtual.
-void IPawCollideBreakableInterface::Break()
-{
-}

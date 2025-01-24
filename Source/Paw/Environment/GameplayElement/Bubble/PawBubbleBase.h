@@ -38,8 +38,8 @@ protected:
 	void Activate();
 	void Deactivate();
 
-	UFUNCTION(BlueprintCallable)
-	virtual void Break() override;
+
+	virtual void Break_Implementation() override;
 
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)

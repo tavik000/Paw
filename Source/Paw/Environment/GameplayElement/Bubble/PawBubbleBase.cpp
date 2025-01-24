@@ -30,9 +30,9 @@ void APawBubbleBase::Deactivate()
 	IsActivated = false;
 }
 
-void APawBubbleBase::Break()
+void APawBubbleBase::Break_Implementation()
 {
-	
+	IPawCollideBreakableInterface::Break_Implementation();
 }
 
 void APawBubbleBase::Tick(float DeltaTime)
