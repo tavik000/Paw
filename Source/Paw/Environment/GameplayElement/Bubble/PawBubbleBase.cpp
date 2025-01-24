@@ -3,6 +3,8 @@
 
 #include "PawBubbleBase.h"
 
+#include "Engine/AssetManager.h"
+#include "Engine/StreamableManager.h"
 
 APawBubbleBase::APawBubbleBase()
 {
@@ -13,11 +15,14 @@ APawBubbleBase::APawBubbleBase()
 	BubbleMesh->SetupAttachment(RootComponent);
 	MovementPathSpline = CreateDefaultSubobject<USplineComponent>(TEXT("MovementPathSpline"));
 	MovementPathSpline->SetupAttachment(RootComponent);
+	MovementPathSpline->SetWorldLocation(GetActorLocation());
 }
 
 void APawBubbleBase::BeginPlay()
 {
 	Super::BeginPlay();
+	Activate();
+	LoadBreakEffect();
 }
 
 void APawBubbleBase::Activate()
@@ -30,9 +35,30 @@ void APawBubbleBase::Deactivate()
 	IsActivated = false;
 }
 
-void APawBubbleBase::Break()
+void APawBubbleBase::Break_Implementation()
 {
-	
+	IPawCollideBreakableInterface::Break_Implementation();
+	MulticastSpawnBreakEffect();
+}
+
+
+void APawBubbleBase::LoadBreakEffect()
+{
+	UAssetManager::Get().GetStreamableManager().RequestAsyncLoad(BreakEffectAsset.ToSoftObjectPath(),
+	                                                             FStreamableDelegate::CreateUObject(
+		                                                             this, &APawBubbleBase::OnBreakEffectLoaded));
+}
+
+void APawBubbleBase::MulticastSpawnBreakEffect_Implementation()
+{
+	BreakEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), BreakEffectAsset.Get(), GetActorLocation(),
+	                                                             GetActorRotation(),
+	                                                             FVector::One(), true, true, ENCPoolMethod::AutoRelease,
+	                                                             true);
+}
+
+void APawBubbleBase::OnBreakEffectLoaded()
+{
 }
 
 void APawBubbleBase::Tick(float DeltaTime)

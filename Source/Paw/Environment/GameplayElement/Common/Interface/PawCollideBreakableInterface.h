@@ -7,7 +7,7 @@
 #include "PawCollideBreakableInterface.generated.h"
 
 // This class does not need to be modified.
-UINTERFACE()
+UINTERFACE(MinimalAPI, Blueprintable)
 class UPawCollideBreakableInterface : public UInterface
 {
 	GENERATED_BODY()
@@ -23,6 +23,8 @@ class PAW_API IPawCollideBreakableInterface
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
 
-	virtual void Break();
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	void Break();
+
 	
 };
