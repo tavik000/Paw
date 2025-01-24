@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "Components/SplineComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
 #include "Paw/Environment/GameplayElement/PawGameplayElementBase.h"
 #include "Paw/Environment/GameplayElement/Common/Interface/PawCollideBreakableInterface.h"
 #include "PawBubbleBase.generated.h"
@@ -38,9 +40,13 @@ protected:
 	void Activate();
 	void Deactivate();
 
-
 	virtual void Break_Implementation() override;
 
+	void OnBreakEffectLoaded();
+	void LoadBreakEffect();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastSpawnBreakEffect();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<UStaticMeshComponent> BubbleMesh;
@@ -54,6 +60,13 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Movement")
 	float MovementSpeed = 0.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSoftObjectPtr<UNiagaraSystem> BreakEffectAsset;
+	
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<UNiagaraComponent> BreakEffect;
+
+	
 public:
 	virtual void Tick(float DeltaTime) override;
 
