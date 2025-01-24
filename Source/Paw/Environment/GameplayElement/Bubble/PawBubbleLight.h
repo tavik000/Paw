@@ -22,11 +22,14 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<UStaticMeshComponent> LightBulbMesh;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<UPointLightComponent> PointLight;
-	
 
 public:
 	virtual void Tick(float DeltaTime) override;
+
+	UFUNCTION(BlueprintPure, BlueprintCallable)
+	float GetLightAttenuationRadius() const { return PointLight->AttenuationRadius; }
+	
 };
