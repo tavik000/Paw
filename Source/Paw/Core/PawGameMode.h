@@ -6,7 +6,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "PawGameMode.generated.h"
 
-UCLASS(minimalapi)
+UCLASS(MinimalAPI)
 class APawGameMode : public AGameModeBase
 {
 	GENERATED_BODY()

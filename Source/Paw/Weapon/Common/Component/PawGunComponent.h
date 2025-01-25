@@ -18,7 +18,6 @@ class PAW_API UPawGunComponent : public UPawWeaponComponent
 	UPawGunComponent();
 
 public:
-	UFUNCTION(BlueprintCallable, Category="Weapon")
 	virtual bool AttachWeapon(APawBattleCharacter* TargetCharacter) override;
 
 	/** Make the weapon Fire a Projectile */

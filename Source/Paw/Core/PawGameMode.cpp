@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PawGameMode.h"
-#include "PawCharacter.h"
+#include "Paw/Character/Player/PawCharacter.h"
 #include "UObject/ConstructorHelpers.h"
 
 APawGameMode::APawGameMode()
