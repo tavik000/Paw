@@ -57,6 +57,7 @@ void APawBubbleHiderCapture::ServerCaptureHider_Implementation(APawCharacter* Hi
 	CapturedHider->SetActorRelativeLocation(FVector::ZeroVector);
 
 	CapturedHider->ServerSetCaptured(true);
+	CapturedHider->OnDestroyed.AddDynamic(this, &APawBubbleHiderCapture::OnCapturedHiderDestroy);
 }
 
 void APawBubbleHiderCapture::ServerReleaseHider_Implementation()
@@ -70,7 +71,6 @@ void APawBubbleHiderCapture::ServerReleaseHider_Implementation()
 		return;
 	}
 
-
 	// Detach it from BubbleMesh
 	if (HasAuthority())
 	{
@@ -79,4 +79,12 @@ void APawBubbleHiderCapture::ServerReleaseHider_Implementation()
 	CapturedHider->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 	MulticastSetHiderFloatingEnable(CapturedHider.Get(), false);
 	CapturedHider.Reset();
+}
+
+void APawBubbleHiderCapture::OnCapturedHiderDestroy(AActor* DestroyedActor)
+{
+	if (HasAuthority())
+	{
+		Destroy();
+	}
 }

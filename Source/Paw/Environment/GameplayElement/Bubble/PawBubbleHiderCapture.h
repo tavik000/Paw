@@ -34,5 +34,9 @@ public:
 	void MulticastSetHiderFloatingEnable(APawCharacter* Hider, bool bEnable);
 
 private:
+
+	UFUNCTION()
+	void OnCapturedHiderDestroy(AActor* DestroyedActor);
+	
 	TWeakObjectPtr<APawCharacter> CapturedHider;
 };
