@@ -6,6 +6,12 @@
 #include "PawBattleCharacter.h"
 #include "PawPlayerBase.generated.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(LogPlayerCharacter, Log, All);
+
+struct FInputActionValue;
+class UInputAction;
+class UInputMappingContext;
+
 UCLASS()
 class PAW_API APawPlayerBase : public APawBattleCharacter
 {
@@ -16,9 +22,27 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	
+	virtual void NotifyControllerChanged() override;
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	
+	virtual void Move(const FInputActionValue& Value);
 
+	virtual void Look(const FInputActionValue& Value);
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputMappingContext* DefaultMappingContext;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* JumpAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* MoveAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* LookAction;
+	
 public:
 	virtual void Tick(float DeltaTime) override;
 
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 };
