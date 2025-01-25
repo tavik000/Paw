@@ -19,6 +19,7 @@ UPawCharacterWeaponComponent::UPawCharacterWeaponComponent()
 void UPawCharacterWeaponComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	CreateDefaultWeapon();
 }
 
 
