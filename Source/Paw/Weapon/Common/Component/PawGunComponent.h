@@ -55,5 +55,14 @@ protected:
 	UPROPERTY(BlueprintReadOnly)
 	APawFPSPlayer* FPSPlayer;
 
+	UPROPERTY(EditAnywhere)
+	float FireCoolDown = 3.0f;
+
 private:
+
+	bool IsCoolDown = false;
+
+	FTimerHandle FireCoolDownTimerHandle;
+
+	void ResetCoolDown();
 };

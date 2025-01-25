@@ -52,6 +52,12 @@ bool UPawGunComponent::AttachWeapon(APawBattleCharacter* TargetCharacter)
 
 void UPawGunComponent::Fire()
 {
+	if (IsCoolDown)
+	{
+		// TODO: Play a sound or something to indicate that the weapon is on cooldown
+		return;
+	}
+	
 	if (Character == nullptr || Character->GetController() == nullptr)
 	{
 		return;
@@ -61,6 +67,7 @@ void UPawGunComponent::Fire()
 	{
 		return;
 	}
+	
 
 	// Try and fire a projectile
 	if (ProjectileClass != nullptr)
@@ -99,9 +106,18 @@ void UPawGunComponent::Fire()
 			AnimInstance->Montage_Play(FireAnimation, 1.f);
 		}
 	}
+
+
+	IsCoolDown = true;
+	GetWorld()->GetTimerManager().SetTimer(FireCoolDownTimerHandle, this, &UPawGunComponent::ResetCoolDown, FireCoolDown, false);
 }
 
 void UPawGunComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
+}
+
+void UPawGunComponent::ResetCoolDown()
+{
+	IsCoolDown = false;
 }
