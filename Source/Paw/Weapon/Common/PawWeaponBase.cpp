@@ -20,3 +20,7 @@ void APawWeaponBase::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
+void APawWeaponBase::Equip(APawBattleCharacter* TargetCharacter)
+{
+}
+

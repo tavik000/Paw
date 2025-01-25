@@ -9,6 +9,7 @@
 APawWeapon_BubbleBlaster::APawWeapon_BubbleBlaster()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	GunComponent = CreateDefaultSubobject<UPawGunComponent>(TEXT("GunComponent"));
 	SetRootComponent(GunComponent);
 }
 
@@ -22,3 +23,10 @@ void APawWeapon_BubbleBlaster::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
+void APawWeapon_BubbleBlaster::Equip(APawBattleCharacter* TargetCharacter)
+{
+	if (IsValid(GunComponent))
+	{
+		GunComponent->AttachWeapon(TargetCharacter);
+	}
+}

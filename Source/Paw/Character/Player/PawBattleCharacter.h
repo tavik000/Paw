@@ -6,6 +6,8 @@
 #include "PawCharacterBase.h"
 #include "PawBattleCharacter.generated.h"
 
+class UPawCharacterWeaponComponent;
+
 UCLASS()
 class PAW_API APawBattleCharacter : public APawCharacterBase
 {
@@ -17,7 +19,11 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	UPawCharacterWeaponComponent* CharacterWeaponComponent;
+	
 public:
 	virtual void Tick(float DeltaTime) override;
+
 
 };
