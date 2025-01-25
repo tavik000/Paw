@@ -20,7 +20,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	virtual bool AttachWeapon(APawBattleCharacter* TargetCharacter);
-	
+
 protected:
 	/** The Character holding this weapon*/
 	APawBattleCharacter* Character;

@@ -14,7 +14,6 @@ APawBubbleBase::APawBubbleBase()
 	SceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("SceneComponent"));
 	BubbleMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BubbleMesh"));
 	SetRootComponent(BubbleMesh);
-	BubbleMesh->SetupAttachment(RootComponent);
 	BubbleMesh->SetIsReplicated(true);
 	MovementPathSpline = CreateDefaultSubobject<USplineComponent>(TEXT("MovementPathSpline"));
 	MovementPathSpline->SetupAttachment(SceneComponent);
