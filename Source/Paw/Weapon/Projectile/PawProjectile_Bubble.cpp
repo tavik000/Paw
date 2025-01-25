@@ -10,6 +10,11 @@
 APawProjectile_Bubble::APawProjectile_Bubble()
 {
 	ProjectileMovement->bShouldBounce = false;
+	BubbleMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BubbleMesh"));
+	BubbleMesh->SetupAttachment(RootComponent);
+	BubbleMesh->SetCollisionProfileName(TEXT("NoCollision"));
+	BubbleMesh->SetIsReplicated(true);
+	BubbleMesh->SetVisibility(true);
 }
 
 void APawProjectile_Bubble::BeginPlay()

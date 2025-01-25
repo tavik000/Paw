@@ -17,6 +17,9 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<UStaticMeshComponent> BubbleMesh;
+
 public:
 	virtual void Tick(float DeltaTime) override;
 };
