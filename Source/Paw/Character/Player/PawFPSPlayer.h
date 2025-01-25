@@ -6,6 +6,8 @@
 #include "PawPlayerBase.h"
 #include "PawFPSPlayer.generated.h"
 
+class UCameraComponent;
+
 UCLASS()
 class PAW_API APawFPSPlayer : public APawPlayerBase
 {
@@ -17,8 +19,25 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+
+	virtual void NotifyControllerChanged() override;
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void Move(const FInputActionValue& Value) override;
+	virtual void Look(const FInputActionValue& Value) override;
+
+	// FPS Arms Mesh
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Mesh, meta = (AllowPrivateAccess = "true"))
+	USkeletalMeshComponent* ArmMesh;
+
+	/** First person camera */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	UCameraComponent* FirstPersonCameraComponent;
+	
 public:
 	virtual void Tick(float DeltaTime) override;
 
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	
+	USkeletalMeshComponent* GetArmMesh() const { return ArmMesh; }
+	
+	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 };
