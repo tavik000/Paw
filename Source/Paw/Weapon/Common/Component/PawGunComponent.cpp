@@ -25,7 +25,9 @@ bool UPawGunComponent::AttachWeapon(APawBattleCharacter* TargetCharacter)
 	FPSPlayer = Cast<APawFPSPlayer>(TargetCharacter);
 
 	// Attach the weapon to the First Person Character
-	const FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, true);
+	// const FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, true);
+	const FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget,
+	                                                EAttachmentRule::KeepWorld, true);
 	AttachToComponent(FPSPlayer->GetArmMesh(), AttachmentRules, FName(TEXT("GripPoint")));
 	// AttachToComponent(FPSPlayer->GetMesh(), AttachmentRules, FName(TEXT("GripPoint")));
 
@@ -57,7 +59,7 @@ void UPawGunComponent::Fire()
 		// TODO: Play a sound or something to indicate that the weapon is on cooldown
 		return;
 	}
-	
+
 	if (Character == nullptr || Character->GetController() == nullptr)
 	{
 		return;
@@ -67,7 +69,7 @@ void UPawGunComponent::Fire()
 	{
 		return;
 	}
-	
+
 
 	// Try and fire a projectile
 	if (ProjectileClass != nullptr)
@@ -77,25 +79,26 @@ void UPawGunComponent::Fire()
 		{
 			APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
 			const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
-			
+
 			// MuzzleOffset is in camera space, so transform it to world space before offsetting from the character location to find the final muzzle position
 			const FVector SpawnLocation = GetOwner()->GetActorLocation() + SpawnRotation.RotateVector(MuzzleOffset);
-	
+
 			//Set Spawn Collision Handling Override
 			FActorSpawnParameters ActorSpawnParams;
-			ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
-	
+			ActorSpawnParams.SpawnCollisionHandlingOverride =
+				ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+
 			// Spawn the projectile at the muzzle
 			World->SpawnActor<APawProjectileBase>(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
 		}
 	}
-	
+
 	// Try and play the sound if specified
 	if (FireSound != nullptr)
 	{
 		UGameplayStatics::PlaySoundAtLocation(this, FireSound, Character->GetActorLocation());
 	}
-	
+
 	// Try and play a firing animation if specified
 	if (FireAnimation != nullptr)
 	{
@@ -109,7 +112,8 @@ void UPawGunComponent::Fire()
 
 
 	IsCoolDown = true;
-	GetWorld()->GetTimerManager().SetTimer(FireCoolDownTimerHandle, this, &UPawGunComponent::ResetCoolDown, FireCoolDown, false);
+	GetWorld()->GetTimerManager().SetTimer(FireCoolDownTimerHandle, this, &UPawGunComponent::ResetCoolDown,
+	                                       FireCoolDown, false);
 }
 
 void UPawGunComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
