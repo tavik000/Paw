@@ -7,6 +7,9 @@
 #include "Components/PointLightComponent.h"
 #include "PawBubbleLight.generated.h"
 
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBubbleLightBreakDelegate);
+
 UCLASS()
 class PAW_API APawBubbleLight : public APawBubbleBase
 {
@@ -31,5 +34,8 @@ public:
 
 	UFUNCTION(BlueprintPure, BlueprintCallable)
 	float GetLightAttenuationRadius() const { return PointLight->AttenuationRadius; }
+
+	UPROPERTY(BlueprintAssignable)
+	FOnBubbleLightBreakDelegate OnBubbleLightBreak;
 	
 };

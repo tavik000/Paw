@@ -23,6 +23,7 @@ void APawBubbleLight::Break_Implementation()
 	Super::Break_Implementation();
 	if (HasAuthority())
 	{
+		OnBubbleLightBreak.Broadcast();
 		Destroy();
 	}
 }

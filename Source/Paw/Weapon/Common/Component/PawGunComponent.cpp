@@ -86,7 +86,7 @@ void UPawGunComponent::Fire()
 			//Set Spawn Collision Handling Override
 			FActorSpawnParameters ActorSpawnParams;
 			ActorSpawnParams.SpawnCollisionHandlingOverride =
-				ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+				ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
 			// Spawn the projectile at the muzzle
 			World->SpawnActor<APawProjectileBase>(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
