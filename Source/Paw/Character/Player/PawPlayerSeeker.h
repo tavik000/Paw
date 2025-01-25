@@ -6,6 +6,9 @@
 #include "PawFPSPlayer.h"
 #include "PawPlayerSeeker.generated.h"
 
+class USpotLightComponent;
+class UPawFlashLightComponent;
+
 UCLASS()
 class PAW_API APawPlayerSeeker : public APawFPSPlayer
 {
@@ -21,4 +24,10 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<UPawFlashLightComponent> FlashLightComponent;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<USpotLightComponent> SpotLightComponent;
 };

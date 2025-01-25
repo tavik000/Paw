@@ -21,10 +21,8 @@ void APawBubbleHiderCapture::BeginPlay()
 void APawBubbleHiderCapture::Break_Implementation()
 {
 	Super::Break_Implementation();
-	GEngine->AddOnScreenDebugMessage(-1, 45.0f, FColor::Green, TEXT("Bubble Hider Capture Break"));
 	if (HasAuthority())
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 45.0f, FColor::Green, TEXT("Bubble Hider Capture Break Authority"));
 		ServerReleaseHider();
 		Destroy();
 	}
@@ -37,7 +35,6 @@ void APawBubbleHiderCapture::Tick(float DeltaTime)
 
 void APawBubbleHiderCapture::MulticastSetHiderFloatingEnable_Implementation(APawCharacter* Hider, bool bEnable)
 {
-	UE_LOG(LogTemp, Warning, TEXT("MulticastSetHiderFloatingEnable, bEnable: %d"), bEnable);
 	Hider->SetActorEnableCollision(!bEnable);
 	Hider->GetCharacterMovement()->GravityScale = !bEnable ? 1.75f : 0.0f;
 }
@@ -60,7 +57,6 @@ void APawBubbleHiderCapture::ServerCaptureHider_Implementation(APawCharacter* Hi
 	CapturedHider->SetActorRelativeLocation(FVector::ZeroVector);
 
 	CapturedHider->ServerSetCaptured(true);
-	GEngine->AddOnScreenDebugMessage(-1, 45.0f, FColor::Green, TEXT("Hider Captured"));
 }
 
 void APawBubbleHiderCapture::ServerReleaseHider_Implementation()
@@ -79,7 +75,6 @@ void APawBubbleHiderCapture::ServerReleaseHider_Implementation()
 	if (HasAuthority())
 	{
 		CapturedHider->ServerSetCaptured(false);
-		GEngine->AddOnScreenDebugMessage(-1, 45.0f, FColor::Green, TEXT("Hider Released"));
 	}
 	CapturedHider->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 	MulticastSetHiderFloatingEnable(CapturedHider.Get(), false);

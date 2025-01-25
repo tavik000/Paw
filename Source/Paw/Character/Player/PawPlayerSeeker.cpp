@@ -3,9 +3,16 @@
 
 #include "PawPlayerSeeker.h"
 
+#include "Components/SpotLightComponent.h"
+#include "Paw/Character/Common/Component/PawFlashLightComponent.h"
+
 
 APawPlayerSeeker::APawPlayerSeeker()
 {
+	FlashLightComponent = CreateDefaultSubobject<UPawFlashLightComponent>(TEXT("FlashLightComponent"));
+	FlashLightComponent->SetupAttachment(GetArmMesh());
+	SpotLightComponent = CreateDefaultSubobject<USpotLightComponent>(TEXT("SpotLightComponent"));
+	SpotLightComponent->SetupAttachment(FlashLightComponent);
 }
 
 void APawPlayerSeeker::BeginPlay()
