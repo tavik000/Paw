@@ -24,11 +24,14 @@ protected:
 public:
 	virtual void Tick(float DeltaTime) override;
 
-	UFUNCTION(BlueprintCallable)
-	void CaptureHider(APawCharacter *Hider);
+	UFUNCTION(Server, Reliable, BlueprintCallable)
+	void ServerCaptureHider(APawCharacter *Hider);
 
-	UFUNCTION(BlueprintCallable)
-	void ReleaseHider();
+	UFUNCTION(Server, Reliable, BlueprintCallable)
+	void ServerReleaseHider();
+	
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastSetHiderFloatingEnable(APawCharacter* Hider, bool bEnable);
 
 private:
 	TWeakObjectPtr<APawCharacter> CapturedHider;

@@ -33,10 +33,10 @@ void APawProjectile_Bubble::Tick(float DeltaTime)
 void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
                                   FVector NormalImpulse, const FHitResult& Hit)
 {
-	// if (!HasAuthority())
-	// {
-	// 	return;
-	// }
+	if (!HasAuthority())
+	{
+		return;
+	}
 
 
 	if (!BubbleHiderCaptureClass)
@@ -50,19 +50,21 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 		Destroy();
 		return;
 	}
-	
+
 	FVector HitHiderLocation = HitHider->GetActorLocation();
-	FVector BubbleLocation = FVector(HitHiderLocation.X, HitHiderLocation.Y, HitHiderLocation.Z + BubbleHeightOffset);
+	FVector BubbleSpawnLocation = FVector(HitHiderLocation.X, HitHiderLocation.Y,
+	                                      HitHiderLocation.Z + BubbleHeightOffset);
+	HitHider->SetActorLocation(BubbleSpawnLocation);
 
 	// Spawn Actor from class BubbleHideCaptureClass
 	APawBubbleHiderCapture* BubbleHiderCapture = GetWorld()->SpawnActor<APawBubbleHiderCapture>(
-		BubbleHiderCaptureClass, BubbleLocation, FRotator::ZeroRotator);
+		BubbleHiderCaptureClass, BubbleSpawnLocation, FRotator::ZeroRotator);
 	if (IsValid(BubbleHiderCapture))
 	{
-		BubbleHiderCapture->SetOwner(HitHider);
+		BubbleHiderCapture->SetOwner(this);
 		BubbleHiderCapture->SetReplicates(true);
 		BubbleHiderCapture->SetReplicateMovement(true);
-		BubbleHiderCapture->CaptureHider(HitHider);
+		BubbleHiderCapture->ServerCaptureHider(HitHider);
 	}
 
 	Destroy();

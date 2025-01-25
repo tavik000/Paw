@@ -4,6 +4,7 @@
 #include "PawBubbleHiderCapture.h"
 
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Paw/Character/Player/PawCharacter.h"
 
 
@@ -24,7 +25,7 @@ void APawBubbleHiderCapture::Break_Implementation()
 	if (HasAuthority())
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 45.0f, FColor::Green, TEXT("Bubble Hider Capture Break Authority"));
-		ReleaseHider();
+		ServerReleaseHider();
 		Destroy();
 	}
 }
@@ -34,42 +35,53 @@ void APawBubbleHiderCapture::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void APawBubbleHiderCapture::CaptureHider(APawCharacter* Hider)
+void APawBubbleHiderCapture::MulticastSetHiderFloatingEnable_Implementation(APawCharacter* Hider, bool bEnable)
 {
+	UE_LOG(LogTemp, Warning, TEXT("MulticastSetHiderFloatingEnable, bEnable: %d"), bEnable);
+	Hider->SetActorEnableCollision(!bEnable);
+	Hider->GetCharacterMovement()->GravityScale = !bEnable ? 1.75f : 0.0f;
+}
+
+void APawBubbleHiderCapture::ServerCaptureHider_Implementation(APawCharacter* Hider)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
 	if (!IsValid(Hider))
 	{
 		return;
 	}
 	CapturedHider = Hider;
-	CapturedHider->SetActorEnableCollision(false);
+	MulticastSetHiderFloatingEnable(Hider, true);
 
 	// Attach it to BubbleMesh
 	CapturedHider->AttachToComponent(BubbleMesh, FAttachmentTransformRules::SnapToTargetIncludingScale);
 	CapturedHider->SetActorRelativeLocation(FVector::ZeroVector);
+
+	CapturedHider->ServerSetCaptured(true);
 	GEngine->AddOnScreenDebugMessage(-1, 45.0f, FColor::Green, TEXT("Hider Captured"));
-	CapturedHider->GetMesh()->SetEnableGravity(false);
-	if (HasAuthority())
-	{
-		CapturedHider->ServerSetCaptured(true);
-	}
 }
 
-void APawBubbleHiderCapture::ReleaseHider()
+void APawBubbleHiderCapture::ServerReleaseHider_Implementation()
 {
+	if (!HasAuthority())
+	{
+		return;
+	}
 	if (!CapturedHider.IsValid())
 	{
 		return;
 	}
 
-	GEngine->AddOnScreenDebugMessage(-1, 45.0f, FColor::Green, TEXT("Hider Released"));
 
 	// Detach it from BubbleMesh
 	if (HasAuthority())
 	{
 		CapturedHider->ServerSetCaptured(false);
+		GEngine->AddOnScreenDebugMessage(-1, 45.0f, FColor::Green, TEXT("Hider Released"));
 	}
 	CapturedHider->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-	CapturedHider->SetActorEnableCollision(false);
-	CapturedHider->GetMesh()->SetEnableGravity(true);
+	MulticastSetHiderFloatingEnable(CapturedHider.Get(), false);
 	CapturedHider.Reset();
 }
