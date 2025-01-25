@@ -3,23 +3,25 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "PawProjectileBase.h"
-#include "PawProjectile_Bubble.generated.h"
+#include "PawWeaponBase.h"
+#include "PawWeapon_BubbleBlaster.generated.h"
+
+class UPawGunComponent;
 
 UCLASS()
-class PAW_API APawProjectile_Bubble : public APawProjectileBase
+class PAW_API APawWeapon_BubbleBlaster : public APawWeaponBase
 {
 	GENERATED_BODY()
 
 public:
-	APawProjectile_Bubble();
+	APawWeapon_BubbleBlaster();
 
 protected:
 	virtual void BeginPlay() override;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TObjectPtr<UStaticMeshComponent> BubbleMesh;
-
 public:
 	virtual void Tick(float DeltaTime) override;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<UPawGunComponent> GunComponent;
 };
