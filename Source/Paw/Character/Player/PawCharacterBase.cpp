@@ -7,6 +7,8 @@
 APawCharacterBase::APawCharacterBase()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	bReplicates = true;
+	ACharacter::SetReplicateMovement(true);
 }
 
 void APawCharacterBase::BeginPlay()
