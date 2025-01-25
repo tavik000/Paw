@@ -8,6 +8,8 @@
 
 class APawBattleCharacter;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEquipMulticastDelegate, APawBattleCharacter*, TargetCharacter);
+
 UCLASS()
 class PAW_API APawWeaponBase : public AActor
 {
@@ -23,5 +25,7 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	virtual void Equip(APawBattleCharacter* TargetCharacter);
-};
 
+	UPROPERTY(BlueprintAssignable)
+	FOnEquipMulticastDelegate OnEquip;
+};

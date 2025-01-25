@@ -36,8 +36,9 @@ protected:
 public:
 	virtual void Tick(float DeltaTime) override;
 
-	
+	UFUNCTION(BlueprintCallable)
 	USkeletalMeshComponent* GetArmMesh() const { return ArmMesh; }
 	
+	UFUNCTION(BlueprintCallable)
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 };

@@ -26,8 +26,8 @@ bool UPawGunComponent::AttachWeapon(APawBattleCharacter* TargetCharacter)
 
 	// Attach the weapon to the First Person Character
 	const FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, true);
-	// AttachToComponent(FPSPlayer->GetArmMesh(), AttachmentRules, FName(TEXT("GripPoint")));
-	AttachToComponent(FPSPlayer->GetMesh(), AttachmentRules, FName(TEXT("GripPoint")));
+	AttachToComponent(FPSPlayer->GetArmMesh(), AttachmentRules, FName(TEXT("GripPoint")));
+	// AttachToComponent(FPSPlayer->GetMesh(), AttachmentRules, FName(TEXT("GripPoint")));
 
 	// Set up action bindings
 	if (APlayerController* PlayerController = Cast<APlayerController>(Character->GetController()))
