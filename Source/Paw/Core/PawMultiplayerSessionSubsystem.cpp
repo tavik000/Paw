@@ -30,7 +30,7 @@ void UPawMultiplayerSessionSubsystem::Initialize(FSubsystemCollectionBase& Colle
 		// PrintString("MSS Initialize");
 
 		FString SubsystemName = OnlineSubsystem->GetSubsystemName().ToString();
-		PrintString("SubsystemName: " + SubsystemName);
+		PrintString("Using SubsystemName: " + SubsystemName);
 
 		SessionInterface = OnlineSubsystem->GetSessionInterface();
 		if (SessionInterface.IsValid())

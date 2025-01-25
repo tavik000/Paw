@@ -25,6 +25,5 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
 	void Break();
-
 	
 };

@@ -22,5 +22,6 @@ void APawWeaponBase::Tick(float DeltaTime)
 
 void APawWeaponBase::Equip(APawBattleCharacter* TargetCharacter)
 {
+	OnEquip.Broadcast(TargetCharacter);
 }
 
