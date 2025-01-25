@@ -3,10 +3,12 @@
 
 #include "PawBattleCharacter.h"
 
+#include "Paw/Character/Common/Component/PawCharacterWeaponComponent.h"
 
-// Sets default values
+
 APawBattleCharacter::APawBattleCharacter()
 {
+	CharacterWeaponComponent = CreateDefaultSubobject<UPawCharacterWeaponComponent>(TEXT("CharacterWeaponComponent"));
 }
 
 void APawBattleCharacter::BeginPlay()
@@ -18,5 +20,3 @@ void APawBattleCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 }
-
-

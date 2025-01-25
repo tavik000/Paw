@@ -16,6 +16,8 @@ class PAW_API UPawWeaponComponent : public USkeletalMeshComponent
 	GENERATED_BODY()
 
 public:
+	UPawWeaponComponent();
+
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	virtual bool AttachWeapon(APawBattleCharacter* TargetCharacter);
 	

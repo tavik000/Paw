@@ -5,6 +5,11 @@
 
 #include "Paw/Character/Player/PawBattleCharacter.h"
 
+UPawWeaponComponent::UPawWeaponComponent()
+{
+	SetIsReplicated(true);
+}
+
 bool UPawWeaponComponent::AttachWeapon(APawBattleCharacter* TargetCharacter)
 {
 	Character = TargetCharacter;

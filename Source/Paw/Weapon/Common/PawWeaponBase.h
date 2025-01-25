@@ -6,6 +6,8 @@
 
 #include "PawWeaponBase.generated.h"
 
+class APawBattleCharacter;
+
 UCLASS()
 class PAW_API APawWeaponBase : public AActor
 {
@@ -19,4 +21,7 @@ protected:
 
 public:
 	virtual void Tick(float DeltaTime) override;
+
+	virtual void Equip(APawBattleCharacter* TargetCharacter);
 };
+
