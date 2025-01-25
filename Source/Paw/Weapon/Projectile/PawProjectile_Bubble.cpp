@@ -28,3 +28,9 @@ void APawProjectile_Bubble::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
+void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	FVector NormalImpulse, const FHitResult& Hit)
+{
+
+	
+}
