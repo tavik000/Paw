@@ -6,6 +6,8 @@
 #include "PawProjectileBase.h"
 #include "PawProjectile_Bubble.generated.h"
 
+class APawBubbleHiderCapture;
+
 UCLASS()
 class PAW_API APawProjectile_Bubble : public APawProjectileBase
 {
@@ -24,5 +26,12 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	virtual void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit) override;
+
+
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<APawBubbleHiderCapture> BubbleHiderCaptureClass;
+
+	UPROPERTY(EditDefaultsOnly)
+	float BubbleHeightOffset = 20.0f;
 	
 };
