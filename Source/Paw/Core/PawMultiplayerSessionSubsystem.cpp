@@ -83,7 +83,7 @@ void UPawMultiplayerSessionSubsystem::CreateServer(FString ServerName)
 	SessionSettings.bAllowJoinInProgress = true;
 	SessionSettings.bIsDedicated = false;
 	SessionSettings.bShouldAdvertise = true;
-	SessionSettings.NumPublicConnections = 2;
+	SessionSettings.NumPublicConnections = 5;
 	SessionSettings.bUseLobbiesIfAvailable = true;
 	SessionSettings.bUsesPresence = true;
 	SessionSettings.bAllowJoinViaPresence = true;
