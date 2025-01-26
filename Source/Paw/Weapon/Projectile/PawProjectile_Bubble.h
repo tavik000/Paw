@@ -48,6 +48,9 @@ protected:
 	float BubbleLifeTime = 5.0f;
 
 	FTimerHandle LifeCycleTimerHandle;
+	
+	UPROPERTY(EditAnywhere)
+	USoundBase* BreakSound;
 
 public:
 	virtual void Tick(float DeltaTime) override;

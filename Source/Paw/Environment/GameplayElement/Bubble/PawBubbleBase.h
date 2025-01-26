@@ -72,6 +72,8 @@ protected:
 	UPROPERTY(EditAnywhere)
 	float BreakEffectScale = 1.0f;
 
+	UPROPERTY(EditAnywhere)
+	USoundBase* BreakSound;
 	
 public:
 	virtual void Tick(float DeltaTime) override;

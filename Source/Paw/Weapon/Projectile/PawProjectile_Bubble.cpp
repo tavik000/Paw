@@ -82,6 +82,11 @@ void APawProjectile_Bubble::MulticastSpawnBreakEffect_Implementation()
 		                                                             ENCPoolMethod::AutoRelease,
 		                                                             true);
 	}
+	
+	if (IsValid(BreakSound))
+	{
+		UGameplayStatics::SpawnSoundAtLocation(GetWorld(), BreakSound, GetActorLocation());
+	}
 }
 
 void APawProjectile_Bubble::Tick(float DeltaTime)

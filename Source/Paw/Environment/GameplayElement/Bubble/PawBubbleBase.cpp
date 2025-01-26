@@ -5,6 +5,7 @@
 
 #include "Engine/AssetManager.h"
 #include "Engine/StreamableManager.h"
+#include "Kismet/GameplayStatics.h"
 
 APawBubbleBase::APawBubbleBase()
 {
@@ -62,6 +63,10 @@ void APawBubbleBase::MulticastSpawnBreakEffect_Implementation()
 	                                                             GetActorRotation(),
 	                                                             FVector::One() * BreakEffectScale, true, true, ENCPoolMethod::AutoRelease,
 	                                                             true);
+	if (IsValid(BreakSound))
+	{
+		UGameplayStatics::SpawnSoundAtLocation(GetWorld(), BreakSound, GetActorLocation());
+	}
 }
 
 void APawBubbleBase::OnBreakEffectLoaded()
