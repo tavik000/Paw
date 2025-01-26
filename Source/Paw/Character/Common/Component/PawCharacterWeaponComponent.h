@@ -40,7 +40,7 @@ public:
 
 	void ChangeEquipWeapon(UClass* ChangeWeaponClass);
 
-	UPROPERTY(EditDefaultsOnly)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Weapon")
 	TSubclassOf<APawWeaponBase> DefaultWeaponClass;
 
 private:
