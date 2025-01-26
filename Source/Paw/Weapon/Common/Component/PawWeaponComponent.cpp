@@ -7,8 +7,9 @@
 
 UPawWeaponComponent::UPawWeaponComponent()
 {
-	SetIsReplicated(true);
+	SetIsReplicatedByDefault(true);
 }
+
 
 bool UPawWeaponComponent::AttachWeapon(APawBattleCharacter* TargetCharacter)
 {
