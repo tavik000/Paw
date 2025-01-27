@@ -31,10 +31,12 @@ void UPawMultiplayerSessionSubsystem::Initialize(FSubsystemCollectionBase& Colle
 
 		FString SubsystemName = OnlineSubsystem->GetSubsystemName().ToString();
 		PrintString("Using SubsystemName: " + SubsystemName);
+		
 
 		SessionInterface = OnlineSubsystem->GetSessionInterface();
 		if (SessionInterface.IsValid())
 		{
+			
 			SessionInterface->OnCreateSessionCompleteDelegates.AddUObject(
 				this, &UPawMultiplayerSessionSubsystem::OnCreateSessionComplete);
 
@@ -47,6 +49,10 @@ void UPawMultiplayerSessionSubsystem::Initialize(FSubsystemCollectionBase& Colle
 			SessionInterface->OnJoinSessionCompleteDelegates.AddUObject(
 				this, &UPawMultiplayerSessionSubsystem::OnJoinSessionComplete);
 		}
+	}
+	else
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, "No OnlineSubsystem found");
 	}
 }
 
@@ -66,6 +72,12 @@ void UPawMultiplayerSessionSubsystem::CreateServer(FString ServerName)
 		return;
 	}
 
+	if (!SessionInterface.IsValid())
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, "SessionInterface is null");
+		UE_LOG(LogTemp, Error, TEXT("SessionInterface is null"));
+		return;
+	}
 	FNamedOnlineSession* ExistingSession = SessionInterface->GetNamedSession(MySessionName);
 
 	if (ExistingSession)
