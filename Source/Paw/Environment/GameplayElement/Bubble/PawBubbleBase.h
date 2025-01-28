@@ -74,11 +74,13 @@ protected:
 
 	UPROPERTY(EditAnywhere)
 	USoundBase* BreakSound;
-	
+
 public:
 	virtual void Tick(float DeltaTime) override;
 
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere)
+	void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
+
+	UPROPERTY(Replicated, BlueprintReadWrite, VisibleAnywhere)
 	bool IsActivated = false;
 
 private:

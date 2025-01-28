@@ -6,6 +6,7 @@
 #include "Engine/AssetManager.h"
 #include "Engine/StreamableManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Net/UnrealNetwork.h"
 
 APawBubbleBase::APawBubbleBase()
 {
@@ -44,6 +45,11 @@ void APawBubbleBase::Break_Implementation()
 	{
 		return;
 	}
+	if (!IsActivated)
+	{
+		return;
+	}
+
 	IPawCollideBreakableInterface::Break_Implementation();
 	Deactivate();
 	MulticastSpawnBreakEffect();
@@ -61,7 +67,8 @@ void APawBubbleBase::MulticastSpawnBreakEffect_Implementation()
 {
 	BreakEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), BreakEffectAsset.Get(), GetActorLocation(),
 	                                                             GetActorRotation(),
-	                                                             FVector::One() * BreakEffectScale, true, true, ENCPoolMethod::AutoRelease,
+	                                                             FVector::One() * BreakEffectScale, true, true,
+	                                                             ENCPoolMethod::AutoRelease,
 	                                                             true);
 	if (IsValid(BreakSound))
 	{
@@ -142,4 +149,11 @@ void APawBubbleBase::Tick(float DeltaTime)
 			CurrentDistance, ESplineCoordinateSpace::World);
 		SetActorLocation(NewLocation);
 	}
+}
+
+void APawBubbleBase::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(APawBubbleBase, IsActivated);
 }
