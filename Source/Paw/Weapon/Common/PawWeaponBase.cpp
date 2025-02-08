@@ -3,16 +3,19 @@
 
 #include "PawWeaponBase.h"
 
+#include "Paw/Character/Player/PawBattleCharacter.h"
+
 
 APawWeaponBase::APawWeaponBase()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	bReplicates = true;
+	AActor::SetReplicateMovement(true);
 }
 
 void APawWeaponBase::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
 void APawWeaponBase::Tick(float DeltaTime)
@@ -20,8 +23,8 @@ void APawWeaponBase::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void APawWeaponBase::Equip(APawBattleCharacter* TargetCharacter)
+void APawWeaponBase::EquipToOwner()
 {
-	OnEquip.Broadcast(TargetCharacter);
+	APawBattleCharacter* OwnerCharacter = Cast<APawBattleCharacter>(GetOwner());
+	OnEquip.Broadcast(OwnerCharacter);
 }
-

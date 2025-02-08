@@ -5,6 +5,7 @@
 
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
+#include "Net/UnrealNetwork.h"
 #include "Paw/Character/Player/PawBattleCharacter.h"
 #include "Paw/Weapon/Common/PawWeaponBase.h"
 
@@ -19,7 +20,7 @@ UPawCharacterWeaponComponent::UPawCharacterWeaponComponent()
 void UPawCharacterWeaponComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	CreateDefaultWeapon();
+	ServerCreateDefaultWeapon();
 }
 
 
@@ -38,18 +39,34 @@ void UPawCharacterWeaponComponent::EndPlay(const EEndPlayReason::Type EndPlayRea
 	}
 }
 
+void UPawCharacterWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UPawCharacterWeaponComponent, EquippedWeapon);
+}
+
 APawWeaponBase* UPawCharacterWeaponComponent::GetEquipWeapon() const
 {
 	return EquippedWeapon.Get();
 }
 
-void UPawCharacterWeaponComponent::CreateDefaultWeapon()
+void UPawCharacterWeaponComponent::ServerCreateDefaultWeapon_Implementation()
 {
-	CreateEquipWeapon(DefaultWeaponClass);
+	if (GetOwnerRole() != ROLE_Authority)
+	{
+		return;
+	}
+	ServerCreateEquipWeapon(DefaultWeaponClass);
 }
 
-void UPawCharacterWeaponComponent::CreateEquipWeapon(UClass* WeaponClass)
+void UPawCharacterWeaponComponent::ServerCreateEquipWeapon_Implementation(UClass* WeaponClass)
 {
+	// Server only
+	if (GetOwnerRole() != ROLE_Authority)
+	{
+		return;
+	}
+
 	if (!WeaponClass)
 	{
 		return;
@@ -68,24 +85,25 @@ void UPawCharacterWeaponComponent::CreateEquipWeapon(UClass* WeaponClass)
 		}
 	}
 
+
 	if (APawBattleCharacter* OwnerCharacter = Cast<APawBattleCharacter>(GetOwner()))
 	{
 		FTransform SpawnTransform(OwnerCharacter->GetActorRotation(), OwnerCharacter->GetActorLocation());
-
-		if (APawWeaponBase* Spawning = Cast<APawWeaponBase>(
-			UGameplayStatics::BeginDeferredActorSpawnFromClass(
-				OwnerCharacter, WeaponClass, SpawnTransform, ESpawnActorCollisionHandlingMethod::AlwaysSpawn,
-				OwnerCharacter)))
+		APawWeaponBase* SpawnWeapon = GetWorld()->SpawnActor<APawWeaponBase>(WeaponClass, SpawnTransform);
+		if (IsValid(SpawnWeapon))
 		{
-			APawWeaponBase* SpawnInstance = CastChecked<APawWeaponBase>(
-				UGameplayStatics::FinishSpawningActor(Spawning, SpawnTransform));
-			if (IsValid(SpawnInstance))
-			{
-				EquippedWeapon = SpawnInstance;
-				EquippedWeapon->Equip(OwnerCharacter);
-			}
+			EquippedWeapon = SpawnWeapon;
+			EquippedWeapon->SetReplicates(true);
+			EquippedWeapon->SetReplicateMovement(true);
+			EquippedWeapon->SetOwner(OwnerCharacter);
+			OnRep_EquippedWeapon();
 		}
 	}
+}
+
+void UPawCharacterWeaponComponent::OnRep_EquippedWeapon()
+{
+	EquippedWeapon->EquipToOwner();
 }
 
 void UPawCharacterWeaponComponent::DeleteEquipWeapon()
@@ -107,5 +125,5 @@ void UPawCharacterWeaponComponent::ChangeEquipWeapon(UClass* ChangeWeaponClass)
 	{
 		return;
 	}
-	CreateEquipWeapon(ChangeWeaponClass);
+	ServerCreateEquipWeapon(ChangeWeaponClass);
 }

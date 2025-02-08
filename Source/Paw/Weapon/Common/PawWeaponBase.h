@@ -24,7 +24,7 @@ protected:
 public:
 	virtual void Tick(float DeltaTime) override;
 
-	virtual void Equip(APawBattleCharacter* TargetCharacter);
+	virtual void EquipToOwner();
 
 	UPROPERTY(BlueprintAssignable)
 	FOnEquipMulticastDelegate OnEquip;

@@ -24,6 +24,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	void Fire();
 
+	UFUNCTION(Server, Reliable)
+	void ServerSpawnProjectile(FVector SpawnLocation, FRotator SpawnRotation);
+
 	/** Projectile class to spawn */
 	UPROPERTY(EditDefaultsOnly, Category=Projectile)
 	TSubclassOf<class APawProjectileBase> ProjectileClass;
@@ -59,7 +62,6 @@ protected:
 	float FireCoolDown = 3.0f;
 
 private:
-
 	bool IsCoolDown = false;
 
 	FTimerHandle FireCoolDownTimerHandle;

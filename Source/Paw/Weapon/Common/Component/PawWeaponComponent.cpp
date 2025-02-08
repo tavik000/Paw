@@ -16,11 +16,14 @@ bool UPawWeaponComponent::AttachWeapon(APawBattleCharacter* TargetCharacter)
 	Character = TargetCharacter;
 
 	// Check that the character is valid, and has no weapon component yet
-	if (Character == nullptr || Character->GetInstanceComponents().FindItemByClass<UPawWeaponComponent>())
+	if (Character == nullptr)
 	{
 		return false;
 	}
-
+	if (Character->GetInstanceComponents().FindItemByClass<UPawWeaponComponent>())
+	{
+		return false;
+	}
 
 	return true;
 }

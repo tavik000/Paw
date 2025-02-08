@@ -26,23 +26,34 @@ public:
 
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	
 	UFUNCTION(BlueprintCallable)
 	APawWeaponBase* GetEquipWeapon() const;
 
 	template <class T>
 	T* GetEquipWeapon() const { return Cast<T>(GetEquipWeapon()); }
 
-	void CreateDefaultWeapon();
+	UFUNCTION(Server, Reliable)
+	void ServerCreateDefaultWeapon();
 
-	void CreateEquipWeapon(UClass* WeaponClass);
+	UFUNCTION(Server, Reliable)
+	void ServerCreateEquipWeapon(UClass* WeaponClass);
 
 	void DeleteEquipWeapon();
 
 	void ChangeEquipWeapon(UClass* ChangeWeaponClass);
 
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Weapon")
 	TSubclassOf<APawWeaponBase> DefaultWeaponClass;
 
 private:
+	
+	UFUNCTION(BlueprintCallable)
+	void OnRep_EquippedWeapon();
+
+	UPROPERTY(ReplicatedUsing = OnRep_EquippedWeapon)
 	TWeakObjectPtr<APawWeaponBase> EquippedWeapon;
 };

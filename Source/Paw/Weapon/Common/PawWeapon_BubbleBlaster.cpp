@@ -4,6 +4,7 @@
 #include "PawWeapon_BubbleBlaster.h"
 
 #include "Component/PawGunComponent.h"
+#include "Paw/Character/Player/PawBattleCharacter.h"
 
 
 APawWeapon_BubbleBlaster::APawWeapon_BubbleBlaster()
@@ -23,10 +24,12 @@ void APawWeapon_BubbleBlaster::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void APawWeapon_BubbleBlaster::Equip(APawBattleCharacter* TargetCharacter)
+void APawWeapon_BubbleBlaster::EquipToOwner()
 {
+	APawBattleCharacter* OwnerCharacter = Cast<APawBattleCharacter>(GetOwner());
 	if (IsValid(GunComponent))
 	{
-		GunComponent->AttachWeapon(TargetCharacter);
+		GunComponent->AttachWeapon(OwnerCharacter);
 	}
+	Super::EquipToOwner();
 }

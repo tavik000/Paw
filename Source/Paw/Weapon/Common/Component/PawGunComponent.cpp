@@ -13,6 +13,7 @@ UPawGunComponent::UPawGunComponent()
 {
 	// Default offset from the character location for projectiles to spawn
 	MuzzleOffset = FVector(100.0f, 0.0f, 10.0f);
+	SetIsReplicatedByDefault(true);
 }
 
 bool UPawGunComponent::AttachWeapon(APawBattleCharacter* TargetCharacter)
@@ -24,12 +25,15 @@ bool UPawGunComponent::AttachWeapon(APawBattleCharacter* TargetCharacter)
 
 	FPSPlayer = Cast<APawFPSPlayer>(TargetCharacter);
 
+	if (!IsValid(FPSPlayer))
+	{
+		return false;
+	}
+
 	// Attach the weapon to the First Person Character
-	// const FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, true);
 	const FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget,
 	                                                EAttachmentRule::KeepWorld, true);
 	AttachToComponent(FPSPlayer->GetArmMesh(), AttachmentRules, FName(TEXT("GripPoint")));
-	// AttachToComponent(FPSPlayer->GetMesh(), AttachmentRules, FName(TEXT("GripPoint")));
 
 	// Set up action bindings
 	if (APlayerController* PlayerController = Cast<APlayerController>(Character->GetController()))
@@ -74,23 +78,15 @@ void UPawGunComponent::Fire()
 	// Try and fire a projectile
 	if (ProjectileClass != nullptr)
 	{
-		UWorld* const World = GetWorld();
-		if (World != nullptr)
-		{
-			APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
-			const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
+		APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
+		const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
 
-			// MuzzleOffset is in camera space, so transform it to world space before offsetting from the character location to find the final muzzle position
-			const FVector SpawnLocation = GetOwner()->GetActorLocation() + SpawnRotation.RotateVector(MuzzleOffset);
+		// MuzzleOffset is in camera space, so transform it to world space before offsetting from the character location to find the final muzzle position
+		const FVector SpawnLocation = GetOwner()->GetActorLocation() + SpawnRotation.RotateVector(MuzzleOffset);
 
-			//Set Spawn Collision Handling Override
-			FActorSpawnParameters ActorSpawnParams;
-			ActorSpawnParams.SpawnCollisionHandlingOverride =
-				ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-			// Spawn the projectile at the muzzle
-			World->SpawnActor<APawProjectileBase>(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
-		}
+		// Spawn the projectile at the muzzle
+		ServerSpawnProjectile(SpawnLocation, SpawnRotation);
 	}
 
 	// Try and play the sound if specified
@@ -114,6 +110,30 @@ void UPawGunComponent::Fire()
 	IsCoolDown = true;
 	GetWorld()->GetTimerManager().SetTimer(FireCoolDownTimerHandle, this, &UPawGunComponent::ResetCoolDown,
 	                                       FireCoolDown, false);
+}
+
+void UPawGunComponent::ServerSpawnProjectile_Implementation(FVector SpawnLocation, FRotator SpawnRotation)
+{
+	if (GetOwnerRole() != ROLE_Authority)
+	{
+		return;
+	}
+
+	if (ProjectileClass == nullptr)
+	{
+		return;
+	}
+
+	UWorld* const World = GetWorld();
+	if (IsValid(World))
+	{
+		//Set Spawn Collision Handling Override
+		FActorSpawnParameters ActorSpawnParams;
+		ActorSpawnParams.SpawnCollisionHandlingOverride =
+			ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+		APawProjectileBase* SpawnProjectile = World->SpawnActor<APawProjectileBase>(
+			ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+	}
 }
 
 void UPawGunComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)

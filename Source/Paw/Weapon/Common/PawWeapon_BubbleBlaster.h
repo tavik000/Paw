@@ -22,7 +22,7 @@ protected:
 public:
 	virtual void Tick(float DeltaTime) override;
 
-	virtual void Equip(APawBattleCharacter* TargetCharacter) override;
+	virtual void EquipToOwner() override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<UPawGunComponent> GunComponent;
