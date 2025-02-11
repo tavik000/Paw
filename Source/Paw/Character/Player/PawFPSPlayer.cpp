@@ -13,16 +13,27 @@ APawFPSPlayer::APawFPSPlayer()
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(55.f, 96.0f);
 
+	// Create a CameraSpringArmComponent
+	CameraSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
+	CameraSpringArm->SetupAttachment(GetCapsuleComponent());
+	CameraSpringArm->TargetArmLength = 30.f;
+	
 	// Create a CameraComponent	
 	FirstPersonCameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
-	FirstPersonCameraComponent->SetupAttachment(GetCapsuleComponent());
+	// FirstPersonCameraComponent->SetupAttachment(GetCapsuleComponent());
+	FirstPersonCameraComponent->SetupAttachment(CameraSpringArm);
 	FirstPersonCameraComponent->SetRelativeLocation(FVector(-10.f, 0.f, 60.f)); // Position the camera
 	FirstPersonCameraComponent->bUsePawnControlRotation = true;
 
+	// Create a SpringArmComponent
+	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
+	SpringArm->SetupAttachment(FirstPersonCameraComponent);
+	SpringArm->TargetArmLength = -160.f;
+	
 	// Create a mesh component that will be used when being viewed from a '1st person' view (when controlling this pawn)
 	ArmMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ArmMesh"));
 	ArmMesh->SetOnlyOwnerSee(true);
-	ArmMesh->SetupAttachment(FirstPersonCameraComponent);
+	ArmMesh->SetupAttachment(SpringArm);
 	ArmMesh->bCastDynamicShadow = false;
 	ArmMesh->CastShadow = false;
 	ArmMesh->SetRelativeLocation(FVector(-30.f, 0.f, -150.f));

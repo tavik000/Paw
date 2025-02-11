@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "PawPlayerBase.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "PawFPSPlayer.generated.h"
 
 class UCameraComponent;
@@ -25,6 +26,12 @@ protected:
 	virtual void Move(const FInputActionValue& Value) override;
 	virtual void Look(const FInputActionValue& Value) override;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Mesh, meta = (AllowPrivateAccess = "true"))
+	USpringArmComponent* CameraSpringArm;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Mesh, meta = (AllowPrivateAccess = "true"))
+	USpringArmComponent* SpringArm;
+	
 	// FPS Arms Mesh
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Mesh, meta = (AllowPrivateAccess = "true"))
 	USkeletalMeshComponent* ArmMesh;
