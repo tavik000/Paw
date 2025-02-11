@@ -43,6 +43,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
 	FVector MuzzleOffset;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
+	float FireClosetDistance = 22.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
+	float FacingDownPitch = -20.0f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
+	float TooCloseAdjustOffset = -20.0f;
+
 	/** MappingContext */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
 	class UInputMappingContext* FireMappingContext;

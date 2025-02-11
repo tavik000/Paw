@@ -5,6 +5,7 @@
 
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "EntitySystem/MovieSceneEntitySystemRunner.h"
 #include "Kismet/GameplayStatics.h"
 #include "Paw/Character/Player/PawFPSPlayer.h"
 #include "Paw/Weapon/Projectile/PawProjectileBase.h"
@@ -74,20 +75,32 @@ void UPawGunComponent::Fire()
 		return;
 	}
 
-
-	// Try and fire a projectile
-	if (ProjectileClass != nullptr)
+	if (ProjectileClass == nullptr)
 	{
-		APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
-		const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
-
-		// MuzzleOffset is in camera space, so transform it to world space before offsetting from the character location to find the final muzzle position
-		const FVector SpawnLocation = GetOwner()->GetActorLocation() + SpawnRotation.RotateVector(MuzzleOffset);
-
-
-		// Spawn the projectile at the muzzle
-		ServerSpawnProjectile(SpawnLocation, SpawnRotation);
+		return;
 	}
+	
+	// Try and fire a projectile
+	APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
+	const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
+	const FVector Start = GetOwner()->GetActorLocation();
+	const FVector End = Start + (SpawnRotation.Vector() * 10000);
+	FHitResult HitResult;
+	FCollisionQueryParams CollisionParams;
+	CollisionParams.AddIgnoredActor(GetOwner());
+	GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECollisionChannel::ECC_Visibility, CollisionParams);
+	const float Distance = FVector::Dist(Start, HitResult.ImpactPoint);
+	const bool IsFacingDownOrTooClose = Distance < FireClosetDistance || SpawnRotation.Pitch <= FacingDownPitch;
+
+	FVector SpawnLocation = GetOwner()->GetActorLocation();
+	if (IsFacingDownOrTooClose)
+	{
+		SpawnLocation = SpawnLocation + GetOwner()->GetActorForwardVector() * TooCloseAdjustOffset;
+	}
+	
+
+	// Spawn the projectile at the muzzle
+	ServerSpawnProjectile(SpawnLocation, SpawnRotation);
 
 	// Try and play the sound if specified
 	if (FireSound != nullptr)
