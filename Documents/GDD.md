@@ -113,17 +113,17 @@
 
 #### **選擇非對稱多人遊戯的原因**
 - [影片(34:45-35:43): Marketing For Indie Games | Land a Hit Game!](https://youtu.be/-MH5OTWl3zA?si=C-KZEbk_7SY42T73&t=2085)
-  - 多人協作遊戯很流行，非對稱多人遊戯也有協作的元素。
+  - 多人協作遊戯很流行，而非對稱多人遊戯也有協作的元素。
 - [影片(13:13-14:28): the BEST game genre for solo indie developers](https://youtu.be/UEngwfDsAP0?si=VfniGY3-qoPRE0o_&t=793)
   - Online Party Game 很流行，易傳播，多人遊戯銷量高，是Solo的A Tier。
 - [What games are selling on Steam: The Q2 Report](https://howtomarketagame.com/2024/07/16/what-games-are-selling-q2-2024/)
-  - 多人協作遊戯競爭少利潤高 ![alt text](image-1.png)
+  - 多人協作遊戯競爭少利潤高 ![alt text](Images/image-1.png)
 - [VG Insights Report: Rise of the Co-op Games](https://vginsights.com/insights/article/rise-of-the-co-op-games)
   - 多人協作遊戯的數量逐年增加
-  ![alt text](image.png)
+  ![alt text](Images/image.png)
 - [What genres are popular on Steam in 2022](https://howtomarketagame.com/2022/04/18/what-genres-are-popular-on-steam-in-2022/)
   - Online party game 出的數量極少，但中位數收入高 
-  ![alt text](image-2.png)
+  ![alt text](Images/image-2.png)
 
 #### **目標受眾（Target Audience）**
 - **核心玩家群**（主要目標玩家）：  
