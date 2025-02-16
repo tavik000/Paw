@@ -129,7 +129,7 @@
 - **核心玩家群**（主要目標玩家）：  
   - 喜愛 *Dead by Daylight*、*Witch It*、貓和老鼠(Tom and Jerry: Chase)、第五人格(Identity V)、 Midnight Ghost Hunt 等**非對稱多人遊戲**的玩家。  
   - 喜歡策略性潛行與躲貓貓機制的玩家。  
-  - 偏好**買斷制（B2P）**的 Steam 多人遊戲玩家。  
+  - 偏好**買斷制B2P**的 Steam 多人遊戲玩家。  
   - 休閑到中核玩家。
 
 - **人口統計（Demographics）：**  
