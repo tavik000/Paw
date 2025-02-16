@@ -132,13 +132,13 @@
   - 偏好**買斷制B2P**的 Steam 多人遊戲玩家。  
   - 休閑到中核玩家。
 
-- **人口統計（Demographics）：**  
+- **玩家分佈（Demographics）：**  
   - **年齡層**：14-35 歲  
   - **主要市場**：北美、歐洲、日本、韓國、中國（PC 多人遊戲市場成熟）  
-  - **玩家興趣**：非對稱多人對戰、派對類遊戲
+  - **玩家興趣**：非對稱多人對戰、派對類遊戲、潛行類遊戯
 
 - **玩家動機（Player Motivations）：**  
-  - **躲藏者（Hider）**：潛行、智勝搜尋者、團隊合作、創意移動。  
+  - **躲藏者（Hider）**：潛行、智勝搜尋者、團隊合作、跟隨陰影的創意移動。  
   - **搜尋者（Seeker）**：狩獵玩家、戰略佈局、掌控地圖。  
 
 ---
@@ -189,8 +189,8 @@
     - 評分：3.9⭐
     - 銷量：5m (海外Google Play)
     - 總收入: N/A
-    - 成功的原因：還原Tom and Jerry動畫畫風，非對稱對抗但是是橫板平臺，升級學技能系統，多種角色。
-    - 不足：平衡不行，貓太强（我玩貓玩的很爽），橫板不像Dead by Daylight有FP(第一人稱)的信息差。
+    - 成功的原因：還原Tom and Jerry動畫畫風，非對稱對抗但是是橫版平臺，升級學技能系統，多種角色。
+    - 不足：平衡不行，貓太强（我玩貓玩的很爽），橫板不像Dead by Daylight有FP(第一人稱)的信息差，跟Dead by Daylight比貓的靈活度太高。
     - 數據來源：https://app.sensortower.com/overview/com.netease.tjglobal?country=US
   - *第五人格(Identity V)*（1v4 非對稱多人恐怖生存） 
     - [Google Play](https://play.google.com/store/apps/details?id=com.netease.idv.googleplay&hl=en)
