@@ -31,6 +31,9 @@ protected:
 	
 	void OnBreakEffectLoaded();
 	void LoadBreakEffect();
+
+	UFUNCTION(BlueprintNativeEvent)
+	void SpawnMasterField(FVector SpawnLocation, FRotator SpawnRotation);
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<UStaticMeshComponent> BubbleMesh;

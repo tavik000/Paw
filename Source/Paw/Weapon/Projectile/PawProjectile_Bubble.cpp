@@ -5,6 +5,7 @@
 
 #include "Components/SphereComponent.h"
 #include "Engine/AssetManager.h"
+#include "Field/FieldSystemActor.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Paw/Character/Player/PawCharacter.h"
@@ -82,7 +83,7 @@ void APawProjectile_Bubble::MulticastSpawnBreakEffect_Implementation()
 		                                                             ENCPoolMethod::AutoRelease,
 		                                                             true);
 	}
-	
+
 	if (IsValid(BreakSound))
 	{
 		UGameplayStatics::SpawnSoundAtLocation(GetWorld(), BreakSound, GetActorLocation());
@@ -112,10 +113,22 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 	if (!IsValid(HitHider))
 	{
 		// Only add impulse and destroy projectile if we hit a physics
-		if ((OtherActor != nullptr) && (OtherActor != this) && (OtherComp != nullptr) && OtherComp->
-			IsSimulatingPhysics())
+		if (OtherActor != nullptr && OtherActor != this && OtherComp != nullptr)
 		{
-			OtherComp->AddImpulseAtLocation(GetVelocity() * PushForce, GetActorLocation());
+			if (OtherComp->IsSimulatingPhysics())
+			{
+				OtherComp->AddImpulseAtLocation(GetVelocity() * PushForce, GetActorLocation());
+			}
+			else
+			{
+				// Spawn a FieldSystemActor for Chaos Destruction
+				// TODO: check if otheractor has geometrycollectioncompoent
+				if (IsValid(GetWorld()))
+				{
+					FVector SpawnLocation = Hit.ImpactNormal * -3 + Hit.ImpactPoint;
+					SpawnMasterField(SpawnLocation, Hit.ImpactPoint.Rotation());
+				}
+			}
 		}
 		return;
 	}
@@ -138,6 +151,11 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 
 	Destroy();
 }
+
+void APawProjectile_Bubble::SpawnMasterField_Implementation(FVector SpawnLocation, FRotator SpawnRotation)
+{
+}
+
 
 void APawProjectile_Bubble::SelfDestroy()
 {
