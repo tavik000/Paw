@@ -123,7 +123,7 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 					// Spawn a FieldSystemActor for Chaos Destruction
 					if (IsValid(GetWorld()))
 					{
-						FVector SpawnLocation = Hit.ImpactNormal * -3 + Hit.ImpactPoint;
+						FVector SpawnLocation = Hit.ImpactNormal * -5 + Hit.ImpactPoint;
 						SpawnMasterField(SpawnLocation, Hit.ImpactPoint.Rotation());
 					}
 				}
