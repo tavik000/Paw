@@ -8,6 +8,7 @@
 #include "Field/FieldSystemActor.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "GeometryCollection/GeometryCollectionComponent.h"
 #include "Paw/Character/Player/PawCharacter.h"
 #include "Paw/Environment/GameplayElement/Bubble/PawBubbleHiderCapture.h"
 
@@ -117,16 +118,19 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 		{
 			if (OtherComp->IsSimulatingPhysics())
 			{
-				OtherComp->AddImpulseAtLocation(GetVelocity() * PushForce, GetActorLocation());
-			}
-			else
-			{
-				// Spawn a FieldSystemActor for Chaos Destruction
-				// TODO: check if otheractor has geometrycollectioncompoent
-				if (IsValid(GetWorld()))
+				if (OtherComp->IsA<UGeometryCollectionComponent>())
 				{
-					FVector SpawnLocation = Hit.ImpactNormal * -3 + Hit.ImpactPoint;
-					SpawnMasterField(SpawnLocation, Hit.ImpactPoint.Rotation());
+					// Spawn a FieldSystemActor for Chaos Destruction
+					if (IsValid(GetWorld()))
+					{
+						FVector SpawnLocation = Hit.ImpactNormal * -3 + Hit.ImpactPoint;
+						SpawnMasterField(SpawnLocation, Hit.ImpactPoint.Rotation());
+					}
+				}
+				else
+				{
+					// Apply impulse to the hit component
+					OtherComp->AddImpulseAtLocation(GetVelocity() * PushForce, GetActorLocation());
 				}
 			}
 		}
