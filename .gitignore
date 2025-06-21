@@ -340,3 +340,7 @@ RELEASE_MSG
 # Linux project files
 /Makefile
 /.ignore
+
+# Cook logs
+/Build/Windows/FileOpenOrder/EditorOpenOrder.log
+/Build/Windows/FileOpenOrder/CookerOpenOrder.log
