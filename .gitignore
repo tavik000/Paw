@@ -342,5 +342,4 @@ RELEASE_MSG
 /.ignore
 
 # Cook logs
-/Build/Windows/FileOpenOrder/EditorOpenOrder.log
-/Build/Windows/FileOpenOrder/CookerOpenOrder.log
+Build/Windows/FileOpenOrder
