@@ -12,11 +12,9 @@ APawGameplayElementBase::APawGameplayElementBase()
 void APawGameplayElementBase::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
 void APawGameplayElementBase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 }
-
