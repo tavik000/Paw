@@ -28,7 +28,7 @@ public:
 
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-	
+
 	UFUNCTION(BlueprintCallable)
 	APawWeaponBase* GetEquipWeapon() const;
 
@@ -50,7 +50,6 @@ public:
 	TSubclassOf<APawWeaponBase> DefaultWeaponClass;
 
 private:
-	
 	UFUNCTION(BlueprintCallable)
 	void OnRep_EquippedWeapon();
 
