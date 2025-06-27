@@ -18,10 +18,10 @@ protected:
 	virtual void BeginPlay() override;
 
 	virtual void Break_Implementation() override;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<UStaticMeshComponent> PhysicsObjectMesh;
-	
+
 public:
 	virtual void Tick(float DeltaTime) override;
 };
