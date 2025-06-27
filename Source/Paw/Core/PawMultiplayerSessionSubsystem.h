@@ -10,6 +10,7 @@
 #include "PawMultiplayerSessionSubsystem.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FServerCreateDelegate, bool, WasSuccessful);
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FServerJoinDelegate, bool, WasSuccessful);
 
 /**
@@ -21,9 +22,8 @@ class PAW_API UPawMultiplayerSessionSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-
 	UPawMultiplayerSessionSubsystem();
-	
+
 	void Initialize(FSubsystemCollectionBase& Collection) override;
 	void Deinitialize() override;
 
@@ -33,7 +33,7 @@ public:
 	void CreateServer(FString ServerName);
 	UFUNCTION(BlueprintCallable)
 	void FindServer(FString ServerName);
-	
+
 	void OnCreateSessionComplete(FName ToCreateSessionName, bool WasSuccessful);
 	void OnDestroySessionComplete(FName ToDestroySessionName, bool WasSuccessful);
 	void OnFindSessionsComplete(bool WasSuccessful);
