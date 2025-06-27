@@ -37,5 +37,4 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FOnBubbleLightBreakDelegate OnBubbleLightBreak;
-	
 };
