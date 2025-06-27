@@ -31,12 +31,11 @@ void UPawMultiplayerSessionSubsystem::Initialize(FSubsystemCollectionBase& Colle
 
 		FString SubsystemName = OnlineSubsystem->GetSubsystemName().ToString();
 		PrintString("Using SubsystemName: " + SubsystemName);
-		
+
 
 		SessionInterface = OnlineSubsystem->GetSessionInterface();
 		if (SessionInterface.IsValid())
 		{
-			
 			SessionInterface->OnCreateSessionCompleteDelegates.AddUObject(
 				this, &UPawMultiplayerSessionSubsystem::OnCreateSessionComplete);
 
