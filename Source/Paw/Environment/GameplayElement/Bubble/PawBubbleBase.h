@@ -65,7 +65,7 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TSoftObjectPtr<UNiagaraSystem> BreakEffectAsset;
-	
+
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UNiagaraComponent> BreakEffect;
 
