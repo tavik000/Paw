@@ -28,19 +28,19 @@ protected:
 	void MulticastSpawnBreakEffect();
 
 	void SelfBreak();
-	
+
 	void OnBreakEffectLoaded();
 	void LoadBreakEffect();
 
 	UFUNCTION(BlueprintNativeEvent)
 	void SpawnMasterField(FVector SpawnLocation, FRotator SpawnRotation);
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<UStaticMeshComponent> BubbleMesh;
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TSoftObjectPtr<UNiagaraSystem> BreakEffectAsset;
-	
+
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UNiagaraComponent> BreakEffect;
 
@@ -51,14 +51,15 @@ protected:
 	float BubbleLifeTime = 5.0f;
 
 	FTimerHandle LifeCycleTimerHandle;
-	
+
 	UPROPERTY(EditAnywhere)
 	USoundBase* BreakSound;
 
 public:
 	virtual void Tick(float DeltaTime) override;
 
-	virtual void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit) override;
+	virtual void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	                   FVector NormalImpulse, const FHitResult& Hit) override;
 
 	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<APawBubbleHiderCapture> BubbleHiderCaptureClass;
@@ -72,5 +73,4 @@ public:
 private:
 	UFUNCTION()
 	void SelfDestroy();
-	
 };
