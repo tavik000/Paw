@@ -53,7 +53,12 @@ void APawBubbleHiderCapture::ServerCaptureHider_Implementation(APawCharacter* Hi
 	MulticastSetHiderFloatingEnable(Hider, true);
 
 	// Attach it to BubbleMesh
-	CapturedHider->AttachToComponent(BubbleMesh, FAttachmentTransformRules::SnapToTargetIncludingScale);
+	CapturedHider->GetRootComponent()->SetAbsolute(false, true, false);
+	CapturedHider->GetRootComponent()->AttachToComponent(BubbleMesh->GetAttachmentRoot(),
+	                                                     FAttachmentTransformRules(
+		                                                     EAttachmentRule::SnapToTarget,
+		                                                     EAttachmentRule::KeepRelative,
+		                                                     EAttachmentRule::KeepRelative, true));
 	CapturedHider->SetActorRelativeLocation(FVector::ZeroVector);
 
 	CapturedHider->ServerSetCaptured(true);
