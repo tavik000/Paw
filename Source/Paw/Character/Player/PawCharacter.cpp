@@ -147,6 +147,7 @@ void APawCharacter::TryJump()
 	{
 		return;
 	}
+	OnJumpDelegate.Broadcast();
 	ACharacter::Jump();
 }
 

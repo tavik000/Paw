@@ -15,6 +15,8 @@ struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnJumpDelegate);
+
 UCLASS(config=Game)
 class APawCharacter : public ACharacter
 {
@@ -83,5 +85,8 @@ public:
 	
 	UPROPERTY(Replicated, BlueprintReadWrite, Category = "Character")
 	bool IsCaptured = false;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnJumpDelegate OnJumpDelegate;
 };
 
