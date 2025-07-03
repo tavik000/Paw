@@ -114,6 +114,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Virtual Shadow Maps require modern graphics hardware
 - Physics-heavy bubble interactions need optimization for multiplayer
 
+## Git LFS Safety Guidelines
+
+### CRITICAL: Protecting LFS Files
+This project uses Git LFS extensively for Unreal Engine assets (.uasset, .umap, etc.). **ALWAYS** follow these guidelines:
+
+#### Before Any Git Operations
+1. **Check LFS status first**: `git lfs status`
+2. **Verify .gitattributes** is properly configured with explicit LFS attributes
+3. **Never use shorthand LFS attributes** - always use full specification
+
+#### Safe Git Commands for UE Projects
+- Use `git lfs pull` instead of `git pull` when fetching
+- Use `git lfs checkout` after switching branches
+- Run `git lfs fsck` periodically to verify LFS integrity
+- **Avoid `git add .`** on large UE projects without checking what's being added
+
+#### If LFS Files Become Corrupted
+1. Check what files lost LFS tracking: `git lfs ls-files`
+2. Remove corrupted files from index: `git rm --cached [files]`
+3. Re-add them to restore LFS tracking: `git add [files]`
+4. Commit the fix: `git commit -m "Fix LFS tracking"`
+
+#### Prevention
+- Always set up LFS hooks: `git lfs install --local`
+- Use explicit LFS attributes in .gitattributes (not shorthand like `lock`)
+- Never run operations that might trigger LFS conversion on UE asset files
+
 ## Dependencies
 
 ### Engine Version
