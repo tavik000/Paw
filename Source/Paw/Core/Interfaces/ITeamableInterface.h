@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
@@ -8,17 +8,17 @@
 UINTERFACE(MinimalAPI, Blueprintable)
 class UTeamableInterface : public UInterface
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 };
 
-class PAWGAME_API ITeamableInterface
+class PAW_API ITeamableInterface
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Team")
-	ETeamId GetTeamId() const;
+    UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Team")
+    ETeamId GetTeamId() const;
 
-	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Team")
-	void SetTeamId(ETeamId NewTeamId);
+    UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Team")
+    void SetTeamId(ETeamId NewTeamId);
 };
