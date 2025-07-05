@@ -2,9 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Standard Workflow
+1. First think through the problem, read the codebase for relevant files, and write a plan to tasks/todo.md.
+2. The plan should have a list of todo items that you can check off as you complete them
+3. Before you begin working, check in with me and I will verify the plan.
+4. Then, begin working on the todo items, marking them as complete as you go.
+5. Please every step of the way just give me a high level explanation of what changes you made
+6. Make every task and code change you do as simple as possible. We want to avoid making any massive or complex changes. Every change should impact as little code as possible. Everything is about simplicity.
+7. Finally, add a review section to the [todo.md](http://todo.md/) file with a summary of the changes you made and any other relevant information.
+
 ## Project Overview
 
-**Shadow Bubble: Hide and Seek Chaos** is a 3-5 player asymmetric multiplayer hide-and-seek game built with Unreal Engine 5.6. This is a Global Game Jam 2025 project featuring dynamic lighting mechanics where hiders (cats) can become invisible in shadows while seekers (ghosts) hunt them using flashlights and bubble guns.
+**Shadow Bubble: Hide and Seek Chaos** is a 5 player asymmetric multiplayer hide-and-seek game built with Unreal Engine 5.6. This is a Global Game Jam 2025 project featuring dynamic lighting mechanics where hiders (cats) can become invisible in shadows while seekers (ghosts) hunt them using flashlights and bubble guns.
 
 ## Development Commands
 
@@ -69,10 +78,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Key Maps
 - **L_MainMenu**: Main menu and lobby system
 - **L_Demo**: Primary gameplay level with dynamic lighting setup
-- **LI_Light**: Lighting reference level showcasing Lumen effects
 
 ### Technical Features
-- **Lighting**: Uses UE5 Lumen for real-time global illumination and dynamic shadows
 - **Physics**: Chaos Destruction for breakable objects and bubble physics
 - **Rendering**: Virtual Shadow Maps enabled for high-quality shadows
 - **Graphics**: DirectX 12 with shader model 6 support
@@ -144,7 +151,7 @@ This project uses Git LFS extensively for Unreal Engine assets (.uasset, .umap, 
 ## Dependencies
 
 ### Engine Version
-- Unreal Engine 5.6 (required for Lumen features)
+- Unreal Engine 5.6 
 
 ### Key Plugins
 - OnlineSubsystemSteam (multiplayer)
