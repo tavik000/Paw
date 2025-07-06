@@ -94,6 +94,10 @@ protected:
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Capture")
 	bool IsCaptured;
 
+	// Cached SunLight Actor Reference
+	UPROPERTY(BlueprintReadOnly, Category = "Light Detection")
+	TObjectPtr<AActor> CachedSunLightActor;
+
 	// Multiplayer
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Multiplayer")
 	bool bIsLocalPlayer;
@@ -147,6 +151,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	void SetInLight(bool bInLight);
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	void FindSunLightActor();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Light Detection")
 	void OnLightExposureChanged(bool bInLight);

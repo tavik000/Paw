@@ -13,6 +13,8 @@
 #include "Engine/OverlapResult.h"
 #include "CollisionQueryParams.h"
 #include "Engine/Engine.h"
+#include "Kismet/GameplayStatics.h"
+#include "Engine/DirectionalLight.h"
 
 APawPlayerHider::APawPlayerHider()
 {
@@ -41,6 +43,8 @@ APawPlayerHider::APawPlayerHider()
 	// Initialize UI
 	HUD = nullptr;
 
+	// Initialize cached references
+	CachedSunLightActor = nullptr;
 }
 
 void APawPlayerHider::BeginPlay()
@@ -49,13 +53,16 @@ void APawPlayerHider::BeginPlay()
 
 	InitializeMaterials();
 	UpdateMovementSpeed();
-	
+
+	// Find and cache SunLight actor
+	FindSunLightActor();
+
 	// Start lit damage timer immediately (always running)
 	if (HasAuthority())
 	{
 		StartLitDamage();
 	}
-	
+
 	// Create HUD for player-controlled pawns
 	if (IsLocallyControlled())
 	{
@@ -168,11 +175,13 @@ void APawPlayerHider::Respawn()
 void APawPlayerHider::CheckLightExposure()
 {
 	if (!HasAuthority())
+	{
 		return;
+	}
 
 	bool bWasInLight = bIsInLight;
 	bool bWasSpotLighted = bIsSpotLighted;
-	
+
 	// Reset light states
 	bIsInLight = false;
 	bIsSpotLighted = false;
@@ -180,11 +189,12 @@ void APawPlayerHider::CheckLightExposure()
 	// Bubble Light Detection - replicate Blueprint's GetOverlappingActors logic
 	TArray<AActor*> OverlappingActors;
 	GetOverlappingActors(OverlappingActors);
-	
+
 	for (AActor* Actor : OverlappingActors)
 	{
 		// Check if actor has BubbleLight tag or is a PointLightComponent
-		if (IsValid(Actor) && (Actor->Tags.Contains(TEXT("BubbleLight")) || Actor->GetClass()->GetName().Contains(TEXT("BubbleLight"))))
+		if (IsValid(Actor) && (Actor->Tags.Contains(TEXT("BubbleLight")) || Actor->GetClass()->GetName().Contains(
+			TEXT("BubbleLight"))))
 		{
 			// Check for PointLightComponent
 			UPointLightComponent* PointLight = Actor->FindComponentByClass<UPointLightComponent>();
@@ -193,7 +203,7 @@ void APawPlayerHider::CheckLightExposure()
 				// Calculate distance and check against light attenuation radius
 				float Distance = FVector::Dist(GetActorLocation(), Actor->GetActorLocation());
 				float AttenuationRadius = PointLight->AttenuationRadius;
-				
+
 				if (Distance <= AttenuationRadius)
 				{
 					bIsInLight = true;
@@ -203,30 +213,36 @@ void APawPlayerHider::CheckLightExposure()
 		}
 	}
 
-	// Directional Light Detection - replicate Blueprint's LineTrace logic  
-	if (UWorld* World = GetWorld(); IsValid(World))
+	// Directional Light Detection - use SunLight actor's forward vector
+	if (IsValid(CachedSunLightActor))
 	{
-		FVector Start = GetActorLocation();
-		FVector End = Start + FVector(0, 0, 1000); // Trace upward to check for directional light
-		
-		FHitResult HitResult;
-		FCollisionQueryParams QueryParams;
-		QueryParams.AddIgnoredActor(this);
-		
-		// Line trace to check if we're in shadow from directional light
-		bool bHit = World->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams);
-		
-		// If no hit (clear path to sky), we're potentially spot lit by directional light
-		if (!bHit)
+		if (UWorld* World = GetWorld(); IsValid(World))
 		{
-			bIsSpotLighted = true;
+			FVector Start = GetActorLocation();
+			// Get the forward vector from SunLight actor (light direction)
+			FVector LightDirection = CachedSunLightActor->GetActorForwardVector();
+			// Trace in the direction of the light (distance: 1000 units)
+			FVector End = Start - (LightDirection * 1000.0f);
+
+			FHitResult HitResult;
+			FCollisionQueryParams QueryParams;
+			QueryParams.AddIgnoredActor(this);
+
+			// Line trace to check if we're in shadow from directional light
+			bool bHit = World->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams);
+
+			// If hit something, we're in shadow; if no hit, we're lit by directional light
+			if (!bHit)
+			{
+				bIsInLight = true;
+			}
 		}
 	}
 
 	// Handle invisibility - check if can be invisible forever in shadows
 	bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
 	bool bCanBecomeInvisible = !bCurrentlyLit && !IsCaptured;
-	
+
 	// Automatically become invisible if in shadows and not captured
 	if (bCanBecomeInvisible && !bIsInvisible)
 	{
@@ -255,6 +271,27 @@ void APawPlayerHider::SetInLight(bool bInLight)
 		if (bInLight && bIsInvisible)
 		{
 			DeactivateInvisibility();
+		}
+	}
+}
+
+void APawPlayerHider::FindSunLightActor()
+{
+	// Find DirectionalLight actor with "SunLight" tag
+	if (UWorld* World = GetWorld(); IsValid(World))
+	{
+		TArray<AActor*> FoundActors;
+		UGameplayStatics::GetAllActorsOfClassWithTag(World, ADirectionalLight::StaticClass(), FName("SunLight"),
+		                                             FoundActors);
+
+		if (FoundActors.Num() > 0)
+		{
+			CachedSunLightActor = FoundActors[0];
+			UE_LOG(LogTemp, Log, TEXT("Found SunLight actor: %s"), *CachedSunLightActor->GetName());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("No DirectionalLight with 'SunLight' tag found in level"));
 		}
 	}
 }
@@ -336,21 +373,21 @@ void APawPlayerHider::Client_CreateHUD_Implementation()
 		if (IsValid(HUDWidgetClass))
 		{
 			HUD = CreateWidget<UUserWidget>(PC, HUDWidgetClass);
-			
+
 			if (IsValid(HUD))
 			{
 				// Add widget to viewport
 				HUD->AddToViewport();
-				
+
 				// Set widget visibility
 				HUD->SetVisibility(ESlateVisibility::Visible);
-				
+
 				// Hide crosshair for hiders (as shown in Blueprint)
 				if (UWidget* CrosshairWidget = HUD->GetWidgetFromName(TEXT("IMG_Crosshair")); IsValid(CrosshairWidget))
 				{
 					CrosshairWidget->SetVisibility(ESlateVisibility::Collapsed);
 				}
-				
+
 				// Broadcast initial HP changed event
 				OnHpChanged.Broadcast(GetHealthPercentage());
 			}
@@ -403,7 +440,6 @@ void APawPlayerHider::OnInvisibilityTimeout()
 }
 
 
-
 void APawPlayerHider::InitializeMaterials()
 {
 	if (IsValid(BaseMaterial) && IsValid(GetMesh()))
@@ -419,7 +455,7 @@ void APawPlayerHider::StartLitDamage()
 	if (HasAuthority() && IsAlive() && LitDamageAmount > 0 && LitDamageInterval > 0)
 	{
 		// Start repeating timer for lit damage (always running)
-		GetWorldTimerManager().SetTimer(LitDamageTimerHandle, this, &APawPlayerHider::OnLitDamageTimeout, 
+		GetWorldTimerManager().SetTimer(LitDamageTimerHandle, this, &APawPlayerHider::OnLitDamageTimeout,
 		                                LitDamageInterval, true, 0.0f);
 	}
 }
