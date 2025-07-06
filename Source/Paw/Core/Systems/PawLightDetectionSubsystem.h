@@ -10,6 +10,14 @@
 class UPointLightComponent;
 class AActor;
 
+UENUM()
+enum class ESunLightState : uint8
+{
+	NotSearched, // Haven't looked yet
+	Found, // Found and cached
+	NotExists // Searched but doesn't exist in this level
+};
+
 USTRUCT(BlueprintType)
 struct PAW_API FLightExposureResult
 {
@@ -18,7 +26,7 @@ struct PAW_API FLightExposureResult
 	UPROPERTY(BlueprintReadOnly, Category = "Light Detection")
 	bool bIsInLight = false;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Light Detection") 
+	UPROPERTY(BlueprintReadOnly, Category = "Light Detection")
 	bool bIsSpotLighted = false;
 
 	FLightExposureResult()
@@ -65,7 +73,10 @@ public:
 protected:
 	// Cached SunLight Actor (Directional Light with "SunLight" tag)
 	UPROPERTY(BlueprintReadOnly, Category = "Light Detection")
-	TObjectPtr<AActor> CachedSunLightActor;
+	mutable TObjectPtr<AActor> CachedSunLightActor;
+
+	// SunLight search state tracking
+	mutable ESunLightState SunLightState = ESunLightState::NotSearched;
 
 	// Registered Bubble Lights (Actor -> PointLightComponent mapping)
 	UPROPERTY()
@@ -73,7 +84,7 @@ protected:
 
 private:
 	// Internal Functions
-	void FindAndCacheSunLight();
+	void FindAndCacheSunLight() const;
 	bool CheckBubbleLightExposure(const FVector& Location, AActor* IgnoreActor) const;
 	bool CheckDirectionalLightExposure(const FVector& Location, AActor* IgnoreActor) const;
 };
