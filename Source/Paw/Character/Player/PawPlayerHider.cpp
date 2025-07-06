@@ -26,6 +26,9 @@ APawPlayerHider::APawPlayerHider()
 	LitDamageAmount = 10.0f;
 	LitDamageInterval = 0.1f;
 	IsCaptured = false;
+	
+	// Material parameters
+	OpacityParameterName = FName("Opacity");
 
 	// TODO what is this?
 	bIsLocalPlayer = false;
@@ -227,7 +230,7 @@ void APawPlayerHider::ActivateInvisibility()
 	if (HasAuthority() && !bIsInvisible)
 	{
 		bIsInvisible = true;
-		UpdateStealthVisuals();
+		MulticastUpdateStealthVisuals();
 		OnInvisibilityChanged(true);
 	}
 }
@@ -237,27 +240,105 @@ void APawPlayerHider::DeactivateInvisibility()
 	if (HasAuthority() && bIsInvisible)
 	{
 		bIsInvisible = false;
-		UpdateStealthVisuals();
+		MulticastUpdateStealthVisuals();
 		OnInvisibilityChanged(false);
 	}
 }
 
 void APawPlayerHider::UpdateStealthVisuals()
 {
+	if (!IsValid(GetMesh()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UpdateStealthVisuals: Mesh is not valid for %s"), *GetName());
+		return;
+	}
+
+	const int32 MaterialCount = GetMesh()->GetNumMaterials();
+	
 	if (bIsInvisible)
 	{
 		if (IsValid(InvisibleMaterial))
 		{
-			GetMesh()->SetMaterial(0, InvisibleMaterial);
+			// Apply invisible material to all material slots
+			for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; ++MaterialIndex)
+			{
+				GetMesh()->SetMaterial(MaterialIndex, InvisibleMaterial);
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("UpdateStealthVisuals: InvisibleMaterial is not set for %s"), *GetName());
 		}
 	}
 	else
 	{
-		GetMesh()->SetMaterial(0, CachedBaseMaterial);
+		// Restore original materials
+		for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount && MaterialIndex < CachedBaseMaterials.Num(); ++MaterialIndex)
+		{
+			if (IsValid(CachedBaseMaterials[MaterialIndex]))
+			{
+				GetMesh()->SetMaterial(MaterialIndex, CachedBaseMaterials[MaterialIndex]);
+			}
+		}
 	}
 
-	const float OpacityValue = bIsInvisible ? StealthOpacity : 1.0f;
-	GetMesh()->SetScalarParameterValueOnMaterials(TEXT("Opacity"), OpacityValue);
+	// Set opacity parameter if parameter name is configured
+	if (!OpacityParameterName.IsNone())
+	{
+		const float OpacityValue = bIsInvisible ? GetOpacityForViewingTeam() : 1.0f;
+		GetMesh()->SetScalarParameterValueOnMaterials(OpacityParameterName, OpacityValue);
+	}
+}
+
+void APawPlayerHider::MulticastUpdateStealthVisuals_Implementation()
+{
+	UpdateStealthVisuals();
+}
+
+void APawPlayerHider::OnRep_IsInvisible()
+{
+	UpdateStealthVisuals();
+	OnInvisibilityChanged(bIsInvisible);
+}
+
+float APawPlayerHider::GetOpacityForViewingTeam() const
+{
+	// Get the local player's team to determine what opacity they should see
+	if (UWorld* World = GetWorld(); IsValid(World))
+	{
+		if (APlayerController* LocalPC = World->GetFirstPlayerController(); IsValid(LocalPC))
+		{
+			if (APawn* LocalPawn = LocalPC->GetPawn(); IsValid(LocalPawn))
+			{
+				// Check if local player implements team interface
+				if (LocalPawn->GetClass()->ImplementsInterface(UTeamableInterface::StaticClass()))
+				{
+					// Use Execute_ wrapper for Blueprint-compatible interface calls
+					ETeamId LocalTeam = ITeamableInterface::Execute_GetTeamId(LocalPawn);
+					
+					
+					// If local player is on Seeker team, they should see full invisibility (0.0f)
+					if (LocalTeam == ETeamId::Seeker)
+					{
+						return 0.0f;
+					}
+					// If local player is on Hider team (same team), they should see partial opacity
+					else if (LocalTeam == ETeamId::Hider)
+					{
+						return StealthOpacity; // Default 0.5f
+					}
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("GetOpacityForViewingTeam: Local pawn %s does not implement ITeamableInterface"), *LocalPawn->GetName());
+				}
+			}
+		}
+	}
+	
+	// Fallback: use default stealth opacity
+	UE_LOG(LogTemp, Warning, TEXT("GetOpacityForViewingTeam: Using fallback opacity for %s"), *GetName());
+	return StealthOpacity;
 }
 
 
@@ -367,10 +448,35 @@ void APawPlayerHider::OnInvisibilityTick()
 
 void APawPlayerHider::InitializeMaterials()
 {
-	if (IsValid(GetMesh()))
+	if (!IsValid(GetMesh()))
 	{
-		CachedBaseMaterial = GetMesh()->GetMaterial(0);
+		UE_LOG(LogTemp, Warning, TEXT("InitializeMaterials: Mesh is not valid for %s"), *GetName());
+		return;
 	}
+
+	const int32 MaterialCount = GetMesh()->GetNumMaterials();
+	CachedBaseMaterials.Empty();
+	CachedBaseMaterials.Reserve(MaterialCount);
+
+	// Cache all materials from the mesh
+	for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; ++MaterialIndex)
+	{
+		UMaterialInterface* Material = GetMesh()->GetMaterial(MaterialIndex);
+		CachedBaseMaterials.Add(Material);
+		
+		if (!IsValid(Material))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("InitializeMaterials: Material at slot %d is null for %s"), MaterialIndex, *GetName());
+		}
+	}
+
+	// Validate invisible material setup
+	if (!IsValid(InvisibleMaterial))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InitializeMaterials: InvisibleMaterial is not set for %s. Stealth effects will not work properly."), *GetName());
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("InitializeMaterials: Cached %d materials for %s"), CachedBaseMaterials.Num(), *GetName());
 }
 
 // Lit Damage System

@@ -57,7 +57,7 @@ protected:
 	float LightIntensityThreshold;
 
 	// Stealth System
-	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Stealth")
+	UPROPERTY(BlueprintReadWrite, ReplicatedUsing = OnRep_IsInvisible, Category = "Stealth")
 	bool bIsInvisible;
 
 	UPROPERTY(BlueprintReadWrite, Category = "Stealth")
@@ -82,10 +82,13 @@ protected:
 
 	// Effects and Materials
 	UPROPERTY(BlueprintReadWrite, Category = "Stealth")
-	TObjectPtr<UMaterialInterface> CachedBaseMaterial;
+	TArray<TObjectPtr<UMaterialInterface>> CachedBaseMaterials;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stealth")
 	TObjectPtr<UMaterialInterface> InvisibleMaterial;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stealth")
+	FName OpacityParameterName;
 
 	// Capture System
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Capture")
@@ -159,6 +162,15 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Stealth")
 	void UpdateStealthVisuals();
+
+	UFUNCTION(NetMulticast, Reliable, Category = "Stealth")
+	void MulticastUpdateStealthVisuals();
+
+	UFUNCTION()
+	void OnRep_IsInvisible();
+
+	UFUNCTION(BlueprintCallable, Category = "Stealth")
+	float GetOpacityForViewingTeam() const;
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Stealth")
 	void OnInvisibilityChanged(bool bInvisible);
