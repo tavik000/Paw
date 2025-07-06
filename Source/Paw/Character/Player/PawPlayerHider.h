@@ -14,6 +14,7 @@
 #include "PawPlayerHider.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathSignature);
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FHpChangedSignature, float, HpPercentage);
 
 UCLASS()
@@ -215,6 +216,9 @@ public:
 
 	UFUNCTION(Client, Reliable, Category = "Multiplayer")
 	void ClientUpdateHealth(float NewHealth);
+
+	UFUNCTION(Client, Reliable, Category = "UI")
+	void Client_CreateHUD();
 
 	// Utility Functions
 	UFUNCTION(BlueprintCallable, Category = "Utility")
