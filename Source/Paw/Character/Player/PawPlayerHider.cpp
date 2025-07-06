@@ -290,38 +290,40 @@ float APawPlayerHider::GetOpacityForViewingTeam() const
 	// Get the local player's team to determine what opacity they should see
 	if (UWorld* World = GetWorld(); IsValid(World))
 	{
-		if (APlayerController* LocalPC = World->GetFirstPlayerController(); IsValid(LocalPC))
+		// Check all local player controllers to find the one viewing this pawn
+		for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
 		{
-			if (APawn* LocalPawn = LocalPC->GetPawn(); IsValid(LocalPawn))
+			if (APlayerController* PC = Iterator->Get(); IsValid(PC) && PC->IsLocalController())
 			{
-				// Check if local player implements team interface
-				if (LocalPawn->GetClass()->ImplementsInterface(UTeamableInterface::StaticClass()))
+				if (APawn* LocalPawn = PC->GetPawn(); IsValid(LocalPawn))
 				{
-					// Use Execute_ wrapper for Blueprint-compatible interface calls
-					ETeamId LocalTeam = ITeamableInterface::Execute_GetTeamId(LocalPawn);
-					
-					
-					// If local player is on Seeker team, they should see full invisibility (0.0f)
-					if (LocalTeam == ETeamId::Seeker)
+					// Check if local player implements team interface
+					if (LocalPawn->GetClass()->ImplementsInterface(UTeamableInterface::StaticClass()))
 					{
-						return 0.0f;
+						// Use Execute_ wrapper for Blueprint-compatible interface calls
+						ETeamId LocalTeam = ITeamableInterface::Execute_GetTeamId(LocalPawn);
+						
+						// If local player is on Seeker team, they should see full invisibility (0.0f)
+						if (LocalTeam == ETeamId::Seeker)
+						{
+							return 0.0f;
+						}
+						// If local player is on Hider team (same team), they should see partial opacity
+						if (LocalTeam == ETeamId::Hider)
+						{
+							return StealthOpacity; // Default 0.5f
+						}
 					}
-					// If local player is on Hider team (same team), they should see partial opacity
-					else if (LocalTeam == ETeamId::Hider)
+					else
 					{
-						return StealthOpacity; // Default 0.5f
+						UE_LOG(LogTemp, Warning, TEXT("GetOpacityForViewingTeam: Local pawn %s does not implement ITeamableInterface"), *LocalPawn->GetName());
 					}
-				}
-				else
-				{
-					UE_LOG(LogTemp, Warning, TEXT("GetOpacityForViewingTeam: Local pawn %s does not implement ITeamableInterface"), *LocalPawn->GetName());
 				}
 			}
 		}
 	}
 	
 	// Fallback: use default stealth opacity
-	UE_LOG(LogTemp, Warning, TEXT("GetOpacityForViewingTeam: Using fallback opacity for %s"), *GetName());
 	return StealthOpacity;
 }
 
