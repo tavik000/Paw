@@ -15,7 +15,7 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathDelegate);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FHpChangedDelegate, float, HpPercentage);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHpChangedDelegate, float, HpPercentage);
 
 UCLASS()
 class PAW_API APawPlayerHider : public APawTPPlayer, public ITeamableInterface
@@ -156,7 +156,7 @@ public:
 	FOnDeathDelegate OnDeath;
 
 	UPROPERTY(BlueprintAssignable, Category = "Health")
-	FHpChangedDelegate HpChanged;
+	FOnHpChangedDelegate OnHpChanged;
 
 	// Light Detection Functions
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")

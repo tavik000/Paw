@@ -122,7 +122,7 @@ void APawPlayerHider::TakeHealthDamage(float DamageAmount)
 	{
 		Health = FMath::Clamp(Health - DamageAmount, 0.0f, MaxHealth);
 		OnHealthChanged(Health, MaxHealth);
-		HpChanged.Broadcast(GetHealthPercentage());
+		OnHpChanged.Broadcast(GetHealthPercentage());
 
 		if (Health <= 0 && !bIsDead)
 		{
@@ -141,7 +141,7 @@ void APawPlayerHider::Heal(float HealAmount)
 	{
 		Health = FMath::Clamp(Health + HealAmount, 0.0f, MaxHealth);
 		OnHealthChanged(Health, MaxHealth);
-		HpChanged.Broadcast(GetHealthPercentage());
+		OnHpChanged.Broadcast(GetHealthPercentage());
 	}
 }
 
@@ -163,7 +163,7 @@ void APawPlayerHider::Respawn()
 		bIsDead = false;
 		Health = MaxHealth;
 		OnHealthChanged(Health, MaxHealth);
-		HpChanged.Broadcast(GetHealthPercentage());
+		OnHpChanged.Broadcast(GetHealthPercentage());
 	}
 }
 
@@ -311,7 +311,7 @@ void APawPlayerHider::ClientUpdateHealth_Implementation(float NewHealth)
 {
 	Health = NewHealth;
 	OnHealthChanged(Health, MaxHealth);
-	HpChanged.Broadcast(GetHealthPercentage());
+	OnHpChanged.Broadcast(GetHealthPercentage());
 }
 
 void APawPlayerHider::Client_CreateHUD_Implementation()
@@ -339,7 +339,7 @@ void APawPlayerHider::Client_CreateHUD_Implementation()
 				}
 				
 				// Broadcast initial HP changed event
-				HpChanged.Broadcast(GetHealthPercentage());
+				OnHpChanged.Broadcast(GetHealthPercentage());
 			}
 		}
 	}
