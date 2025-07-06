@@ -32,6 +32,20 @@ void APawBubbleLight::BeginPlay()
 	}
 }
 
+void APawBubbleLight::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+	if (HasAuthority())
+	{
+		if (UPawLightDetectionSubsystem* LightDetectionSubsystem = GetWorld()->GetSubsystem<
+			UPawLightDetectionSubsystem>(); IsValid(LightDetectionSubsystem))
+		{
+			LightDetectionSubsystem->UnregisterBubbleLight(this);
+		}
+	}
+}
+
+
 void APawBubbleLight::Break_Implementation()
 {
 	Super::Break_Implementation();
