@@ -5,7 +5,7 @@
 
 #include "Components/SpotLightComponent.h"
 #include "Paw/Character/Common/Component/PawFlashLightComponent.h"
-#include "Paw/Core/Enums/ETeamId.h"
+#include "Paw/Core/Enum/ETeamId.h"
 
 
 APawPlayerSeeker::APawPlayerSeeker()

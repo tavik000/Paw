@@ -3,7 +3,7 @@
 
 #include "PawBubbleLight.h"
 
-#include "Paw/Core/Systems/PawLightDetectionSubsystem.h"
+#include "Paw/Core/System/PawLightDetectionSubsystem.h"
 
 
 APawBubbleLight::APawBubbleLight()

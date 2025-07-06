@@ -7,7 +7,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
-#include "../../Core/Systems/PawLightDetectionSubsystem.h"
+#include "../../Core/System/PawLightDetectionSubsystem.h"
 
 APawPlayerHider::APawPlayerHider()
 {

@@ -4,8 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "../../Core/Interfaces/ITeamableInterface.h"
-#include "../../Core/Enums/ETeamId.h"
+#include "../../Core/Interface/ITeamableInterface.h"
+#include "../../Core/Enum/ETeamId.h"
 #include "Net/UnrealNetwork.h"
 #include "PawCharacterBase.generated.h"
 

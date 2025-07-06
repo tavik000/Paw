@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
-#include "../Enums/ETeamId.h"
+#include "../Enum/ETeamId.h"
 #include "ITeamableInterface.generated.h"
 
 UINTERFACE(MinimalAPI, Blueprintable)
