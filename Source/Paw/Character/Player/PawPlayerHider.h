@@ -75,27 +75,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float WalkSpeed;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-	float RunSpeed;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-	float CrouchSpeed;
-
-	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Movement")
-	bool bIsRunning;
-
-	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Movement")
-	bool bIsCrouching;
-
-	// Sound System
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
-	float NoiseLevel;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
-	float NoiseRadius;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Sound")
-	FTimerHandle NoiseTimerHandle;
 
 	// Effects and Materials
 	UPROPERTY(BlueprintReadWrite, Category = "Effects")
@@ -118,6 +97,9 @@ protected:
 	// UI System
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TObjectPtr<UUserWidget> HUD;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<UUserWidget> HUDWidgetClass;
 
 	// Components
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -183,23 +165,7 @@ public:
 
 	// Movement Functions
 	UFUNCTION(BlueprintCallable, Category = "Movement")
-	void StartRunning();
-
-	UFUNCTION(BlueprintCallable, Category = "Movement")
-	void StopRunning();
-
-	UFUNCTION(BlueprintCallable, Category = "Movement")
-	void ToggleCrouch();
-
-	UFUNCTION(BlueprintCallable, Category = "Movement")
 	void UpdateMovementSpeed();
-
-	// Sound Functions
-	UFUNCTION(BlueprintCallable, Category = "Sound")
-	void GenerateNoise(float Intensity);
-
-	UFUNCTION(BlueprintCallable, Category = "Sound")
-	void ResetNoise();
 
 	// RPC Functions
 	UFUNCTION(Server, Reliable, Category = "Multiplayer")

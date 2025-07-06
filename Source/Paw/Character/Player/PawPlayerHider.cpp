@@ -28,12 +28,6 @@ APawPlayerHider::APawPlayerHider()
 	InvisibilityDuration = 5.0f;
 	StealthOpacity = 0.3f;
 	WalkSpeed = 300.0f;
-	RunSpeed = 600.0f;
-	CrouchSpeed = 150.0f;
-	bIsRunning = false;
-	bIsCrouching = false;
-	NoiseLevel = 0.0f;
-	NoiseRadius = 800.0f;
 	IsCaptured = false;
 	bIsLocalPlayer = false;
 	PlayerIndex = -1;
@@ -91,8 +85,6 @@ void APawPlayerHider::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(APawPlayerHider, bIsSpotLighted);
 	DOREPLIFETIME(APawPlayerHider, bIsInvisible);
 	DOREPLIFETIME(APawPlayerHider, IsCaptured);
-	DOREPLIFETIME(APawPlayerHider, bIsRunning);
-	DOREPLIFETIME(APawPlayerHider, bIsCrouching);
 	DOREPLIFETIME(APawPlayerHider, bIsLocalPlayer);
 	DOREPLIFETIME(APawPlayerHider, PlayerIndex);
 }
@@ -223,67 +215,12 @@ void APawPlayerHider::UpdateStealthVisuals()
 }
 
 // Movement System
-void APawPlayerHider::StartRunning()
-{
-	if (!bIsRunning)
-	{
-		bIsRunning = true;
-		UpdateMovementSpeed();
-		GenerateNoise(1.0f);
-	}
-}
-
-void APawPlayerHider::StopRunning()
-{
-	if (bIsRunning)
-	{
-		bIsRunning = false;
-		UpdateMovementSpeed();
-		ResetNoise();
-	}
-}
-
-void APawPlayerHider::ToggleCrouch()
-{
-	bIsCrouching = !bIsCrouching;
-	UpdateMovementSpeed();
-
-	if (bIsCrouching)
-	{
-		ResetNoise();
-	}
-}
-
 void APawPlayerHider::UpdateMovementSpeed()
 {
 	if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
 	{
-		if (bIsCrouching)
-		{
-			MovementComp->MaxWalkSpeed = CrouchSpeed;
-		}
-		else if (bIsRunning)
-		{
-			MovementComp->MaxWalkSpeed = RunSpeed;
-		}
-		else
-		{
-			MovementComp->MaxWalkSpeed = WalkSpeed;
-		}
+		MovementComp->MaxWalkSpeed = WalkSpeed;
 	}
-}
-
-// Sound System
-void APawPlayerHider::GenerateNoise(float Intensity)
-{
-	NoiseLevel = Intensity;
-	GetWorldTimerManager().SetTimer(NoiseTimerHandle, this, &APawPlayerHider::OnNoiseTimeout, 1.0f, false);
-}
-
-void APawPlayerHider::ResetNoise()
-{
-	NoiseLevel = 0.0f;
-	GetWorldTimerManager().ClearTimer(NoiseTimerHandle);
 }
 
 // RPC Functions
@@ -319,10 +256,10 @@ void APawPlayerHider::Client_CreateHUD_Implementation()
 	// Only create HUD for player-controlled pawns
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
-		// Create the WBP_CommonHUD widget
-		if (UClass* HUDClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/Main/UI/Widget/InGameHUD/WBP_CommonHUD.WBP_CommonHUD_C")))
+		// Create the HUD widget using configurable class
+		if (HUDWidgetClass)
 		{
-			HUD = CreateWidget<UUserWidget>(PC, HUDClass);
+			HUD = CreateWidget<UUserWidget>(PC, HUDWidgetClass);
 			
 			if (HUD)
 			{
@@ -342,6 +279,10 @@ void APawPlayerHider::Client_CreateHUD_Implementation()
 				OnHpChanged.Broadcast(GetHealthPercentage());
 			}
 		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("HUDWidgetClass is not set for %s"), *GetName());
+		}
 	}
 }
 
@@ -351,10 +292,6 @@ void APawPlayerHider::OnInvisibilityTimeout()
 	DeactivateInvisibility();
 }
 
-void APawPlayerHider::OnNoiseTimeout()
-{
-	ResetNoise();
-}
 
 void APawPlayerHider::InitializeComponents()
 {
