@@ -190,7 +190,7 @@ void APawPlayerHider::CheckLightExposure()
 	}
 
 
-	// Handle invisibility - check if can be invisible forever in shadows
+	// Handle invisibility 
 	bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
 	bool bCanBecomeInvisible = !bCurrentlyLit && !IsCaptured;
 
