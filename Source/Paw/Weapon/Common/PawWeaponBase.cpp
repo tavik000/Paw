@@ -3,7 +3,7 @@
 
 #include "PawWeaponBase.h"
 
-#include "Paw/Character/Player/PawBattleCharacter.h"
+#include "Paw/Character/Common/PawBattleCharacter.h"
 
 
 APawWeaponBase::APawWeaponBase()

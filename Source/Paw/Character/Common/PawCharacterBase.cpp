@@ -9,6 +9,9 @@ APawCharacterBase::APawCharacterBase()
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
 	ACharacter::SetReplicateMovement(true);
+	
+	// Initialize team to None by default
+	TeamId = ETeamId::None;
 }
 
 void APawCharacterBase::BeginPlay()
@@ -20,6 +23,24 @@ void APawCharacterBase::BeginPlay()
 void APawCharacterBase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+}
+
+void APawCharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	
+	DOREPLIFETIME(APawCharacterBase, TeamId);
+}
+
+// Team Interface Implementation
+ETeamId APawCharacterBase::GetTeamId_Implementation() const
+{
+	return TeamId;
+}
+
+void APawCharacterBase::SetTeamId_Implementation(ETeamId NewTeamId)
+{
+	TeamId = NewTeamId;
 }
 
 

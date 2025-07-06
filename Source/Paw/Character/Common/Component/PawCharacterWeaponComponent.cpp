@@ -6,7 +6,7 @@
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
-#include "Paw/Character/Player/PawBattleCharacter.h"
+#include "Paw/Character/Common/PawBattleCharacter.h"
 #include "Paw/Weapon/Common/PawWeaponBase.h"
 
 

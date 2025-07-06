@@ -15,7 +15,7 @@ APawPlayerHider::APawPlayerHider()
 	bReplicates = true;
 
 	// Initialize default values
-	TeamId = ETeamId::Hider;
+	TeamId = ETeamId::Hider; 
 	Health = 100.0f;
 	MaxHealth = 100.0f;
 	bIsDead = false;
@@ -77,7 +77,7 @@ void APawPlayerHider::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME(APawPlayerHider, TeamId);
+	// TeamId is now replicated in PawCharacterBase
 	DOREPLIFETIME(APawPlayerHider, Health);
 	DOREPLIFETIME(APawPlayerHider, bIsDead);
 	DOREPLIFETIME(APawPlayerHider, bIsInLight);
@@ -88,23 +88,7 @@ void APawPlayerHider::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(APawPlayerHider, PlayerIndex);
 }
 
-// Team Interface Implementation
-ETeamId APawPlayerHider::GetTeamId_Implementation() const
-{
-	return TeamId;
-}
-
-void APawPlayerHider::SetTeamId_Implementation(ETeamId NewTeamId)
-{
-	if (HasAuthority())
-	{
-		TeamId = NewTeamId;
-	}
-	else
-	{
-		ServerSetTeamId(NewTeamId);
-	}
-}
+// Team Interface Implementation (now inherited from PawCharacterBase)
 
 // Health System
 void APawPlayerHider::TakeHealthDamage(float DamageAmount)

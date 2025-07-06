@@ -2,8 +2,6 @@
 
 #include "CoreMinimal.h"
 #include "PawTPPlayer.h"
-#include "../../Core/Interfaces/ITeamableInterface.h"
-#include "../../Core/Enums/ETeamId.h"
 #include "Engine/TimerHandle.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Components/WidgetComponent.h"
@@ -16,7 +14,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathDelegate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHpChangedDelegate, float, HpPercentage);
 
 UCLASS()
-class PAW_API APawPlayerHider : public APawTPPlayer, public ITeamableInterface
+class PAW_API APawPlayerHider : public APawTPPlayer
 {
 	GENERATED_BODY()
 
@@ -29,9 +27,7 @@ protected:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	// Team System
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Team")
-	ETeamId TeamId;
+	// Team System (inherited from PawCharacterBase)
 
 	// Health System
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Health")
@@ -111,14 +107,7 @@ protected:
 
 
 public:
-	// Team Interface Implementation
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Team")
-	ETeamId GetTeamId() const;
-	virtual ETeamId GetTeamId_Implementation() const;
-
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Team")
-	void SetTeamId(ETeamId NewTeamId);
-	virtual void SetTeamId_Implementation(ETeamId NewTeamId);
+	// Team Interface (inherited from PawCharacterBase)
 
 	// Health System Functions
 	UFUNCTION(BlueprintCallable, Category = "Health")

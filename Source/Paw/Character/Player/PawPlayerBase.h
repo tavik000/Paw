@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "PawBattleCharacter.h"
+#include "../Common/PawBattleCharacter.h"
 #include "PawPlayerBase.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogPlayerCharacter, Log, All);

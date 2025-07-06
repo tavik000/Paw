@@ -4,7 +4,7 @@
 #include "PawWeapon_BubbleBlaster.h"
 
 #include "Component/PawGunComponent.h"
-#include "Paw/Character/Player/PawBattleCharacter.h"
+#include "Paw/Character/Common/PawBattleCharacter.h"
 
 
 APawWeapon_BubbleBlaster::APawWeapon_BubbleBlaster()

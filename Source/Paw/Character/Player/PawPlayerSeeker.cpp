@@ -5,6 +5,7 @@
 
 #include "Components/SpotLightComponent.h"
 #include "Paw/Character/Common/Component/PawFlashLightComponent.h"
+#include "Paw/Core/Enums/ETeamId.h"
 
 
 APawPlayerSeeker::APawPlayerSeeker()
@@ -13,6 +14,8 @@ APawPlayerSeeker::APawPlayerSeeker()
 	FlashLightComponent->SetupAttachment(GetArmMesh());
 	SpotLightComponent = CreateDefaultSubobject<USpotLightComponent>(TEXT("SpotLightComponent"));
 	SpotLightComponent->SetupAttachment(FlashLightComponent);
+	
+	TeamId = ETeamId::Seeker;
 }
 
 void APawPlayerSeeker::BeginPlay()
