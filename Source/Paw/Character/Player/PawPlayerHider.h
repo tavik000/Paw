@@ -75,6 +75,15 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float WalkSpeed;
 
+	// Lit Damage System
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Detection")
+	float LitDamageAmount;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Detection")
+	float LitDamageInterval;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Light Detection")
+	FTimerHandle LitDamageTimerHandle;
 
 	// Effects and Materials
 	UPROPERTY(BlueprintReadWrite, Category = "Effects")
@@ -94,7 +103,7 @@ protected:
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Multiplayer")
 	int32 PlayerIndex;
 
-	// UI System
+	// UI System (Client-side only, not replicated)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TObjectPtr<UUserWidget> HUD;
 
@@ -193,12 +202,28 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Utility")
 	float GetHealthPercentage() const { return MaxHealth > 0 ? Health / MaxHealth : 0.0f; }
 
+	// HUD Access Functions (Client-side only)
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	UUserWidget* GetHUDSafe() const;
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	bool HasValidHUD() const;
+
+	// Event Dispatcher Helper Functions
+	UFUNCTION(BlueprintCallable, Category = "Events")
+	bool IsEventDispatcherReady() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Events")
+	void TriggerHpChangedManually();
+
 private:
 	// Timer Functions
 	void OnInvisibilityTimeout();
-	void OnNoiseTimeout();
+	void OnLitDamageTimeout();
 
 	// Internal Functions
 	void InitializeComponents();
 	void InitializeMaterials();
+	void StartLitDamage();
+	void StopLitDamage();
 };

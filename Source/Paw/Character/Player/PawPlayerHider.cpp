@@ -9,6 +9,12 @@
 #include "Components/Widget.h"
 #include "Components/Slider.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Engine/World.h"
+#include "Components/SphereComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Engine/OverlapResult.h"
+#include "CollisionQueryParams.h"
+#include "Engine/Engine.h"
 
 APawPlayerHider::APawPlayerHider()
 {
@@ -28,6 +34,8 @@ APawPlayerHider::APawPlayerHider()
 	InvisibilityDuration = 5.0f;
 	StealthOpacity = 0.3f;
 	WalkSpeed = 300.0f;
+	LitDamageAmount = 10.0f;
+	LitDamageInterval = 0.1f;
 	IsCaptured = false;
 	bIsLocalPlayer = false;
 	PlayerIndex = -1;
@@ -50,6 +58,12 @@ void APawPlayerHider::BeginPlay()
 	InitializeComponents();
 	InitializeMaterials();
 	UpdateMovementSpeed();
+	
+	// Start lit damage timer immediately (always running)
+	if (HasAuthority())
+	{
+		StartLitDamage();
+	}
 	
 	// Create HUD for player-controlled pawns
 	if (IsLocallyControlled())
@@ -162,9 +176,82 @@ void APawPlayerHider::Respawn()
 // Light Detection
 void APawPlayerHider::CheckLightExposure()
 {
-	// Implementation for light detection logic
-	// This would involve checking nearby light sources and determining visibility
-	// For now, this is a stub that can be implemented with specific light detection logic
+	if (!HasAuthority())
+		return;
+
+	bool bWasInLight = bIsInLight;
+	bool bWasSpotLighted = bIsSpotLighted;
+	
+	// Reset light states
+	bIsInLight = false;
+	bIsSpotLighted = false;
+
+	// Bubble Light Detection - replicate Blueprint's GetOverlappingActors logic
+	TArray<AActor*> OverlappingActors;
+	GetOverlappingActors(OverlappingActors);
+	
+	for (AActor* Actor : OverlappingActors)
+	{
+		// Check if actor has BubbleLight tag or is a PointLightComponent
+		if (IsValid(Actor) && (Actor->Tags.Contains(TEXT("BubbleLight")) || Actor->GetClass()->GetName().Contains(TEXT("BubbleLight"))))
+		{
+			// Check for PointLightComponent
+			UPointLightComponent* PointLight = Actor->FindComponentByClass<UPointLightComponent>();
+			if (IsValid(PointLight))
+			{
+				// Calculate distance and check against light attenuation radius
+				float Distance = FVector::Dist(GetActorLocation(), Actor->GetActorLocation());
+				float AttenuationRadius = PointLight->AttenuationRadius;
+				
+				if (Distance <= AttenuationRadius)
+				{
+					bIsInLight = true;
+					break; // Found a light source, no need to check more
+				}
+			}
+		}
+	}
+
+	// Directional Light Detection - replicate Blueprint's LineTrace logic  
+	if (UWorld* World = GetWorld(); IsValid(World))
+	{
+		FVector Start = GetActorLocation();
+		FVector End = Start + FVector(0, 0, 1000); // Trace upward to check for directional light
+		
+		FHitResult HitResult;
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActor(this);
+		
+		// Line trace to check if we're in shadow from directional light
+		bool bHit = World->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams);
+		
+		// If no hit (clear path to sky), we're potentially spot lit by directional light
+		if (!bHit)
+		{
+			bIsSpotLighted = true;
+		}
+	}
+
+	// Handle invisibility - check if can be invisible forever in shadows
+	bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
+	bool bCanBecomeInvisible = !bCurrentlyLit && !IsCaptured;
+	
+	// Automatically become invisible if in shadows and not captured
+	if (bCanBecomeInvisible && !bIsInvisible)
+	{
+		ActivateInvisibility();
+	}
+	// Become visible if lit or captured
+	else if (bIsInvisible && (bCurrentlyLit || IsCaptured))
+	{
+		DeactivateInvisibility();
+	}
+
+	// Notify if light state changed
+	if (bWasInLight != bIsInLight || bWasSpotLighted != bIsSpotLighted)
+	{
+		OnLightExposureChanged(bCurrentlyLit);
+	}
 }
 
 void APawPlayerHider::SetInLight(bool bInLight)
@@ -184,11 +271,10 @@ void APawPlayerHider::SetInLight(bool bInLight)
 // Stealth System
 void APawPlayerHider::ActivateInvisibility()
 {
-	if (HasAuthority() && !bIsInLight && !bIsInvisible)
+	if (HasAuthority() && !bIsInvisible)
 	{
 		bIsInvisible = true;
-		GetWorldTimerManager().SetTimer(InvisibilityTimerHandle, this, &APawPlayerHider::OnInvisibilityTimeout,
-		                                InvisibilityDuration, false);
+		// Remove timer - invisibility is permanent while in shadows
 		UpdateStealthVisuals();
 		OnInvisibilityChanged(true);
 	}
@@ -199,7 +285,6 @@ void APawPlayerHider::DeactivateInvisibility()
 	if (HasAuthority() && bIsInvisible)
 	{
 		bIsInvisible = false;
-		GetWorldTimerManager().ClearTimer(InvisibilityTimerHandle);
 		UpdateStealthVisuals();
 		OnInvisibilityChanged(false);
 	}
@@ -207,7 +292,7 @@ void APawPlayerHider::DeactivateInvisibility()
 
 void APawPlayerHider::UpdateStealthVisuals()
 {
-	if (DynamicMaterial)
+	if (IsValid(DynamicMaterial))
 	{
 		float OpacityValue = bIsInvisible ? StealthOpacity : 1.0f;
 		DynamicMaterial->SetScalarParameterValue(TEXT("Opacity"), OpacityValue);
@@ -217,7 +302,7 @@ void APawPlayerHider::UpdateStealthVisuals()
 // Movement System
 void APawPlayerHider::UpdateMovementSpeed()
 {
-	if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
+	if (UCharacterMovementComponent* MovementComp = GetCharacterMovement(); IsValid(MovementComp))
 	{
 		MovementComp->MaxWalkSpeed = WalkSpeed;
 	}
@@ -254,14 +339,14 @@ void APawPlayerHider::ClientUpdateHealth_Implementation(float NewHealth)
 void APawPlayerHider::Client_CreateHUD_Implementation()
 {
 	// Only create HUD for player-controlled pawns
-	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	if (APlayerController* PC = Cast<APlayerController>(GetController()); IsValid(PC))
 	{
 		// Create the HUD widget using configurable class
-		if (HUDWidgetClass)
+		if (IsValid(HUDWidgetClass))
 		{
 			HUD = CreateWidget<UUserWidget>(PC, HUDWidgetClass);
 			
-			if (HUD)
+			if (IsValid(HUD))
 			{
 				// Add widget to viewport
 				HUD->AddToViewport();
@@ -270,9 +355,9 @@ void APawPlayerHider::Client_CreateHUD_Implementation()
 				HUD->SetVisibility(ESlateVisibility::Visible);
 				
 				// Hide crosshair for hiders (as shown in Blueprint)
-				if (UWidget* CrosshairWidget = HUD->GetWidgetFromName(TEXT("IMG_Crosshair")))
+				if (UWidget* CrosshairWidget = HUD->GetWidgetFromName(TEXT("IMG_Crosshair")); IsValid(CrosshairWidget))
 				{
-					CrosshairWidget->SetVisibility(ESlateVisibility::Hidden);
+					CrosshairWidget->SetVisibility(ESlateVisibility::Collapsed);
 				}
 				
 				// Broadcast initial HP changed event
@@ -286,6 +371,40 @@ void APawPlayerHider::Client_CreateHUD_Implementation()
 	}
 }
 
+// HUD Access Functions
+UUserWidget* APawPlayerHider::GetHUDSafe() const
+{
+	// Only return HUD on locally controlled clients
+	if (IsLocallyControlled() && IsValid(HUD))
+	{
+		return HUD;
+	}
+	return nullptr;
+}
+
+bool APawPlayerHider::HasValidHUD() const
+{
+	// Only check HUD on locally controlled clients
+	return IsLocallyControlled() && IsValid(HUD);
+}
+
+// Event Dispatcher Helper Functions
+bool APawPlayerHider::IsEventDispatcherReady() const
+{
+	// Event dispatchers are ready when the object is fully initialized
+	// Check if we're not in construction phase and object is valid
+	return IsValid(this) && !HasAnyFlags(RF_NeedInitialization | RF_NeedLoad) && GetWorld() != nullptr;
+}
+
+void APawPlayerHider::TriggerHpChangedManually()
+{
+	// Manually trigger the HP changed event for UI binding
+	if (IsEventDispatcherReady())
+	{
+		OnHpChanged.Broadcast(GetHealthPercentage());
+	}
+}
+
 // Private Functions
 void APawPlayerHider::OnInvisibilityTimeout()
 {
@@ -296,7 +415,7 @@ void APawPlayerHider::OnInvisibilityTimeout()
 void APawPlayerHider::InitializeComponents()
 {
 	// Initialize component positions and settings
-	if (LightDetectionPoint)
+	if (IsValid(LightDetectionPoint))
 	{
 		LightDetectionPoint->SetRelativeLocation(FVector(0, 0, 100));
 	}
@@ -304,9 +423,40 @@ void APawPlayerHider::InitializeComponents()
 
 void APawPlayerHider::InitializeMaterials()
 {
-	if (BaseMaterial && GetMesh())
+	if (IsValid(BaseMaterial) && IsValid(GetMesh()))
 	{
 		DynamicMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
 		GetMesh()->SetMaterial(0, DynamicMaterial);
+	}
+}
+
+// Lit Damage System
+void APawPlayerHider::StartLitDamage()
+{
+	if (HasAuthority() && IsAlive() && LitDamageAmount > 0 && LitDamageInterval > 0)
+	{
+		// Start repeating timer for lit damage (always running)
+		GetWorldTimerManager().SetTimer(LitDamageTimerHandle, this, &APawPlayerHider::OnLitDamageTimeout, 
+		                                LitDamageInterval, true, 0.0f);
+	}
+}
+
+void APawPlayerHider::StopLitDamage()
+{
+	if (HasAuthority())
+	{
+		GetWorldTimerManager().ClearTimer(LitDamageTimerHandle);
+	}
+}
+
+void APawPlayerHider::OnLitDamageTimeout()
+{
+	if (HasAuthority() && IsAlive())
+	{
+		// Only apply damage if currently lit (in light or spotlight)
+		if (bool bCurrentlyLit = bIsInLight || bIsSpotLighted)
+		{
+			TakeHealthDamage(LitDamageAmount);
+		}
 	}
 }
