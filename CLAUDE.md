@@ -92,6 +92,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Implement interfaces for common behaviors (`PawCollideBreakableInterface`)
 - Follow Unreal naming conventions (classes prefixed with `Paw`, interfaces with `I`)
 
+### C++ Code Style Rules
+- **Always use braces**: All if statements, loops, and control structures must use `{}` braces, even for single-line statements
+- **UObject validation**: Use `IsValid(Object)` instead of simple null checks (`if (Object)`) for all UObject-derived pointers
+- **Examples**:
+  ```cpp
+  // Correct: Always use braces
+  if (bCondition)
+  {
+      DoSomething();
+  }
+  
+  // Correct: Use IsValid for UObject pointers
+  if (IsValid(SomeActor))
+  {
+      SomeActor->DoSomething();
+  }
+  
+  // Incorrect: Missing braces
+  if (bCondition)
+      DoSomething();
+  
+  // Incorrect: Simple null check for UObject
+  if (SomeActor)
+  {
+      SomeActor->DoSomething();
+  }
+  ```
+
 ### Blueprint Integration
 - C++ classes expose functionality via `UPROPERTY` and `UFUNCTION` macros
 - Core logic in C++, gameplay tweaking and content creation in Blueprints
