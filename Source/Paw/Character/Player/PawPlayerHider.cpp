@@ -1,12 +1,11 @@
 ﻿#include "PawPlayerHider.h"
-#include "Materials/MaterialInstanceDynamic.h"
-#include "Net/UnrealNetwork.h"
-#include "Engine/Engine.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Widget.h"
-#include "UObject/ConstructorHelpers.h"
-#include "Engine/World.h"
 #include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Net/UnrealNetwork.h"
+#include "UObject/ConstructorHelpers.h"
 #include "../../Core/System/PawLightDetectionSubsystem.h"
 
 APawPlayerHider::APawPlayerHider()
@@ -14,27 +13,33 @@ APawPlayerHider::APawPlayerHider()
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
 
-	// Initialize default values
-	TeamId = ETeamId::Hider; 
+	// Team & Basic Setup
+	TeamId = ETeamId::Hider;
+
+	// Health System Defaults
 	Health = 100.0f;
 	MaxHealth = 100.0f;
 	bIsDead = false;
-	bIsInLight = false;
-	bIsSpotLighted = false;
-	bIsInvisible = false;
-	StealthOpacity = 0.5f;
 	LitDamageAmount = 10.0f;
 	LitDamageInterval = 0.1f;
-	IsCaptured = false;
-	
-	// Material parameters
+
+	// Light Detection System
+	bIsInLight = false;
+	bIsSpotLighted = false;
+
+	// Stealth System
+	bIsInvisible = false;
+	StealthOpacity = 0.5f;
 	OpacityParameterName = FName("Opacity");
 
-	// TODO what is this?
+	// Capture System
+	IsCaptured = false;
+
+	// Multiplayer Properties
 	bIsLocalPlayer = false;
 	PlayerIndex = -1;
 
-	// Initialize UI
+	// UI System
 	HUD = nullptr;
 }
 
@@ -70,14 +75,12 @@ void APawPlayerHider::Tick(float DeltaTime)
 void APawPlayerHider::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
-	// Additional input bindings can be added here
 }
 
 void APawPlayerHider::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	// TeamId is now replicated in PawCharacterBase
 	DOREPLIFETIME(APawPlayerHider, Health);
 	DOREPLIFETIME(APawPlayerHider, bIsDead);
 	DOREPLIFETIME(APawPlayerHider, bIsInLight);
@@ -88,9 +91,9 @@ void APawPlayerHider::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(APawPlayerHider, PlayerIndex);
 }
 
-// Team Interface Implementation (now inherited from PawCharacterBase)
-
+// ================================================================
 // Health System
+// ================================================================
 void APawPlayerHider::TakeHealthDamage(float DamageAmount)
 {
 	if (HasAuthority() && IsAlive())
@@ -142,7 +145,9 @@ void APawPlayerHider::Respawn()
 	}
 }
 
-// Light Detection
+// ================================================================
+// Light Detection System
+// ================================================================
 void APawPlayerHider::CheckLightExposure()
 {
 	if (!HasAuthority())
@@ -167,7 +172,7 @@ void APawPlayerHider::CheckLightExposure()
 		// Fallback: reset light states if subsystem not available
 		bIsInLight = false;
 		// bIsSpotLighted is not modified here - controlled by Seeker players
-		UE_LOG(LogTemp, Warning, TEXT("PawLightDetectionSubsystem not available for %s"), *GetName());
+		UE_LOG(LogTemp, Error, TEXT("PawLightDetectionSubsystem not available for %s"), *GetName());
 	}
 
 
@@ -207,14 +212,16 @@ void APawPlayerHider::SetInLight(bool bInLight)
 	}
 }
 
-
+// ================================================================
 // Stealth System
+// ================================================================
 void APawPlayerHider::ActivateInvisibility()
 {
 	if (HasAuthority() && !bIsInvisible)
 	{
 		bIsInvisible = true;
 		MulticastUpdateStealthVisuals();
+		 
 		OnInvisibilityChanged(true);
 	}
 }
@@ -233,7 +240,7 @@ void APawPlayerHider::UpdateStealthVisuals()
 {
 	if (!IsValid(GetMesh()))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("UpdateStealthVisuals: Mesh is not valid for %s"), *GetName());
+		UE_LOG(LogTemp, Error, TEXT("UpdateStealthVisuals: Mesh is not valid for %s"), *GetName());
 		return;
 	}
 
@@ -248,10 +255,6 @@ void APawPlayerHider::UpdateStealthVisuals()
 			{
 				GetMesh()->SetMaterial(MaterialIndex, InvisibleMaterial);
 			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("UpdateStealthVisuals: InvisibleMaterial is not set for %s"), *GetName());
 		}
 	}
 	else
@@ -323,7 +326,7 @@ float APawPlayerHider::GetOpacityForViewingTeam() const
 					}
 					else
 					{
-						UE_LOG(LogTemp, Warning, TEXT("GetOpacityForViewingTeam: Local pawn %s does not implement ITeamableInterface"), *LocalPawn->GetName());
+						UE_LOG(LogTemp, Error, TEXT("GetOpacityForViewingTeam: Local pawn %s does not implement ITeamableInterface"), *LocalPawn->GetName());
 					}
 				}
 			}
@@ -334,8 +337,9 @@ float APawPlayerHider::GetOpacityForViewingTeam() const
 	return StealthOpacity;
 }
 
-
+// ================================================================
 // RPC Functions
+// ================================================================
 void APawPlayerHider::ServerSetTeamId_Implementation(ETeamId NewTeamId)
 {
 	TeamId = NewTeamId;
@@ -402,7 +406,7 @@ void APawPlayerHider::Client_CreateHUD_Implementation()
 						Params.TargetPawn = this;
 						HealthBarWidget->ProcessEvent(SetTargetPawnEvent, &Params);
 						
-						UE_LOG(LogTemp, Log, TEXT("Client_CreateHUD: Called SetTargetPawn Custom Event for HealthBar widget for %s"), *GetName());
+						// SetTargetPawn event called successfully
 					}
 					else
 					{
@@ -420,12 +424,14 @@ void APawPlayerHider::Client_CreateHUD_Implementation()
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("HUDWidgetClass is not set for %s"), *GetName());
+			UE_LOG(LogTemp, Error, TEXT("HUDWidgetClass is not set for %s"), *GetName());
 		}
 	}
 }
 
-// HUD Access Functions
+// ================================================================
+// UI System Functions
+// ================================================================
 UUserWidget* APawPlayerHider::GetHUDSafe() const
 {
 	// Only return HUD on locally controlled clients
@@ -459,18 +465,14 @@ void APawPlayerHider::TriggerHpChangedManually()
 	}
 }
 
-// Private Functions
-void APawPlayerHider::OnInvisibilityTick()
-{
-	DeactivateInvisibility();
-}
-
-
+// ================================================================
+// Internal System Functions
+// ================================================================
 void APawPlayerHider::InitializeMaterials()
 {
 	if (!IsValid(GetMesh()))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("InitializeMaterials: Mesh is not valid for %s"), *GetName());
+		UE_LOG(LogTemp, Error, TEXT("InitializeMaterials: Mesh is not valid for %s"), *GetName());
 		return;
 	}
 
@@ -493,13 +495,15 @@ void APawPlayerHider::InitializeMaterials()
 	// Validate invisible material setup
 	if (!IsValid(InvisibleMaterial))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("InitializeMaterials: InvisibleMaterial is not set for %s. Stealth effects will not work properly."), *GetName());
+		UE_LOG(LogTemp, Error, TEXT("InitializeMaterials: InvisibleMaterial is not set for %s. Stealth effects will not work properly."), *GetName());
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("InitializeMaterials: Cached %d materials for %s"), CachedBaseMaterials.Num(), *GetName());
+	// Materials cached successfully
 }
 
+// ================================================================
 // Lit Damage System
+// ================================================================
 void APawPlayerHider::StartLitDamage()
 {
 	if (HasAuthority() && IsAlive() && LitDamageAmount > 0 && LitDamageInterval > 0)

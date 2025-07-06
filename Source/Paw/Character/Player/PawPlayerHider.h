@@ -22,14 +22,13 @@ public:
 	APawPlayerHider();
 
 protected:
+	// Core Overrides
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	// Team System (inherited from PawCharacterBase)
-
-	// Health System
+	// === Health System ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, ReplicatedUsing = OnRep_Health, Category = "Health")
 	float Health;
 
@@ -39,44 +38,29 @@ protected:
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Health")
 	bool bIsDead;
 
-	// Light Detection System
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+	float LitDamageAmount;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+	float LitDamageInterval;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Health")
+	FTimerHandle LitDamageTimerHandle;
+
+	// === Light Detection System ===
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Light Detection")
 	bool bIsInLight;
 
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Light Detection")
 	bool bIsSpotLighted;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Detection")
-	float LightDetectionRadius;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Detection")
-	float LightIntensityThreshold;
-
-	// Stealth System
+	// === Stealth System ===
 	UPROPERTY(BlueprintReadWrite, ReplicatedUsing = OnRep_IsInvisible, Category = "Stealth")
 	bool bIsInvisible;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Stealth")
-	FTimerHandle InvisibilityTimerHandle;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stealth")
 	float StealthOpacity;
 
-	// Movement System
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-	float WalkSpeed;
-
-	// Lit Damage System
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Detection")
-	float LitDamageAmount;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Detection")
-	float LitDamageInterval;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Light Detection")
-	FTimerHandle LitDamageTimerHandle;
-
-	// Effects and Materials
 	UPROPERTY(BlueprintReadWrite, Category = "Stealth")
 	TArray<TObjectPtr<UMaterialInterface>> CachedBaseMaterials;
 
@@ -86,19 +70,18 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stealth")
 	FName OpacityParameterName;
 
-	// Capture System
+	// === Capture System ===
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Capture")
 	bool IsCaptured;
 
-
-	// Multiplayer
+	// === Multiplayer Properties ===
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Multiplayer")
 	bool bIsLocalPlayer;
 
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Multiplayer")
 	int32 PlayerIndex;
 
-	// UI System (Client-side only, not replicated)
+	// === UI System ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TObjectPtr<UUserWidget> HUD;
 
@@ -107,9 +90,7 @@ protected:
 
 
 public:
-	// Team Interface (inherited from PawCharacterBase)
-
-	// Health System Functions
+	// === Health System ===
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	void TakeHealthDamage(float DamageAmount);
 
@@ -122,6 +103,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	void Respawn();
 
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	bool IsAlive() const { return !bIsDead && Health > 0; }
+
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	float GetHealthPercentage() const { return MaxHealth > 0 ? Health / MaxHealth : 0.0f; }
+
 	UFUNCTION(BlueprintImplementableEvent, Category = "Health")
 	void OnHealthChanged(float NewHealth, float NewMaxHealth);
 
@@ -131,18 +118,17 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Health")
 	FOnHpChangedDelegate OnHpChanged;
 
-	// Light Detection Functions
+	// === Light Detection System ===
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	void CheckLightExposure();
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	void SetInLight(bool bInLight);
 
-
 	UFUNCTION(BlueprintImplementableEvent, Category = "Light Detection")
 	void OnLightExposureChanged(bool bInLight);
 
-	// Stealth Functions
+	// === Stealth System ===
 	UFUNCTION(BlueprintCallable, Category = "Stealth")
 	void ActivateInvisibility();
 
@@ -152,70 +138,58 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Stealth")
 	void UpdateStealthVisuals();
 
-	UFUNCTION(NetMulticast, Reliable, Category = "Stealth")
-	void MulticastUpdateStealthVisuals();
-
-	UFUNCTION()
-	void OnRep_Health();
-
-	UFUNCTION()
-	void OnRep_IsInvisible();
-
 	UFUNCTION(BlueprintCallable, Category = "Stealth")
 	float GetOpacityForViewingTeam() const;
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Stealth")
 	void OnInvisibilityChanged(bool bInvisible);
 
-	// Movement Functions
-
-	// RPC Functions
-	UFUNCTION(Server, Reliable, Category = "Multiplayer")
-	void ServerSetTeamId(ETeamId NewTeamId);
-
-	UFUNCTION(Server, Reliable, Category = "Multiplayer")
-	void ServerTakeHealthDamage(float DamageAmount);
-
-	UFUNCTION(Server, Reliable, Category = "Capture")
-	void ServerSetCaptured(bool NewIsCaptured);
-
-	UFUNCTION(NetMulticast, Reliable, Category = "Multiplayer")
-	void MulticastOnDeath();
-
-	UFUNCTION(Client, Reliable, Category = "Multiplayer")
-	void ClientUpdateHealth(float NewHealth);
-
-	UFUNCTION(Client, Reliable, Category = "UI")
-	void Client_CreateHUD();
-
-	// Utility Functions
-	UFUNCTION(BlueprintCallable, Category = "Utility")
-	bool IsAlive() const { return !bIsDead && Health > 0; }
-
-	UFUNCTION(BlueprintCallable, Category = "Utility")
-	float GetHealthPercentage() const { return MaxHealth > 0 ? Health / MaxHealth : 0.0f; }
-
-	// HUD Access Functions (Client-side only)
+	// === UI System ===
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	UUserWidget* GetHUDSafe() const;
 
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	bool HasValidHUD() const;
 
-	// Event Dispatcher Helper Functions
-	UFUNCTION(BlueprintCallable, Category = "Events")
+	UFUNCTION(BlueprintCallable, Category = "UI")
 	bool IsEventDispatcherReady() const;
 
-	UFUNCTION(BlueprintCallable, Category = "Events")
+	UFUNCTION(BlueprintCallable, Category = "UI")
 	void TriggerHpChangedManually();
 
-private:
-	// Timer Functions
-	void OnInvisibilityTick();
-	void OnLitDamageTimeout();
+	// === RPC Functions ===
+	UFUNCTION(Server, Reliable, Category = "Multiplayer")
+	void ServerSetTeamId(ETeamId NewTeamId);
 
-	// Internal Functions
+	UFUNCTION(Server, Reliable, Category = "Health")
+	void ServerTakeHealthDamage(float DamageAmount);
+
+	UFUNCTION(Server, Reliable, Category = "Capture")
+	void ServerSetCaptured(bool NewIsCaptured);
+
+	UFUNCTION(NetMulticast, Reliable, Category = "Stealth")
+	void MulticastUpdateStealthVisuals();
+
+	UFUNCTION(NetMulticast, Reliable, Category = "Health")
+	void MulticastOnDeath();
+
+	UFUNCTION(Client, Reliable, Category = "Health")
+	void ClientUpdateHealth(float NewHealth);
+
+	UFUNCTION(Client, Reliable, Category = "UI")
+	void Client_CreateHUD();
+
+	// === RepNotify Functions ===
+	UFUNCTION()
+	void OnRep_Health();
+
+	UFUNCTION()
+	void OnRep_IsInvisible();
+
+private:
+	// === Internal System Functions ===
 	void InitializeMaterials();
 	void StartLitDamage();
 	void StopLitDamage();
+	void OnLitDamageTimeout();
 };
