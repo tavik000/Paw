@@ -9,12 +9,8 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/World.h"
 #include "Components/SphereComponent.h"
-#include "Components/PointLightComponent.h"
-#include "Engine/OverlapResult.h"
-#include "CollisionQueryParams.h"
 #include "Engine/Engine.h"
-#include "Kismet/GameplayStatics.h"
-#include "Engine/DirectionalLight.h"
+#include "../../Core/Systems/PawLightDetectionSubsystem.h"
 
 APawPlayerHider::APawPlayerHider()
 {
@@ -43,8 +39,6 @@ APawPlayerHider::APawPlayerHider()
 	// Initialize UI
 	HUD = nullptr;
 
-	// Initialize cached references
-	CachedSunLightActor = nullptr;
 }
 
 void APawPlayerHider::BeginPlay()
@@ -53,9 +47,6 @@ void APawPlayerHider::BeginPlay()
 
 	InitializeMaterials();
 	UpdateMovementSpeed();
-
-	// Find and cache SunLight actor
-	FindSunLightActor();
 
 	// Start lit damage timer immediately (always running)
 	if (HasAuthority())
@@ -181,63 +172,23 @@ void APawPlayerHider::CheckLightExposure()
 
 	bool bWasInLight = bIsInLight;
 	bool bWasSpotLighted = bIsSpotLighted;
-
-	// Reset light states
-	bIsInLight = false;
-	bIsSpotLighted = false;
-
-	// Bubble Light Detection - replicate Blueprint's GetOverlappingActors logic
-	TArray<AActor*> OverlappingActors;
-	GetOverlappingActors(OverlappingActors);
-
-	for (AActor* Actor : OverlappingActors)
+	
+	// Query the Light Detection Subsystem for current light exposure
+	if (UPawLightDetectionSubsystem* LightDetectionSubsystem = GetWorld()->GetSubsystem<UPawLightDetectionSubsystem>(); IsValid(LightDetectionSubsystem))
 	{
-		// Check if actor has BubbleLight tag or is a PointLightComponent
-		if (IsValid(Actor) && (Actor->Tags.Contains(TEXT("BubbleLight")) || Actor->GetClass()->GetName().Contains(
-			TEXT("BubbleLight"))))
-		{
-			// Check for PointLightComponent
-			UPointLightComponent* PointLight = Actor->FindComponentByClass<UPointLightComponent>();
-			if (IsValid(PointLight))
-			{
-				// Calculate distance and check against light attenuation radius
-				float Distance = FVector::Dist(GetActorLocation(), Actor->GetActorLocation());
-				float AttenuationRadius = PointLight->AttenuationRadius;
-
-				if (Distance <= AttenuationRadius)
-				{
-					bIsInLight = true;
-					break; // Found a light source, no need to check more
-				}
-			}
-		}
+		FLightExposureResult LightResult = LightDetectionSubsystem->GetLightExposureState(GetActorLocation(), this);
+		bIsInLight = LightResult.bIsInLight;
+		// Note: bIsSpotLighted is controlled by Seeker players, not environment lights
+		// LightResult.bIsSpotLighted is always false from subsystem
+	}
+	else
+	{
+		// Fallback: reset light states if subsystem not available
+		bIsInLight = false;
+		// bIsSpotLighted is not modified here - controlled by Seeker players
+		UE_LOG(LogTemp, Warning, TEXT("PawLightDetectionSubsystem not available for %s"), *GetName());
 	}
 
-	// Directional Light Detection - use SunLight actor's forward vector
-	if (IsValid(CachedSunLightActor))
-	{
-		if (UWorld* World = GetWorld(); IsValid(World))
-		{
-			FVector Start = GetActorLocation();
-			// Get the forward vector from SunLight actor (light direction)
-			FVector LightDirection = CachedSunLightActor->GetActorForwardVector();
-			// Trace in the direction of the light (distance: 1000 units)
-			FVector End = Start - (LightDirection * 1000.0f);
-
-			FHitResult HitResult;
-			FCollisionQueryParams QueryParams;
-			QueryParams.AddIgnoredActor(this);
-
-			// Line trace to check if we're in shadow from directional light
-			bool bHit = World->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams);
-
-			// If hit something, we're in shadow; if no hit, we're lit by directional light
-			if (!bHit)
-			{
-				bIsInLight = true;
-			}
-		}
-	}
 
 	// Handle invisibility - check if can be invisible forever in shadows
 	bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
@@ -275,26 +226,6 @@ void APawPlayerHider::SetInLight(bool bInLight)
 	}
 }
 
-void APawPlayerHider::FindSunLightActor()
-{
-	// Find DirectionalLight actor with "SunLight" tag
-	if (UWorld* World = GetWorld(); IsValid(World))
-	{
-		TArray<AActor*> FoundActors;
-		UGameplayStatics::GetAllActorsOfClassWithTag(World, ADirectionalLight::StaticClass(), FName("SunLight"),
-		                                             FoundActors);
-
-		if (FoundActors.Num() > 0)
-		{
-			CachedSunLightActor = FoundActors[0];
-			UE_LOG(LogTemp, Log, TEXT("Found SunLight actor: %s"), *CachedSunLightActor->GetName());
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("No DirectionalLight with 'SunLight' tag found in level"));
-		}
-	}
-}
 
 // Stealth System
 void APawPlayerHider::ActivateInvisibility()
