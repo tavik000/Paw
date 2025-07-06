@@ -5,8 +5,6 @@
 #include "../../Core/Interfaces/ITeamableInterface.h"
 #include "../../Core/Enums/ETeamId.h"
 #include "Engine/TimerHandle.h"
-#include "Components/StaticMeshComponent.h"
-#include "Components/SceneComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Components/WidgetComponent.h"
 #include "Blueprint/UserWidget.h"
@@ -110,12 +108,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TSubclassOf<UUserWidget> HUDWidgetClass;
 
-	// Components
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<USceneComponent> LightDetectionPoint;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UStaticMeshComponent> DetectionMesh;
 
 public:
 	// Team Interface Implementation
@@ -222,7 +214,6 @@ private:
 	void OnLitDamageTimeout();
 
 	// Internal Functions
-	void InitializeComponents();
 	void InitializeMaterials();
 	void StartLitDamage();
 	void StopLitDamage();

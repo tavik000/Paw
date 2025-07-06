@@ -1,6 +1,4 @@
 ﻿#include "PawPlayerHider.h"
-#include "Components/StaticMeshComponent.h"
-#include "Components/SceneComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -43,19 +41,12 @@ APawPlayerHider::APawPlayerHider()
 	// Initialize UI
 	HUD = nullptr;
 
-	// Create components
-	LightDetectionPoint = CreateDefaultSubobject<USceneComponent>(TEXT("LightDetectionPoint"));
-	LightDetectionPoint->SetupAttachment(RootComponent);
-
-	DetectionMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DetectionMesh"));
-	DetectionMesh->SetupAttachment(LightDetectionPoint);
 }
 
 void APawPlayerHider::BeginPlay()
 {
 	Super::BeginPlay();
 
-	InitializeComponents();
 	InitializeMaterials();
 	UpdateMovementSpeed();
 	
@@ -412,14 +403,6 @@ void APawPlayerHider::OnInvisibilityTimeout()
 }
 
 
-void APawPlayerHider::InitializeComponents()
-{
-	// Initialize component positions and settings
-	if (IsValid(LightDetectionPoint))
-	{
-		LightDetectionPoint->SetRelativeLocation(FVector(0, 0, 100));
-	}
-}
 
 void APawPlayerHider::InitializeMaterials()
 {
