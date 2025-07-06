@@ -279,6 +279,13 @@ void APawPlayerHider::MulticastUpdateStealthVisuals_Implementation()
 	UpdateStealthVisuals();
 }
 
+void APawPlayerHider::OnRep_Health()
+{
+	// Trigger health change events on clients when health replicates
+	OnHealthChanged(Health, MaxHealth);
+	OnHpChanged.Broadcast(GetHealthPercentage());
+}
+
 void APawPlayerHider::OnRep_IsInvisible()
 {
 	UpdateStealthVisuals();
@@ -378,6 +385,33 @@ void APawPlayerHider::Client_CreateHUD_Implementation()
 				if (UWidget* CrosshairWidget = HUD->GetWidgetFromName(TEXT("IMG_Crosshair")); IsValid(CrosshairWidget))
 				{
 					CrosshairWidget->SetVisibility(ESlateVisibility::Collapsed);
+				}
+
+				// Find and configure HealthBar child widget
+				if (UWidget* HealthBarWidget = HUD->GetWidgetFromName(TEXT("WBP_HealthBar")); IsValid(HealthBarWidget))
+				{
+					// Call Blueprint Custom Event to set target Pawn for HealthBar
+					if (UFunction* SetTargetPawnEvent = HealthBarWidget->GetClass()->FindFunctionByName(TEXT("SetTargetPawn")))
+					{
+						struct FSetTargetPawnParams
+						{
+							APawn* TargetPawn;
+						};
+						
+						FSetTargetPawnParams Params;
+						Params.TargetPawn = this;
+						HealthBarWidget->ProcessEvent(SetTargetPawnEvent, &Params);
+						
+						UE_LOG(LogTemp, Log, TEXT("Client_CreateHUD: Called SetTargetPawn Custom Event for HealthBar widget for %s"), *GetName());
+					}
+					else
+					{
+						UE_LOG(LogTemp, Warning, TEXT("Client_CreateHUD: SetTargetPawn Custom Event not found on HealthBar widget for %s"), *GetName());
+					}
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Client_CreateHUD: HealthBar widget not found in HUD for %s"), *GetName());
 				}
 
 				// Broadcast initial HP changed event

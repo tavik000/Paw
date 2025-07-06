@@ -30,7 +30,7 @@ protected:
 	// Team System (inherited from PawCharacterBase)
 
 	// Health System
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Health")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, ReplicatedUsing = OnRep_Health, Category = "Health")
 	float Health;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
@@ -154,6 +154,9 @@ public:
 
 	UFUNCTION(NetMulticast, Reliable, Category = "Stealth")
 	void MulticastUpdateStealthVisuals();
+
+	UFUNCTION()
+	void OnRep_Health();
 
 	UFUNCTION()
 	void OnRep_IsInvisible();
