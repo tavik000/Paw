@@ -1,14 +1,11 @@
 ﻿#include "PawPlayerHider.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/Engine.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Widget.h"
-#include "Components/Slider.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/World.h"
-#include "Components/SphereComponent.h"
 #include "Engine/Engine.h"
 #include "../../Core/Systems/PawLightDetectionSubsystem.h"
 
@@ -24,21 +21,18 @@ APawPlayerHider::APawPlayerHider()
 	bIsDead = false;
 	bIsInLight = false;
 	bIsSpotLighted = false;
-	LightDetectionRadius = 500.0f;
-	LightIntensityThreshold = 0.5f;
 	bIsInvisible = false;
-	InvisibilityDuration = 5.0f;
-	StealthOpacity = 0.3f;
-	WalkSpeed = 300.0f;
+	StealthOpacity = 0.5f;
 	LitDamageAmount = 10.0f;
 	LitDamageInterval = 0.1f;
 	IsCaptured = false;
+
+	// TODO what is this?
 	bIsLocalPlayer = false;
 	PlayerIndex = -1;
 
 	// Initialize UI
 	HUD = nullptr;
-
 }
 
 void APawPlayerHider::BeginPlay()
@@ -46,7 +40,6 @@ void APawPlayerHider::BeginPlay()
 	Super::BeginPlay();
 
 	InitializeMaterials();
-	UpdateMovementSpeed();
 
 	// Start lit damage timer immediately (always running)
 	if (HasAuthority())
@@ -172,9 +165,10 @@ void APawPlayerHider::CheckLightExposure()
 
 	bool bWasInLight = bIsInLight;
 	bool bWasSpotLighted = bIsSpotLighted;
-	
+
 	// Query the Light Detection Subsystem for current light exposure
-	if (UPawLightDetectionSubsystem* LightDetectionSubsystem = GetWorld()->GetSubsystem<UPawLightDetectionSubsystem>(); IsValid(LightDetectionSubsystem))
+	if (UPawLightDetectionSubsystem* LightDetectionSubsystem = GetWorld()->GetSubsystem<UPawLightDetectionSubsystem>();
+		IsValid(LightDetectionSubsystem))
 	{
 		FLightExposureResult LightResult = LightDetectionSubsystem->GetLightExposureState(GetActorLocation(), this);
 		bIsInLight = LightResult.bIsInLight;
@@ -233,7 +227,6 @@ void APawPlayerHider::ActivateInvisibility()
 	if (HasAuthority() && !bIsInvisible)
 	{
 		bIsInvisible = true;
-		// Remove timer - invisibility is permanent while in shadows
 		UpdateStealthVisuals();
 		OnInvisibilityChanged(true);
 	}
@@ -251,21 +244,22 @@ void APawPlayerHider::DeactivateInvisibility()
 
 void APawPlayerHider::UpdateStealthVisuals()
 {
-	if (IsValid(DynamicMaterial))
+	if (bIsInvisible)
 	{
-		float OpacityValue = bIsInvisible ? StealthOpacity : 1.0f;
-		DynamicMaterial->SetScalarParameterValue(TEXT("Opacity"), OpacityValue);
+		if (IsValid(InvisibleMaterial))
+		{
+			GetMesh()->SetMaterial(0, InvisibleMaterial);
+		}
 	}
+	else
+	{
+		GetMesh()->SetMaterial(0, CachedBaseMaterial);
+	}
+
+	const float OpacityValue = bIsInvisible ? StealthOpacity : 1.0f;
+	GetMesh()->SetScalarParameterValueOnMaterials(TEXT("Opacity"), OpacityValue);
 }
 
-// Movement System
-void APawPlayerHider::UpdateMovementSpeed()
-{
-	if (UCharacterMovementComponent* MovementComp = GetCharacterMovement(); IsValid(MovementComp))
-	{
-		MovementComp->MaxWalkSpeed = WalkSpeed;
-	}
-}
 
 // RPC Functions
 void APawPlayerHider::ServerSetTeamId_Implementation(ETeamId NewTeamId)
@@ -365,7 +359,7 @@ void APawPlayerHider::TriggerHpChangedManually()
 }
 
 // Private Functions
-void APawPlayerHider::OnInvisibilityTimeout()
+void APawPlayerHider::OnInvisibilityTick()
 {
 	DeactivateInvisibility();
 }
@@ -373,10 +367,9 @@ void APawPlayerHider::OnInvisibilityTimeout()
 
 void APawPlayerHider::InitializeMaterials()
 {
-	if (IsValid(BaseMaterial) && IsValid(GetMesh()))
+	if (IsValid(GetMesh()))
 	{
-		DynamicMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
-		GetMesh()->SetMaterial(0, DynamicMaterial);
+		CachedBaseMaterial = GetMesh()->GetMaterial(0);
 	}
 }
 

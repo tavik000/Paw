@@ -60,9 +60,6 @@ protected:
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Stealth")
 	bool bIsInvisible;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stealth")
-	float InvisibilityDuration;
-
 	UPROPERTY(BlueprintReadWrite, Category = "Stealth")
 	FTimerHandle InvisibilityTimerHandle;
 
@@ -84,11 +81,11 @@ protected:
 	FTimerHandle LitDamageTimerHandle;
 
 	// Effects and Materials
-	UPROPERTY(BlueprintReadWrite, Category = "Effects")
-	TObjectPtr<UMaterialInstanceDynamic> DynamicMaterial;
+	UPROPERTY(BlueprintReadWrite, Category = "Stealth")
+	TObjectPtr<UMaterialInterface> CachedBaseMaterial;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
-	TObjectPtr<UMaterialInterface> BaseMaterial;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stealth")
+	TObjectPtr<UMaterialInterface> InvisibleMaterial;
 
 	// Capture System
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Capture")
@@ -167,8 +164,6 @@ public:
 	void OnInvisibilityChanged(bool bInvisible);
 
 	// Movement Functions
-	UFUNCTION(BlueprintCallable, Category = "Movement")
-	void UpdateMovementSpeed();
 
 	// RPC Functions
 	UFUNCTION(Server, Reliable, Category = "Multiplayer")
@@ -212,7 +207,7 @@ public:
 
 private:
 	// Timer Functions
-	void OnInvisibilityTimeout();
+	void OnInvisibilityTick();
 	void OnLitDamageTimeout();
 
 	// Internal Functions
