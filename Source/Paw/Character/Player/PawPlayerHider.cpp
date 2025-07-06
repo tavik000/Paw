@@ -18,6 +18,7 @@
       MaxHealth = 100.0f;
       bIsDead = false;
       bIsInLight = false;
+      bIsSpotLighted = false;
       LightDetectionRadius = 500.0f;
       LightIntensityThreshold = 0.5f;
       bIsInvisible = false;
@@ -30,8 +31,12 @@
       bIsCrouching = false;
       NoiseLevel = 0.0f;
       NoiseRadius = 800.0f;
+      IsCaptured = false;
       bIsLocalPlayer = false;
       PlayerIndex = -1;
+
+      // Initialize UI
+      HUD = nullptr;
 
       // Create components
       LightDetectionPoint = CreateDefaultSubobject<USceneComponent>(TEXT("LightDetectionPoint"));
@@ -74,7 +79,9 @@
       DOREPLIFETIME(APawPlayerHider, Health);
       DOREPLIFETIME(APawPlayerHider, bIsDead);
       DOREPLIFETIME(APawPlayerHider, bIsInLight);
+      DOREPLIFETIME(APawPlayerHider, bIsSpotLighted);
       DOREPLIFETIME(APawPlayerHider, bIsInvisible);
+      DOREPLIFETIME(APawPlayerHider, IsCaptured);
       DOREPLIFETIME(APawPlayerHider, bIsRunning);
       DOREPLIFETIME(APawPlayerHider, bIsCrouching);
       DOREPLIFETIME(APawPlayerHider, bIsLocalPlayer);
@@ -106,6 +113,7 @@
       {
           Health = FMath::Clamp(Health - DamageAmount, 0.0f, MaxHealth);
           OnHealthChanged(Health, MaxHealth);
+          HpChanged.Broadcast(GetHealthPercentage());
 
           if (Health <= 0 && !bIsDead)
           {
@@ -124,6 +132,7 @@
       {
           Health = FMath::Clamp(Health + HealAmount, 0.0f, MaxHealth);
           OnHealthChanged(Health, MaxHealth);
+          HpChanged.Broadcast(GetHealthPercentage());
       }
   }
 
@@ -133,7 +142,7 @@
       {
           bIsDead = true;
           Health = 0.0f;
-          OnDeath();
+          OnDeath.Broadcast();
           MulticastOnDeath();
       }
   }
@@ -145,6 +154,7 @@
           bIsDead = false;
           Health = MaxHealth;
           OnHealthChanged(Health, MaxHealth);
+          HpChanged.Broadcast(GetHealthPercentage());
       }
   }
 
@@ -277,15 +287,21 @@
       TakeHealthDamage(DamageAmount);
   }
 
+  void APawPlayerHider::ServerSetCaptured_Implementation(bool NewIsCaptured)
+  {
+      IsCaptured = NewIsCaptured;
+  }
+
   void APawPlayerHider::MulticastOnDeath_Implementation()
   {
-      OnDeath();
+      OnDeath.Broadcast();
   }
 
   void APawPlayerHider::ClientUpdateHealth_Implementation(float NewHealth)
   {
       Health = NewHealth;
       OnHealthChanged(Health, MaxHealth);
+      HpChanged.Broadcast(GetHealthPercentage());
   }
 
   // Private Functions

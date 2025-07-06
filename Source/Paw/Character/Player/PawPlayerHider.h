@@ -8,8 +8,13 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Components/WidgetComponent.h"
+#include "Blueprint/UserWidget.h"
 #include "Net/UnrealNetwork.h"
 #include "PawPlayerHider.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FHpChangedSignature, float, HpPercentage);
 
 UCLASS()
 class PAW_API APawPlayerHider : public APawTPPlayer, public ITeamableInterface
@@ -42,6 +47,9 @@ protected:
 	// Light Detection System
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Light Detection")
 	bool bIsInLight;
+
+	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Light Detection")
+	bool bIsSpotLighted;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Detection")
 	float LightDetectionRadius;
@@ -95,12 +103,20 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
 	TObjectPtr<UMaterialInterface> BaseMaterial;
 
+	// Capture System
+	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Capture")
+	bool IsCaptured;
+
 	// Multiplayer
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Multiplayer")
 	bool bIsLocalPlayer;
 
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Multiplayer")
 	int32 PlayerIndex;
+
+	// UI System
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TObjectPtr<UUserWidget> HUD;
 
 	// Components
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -135,8 +151,11 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Health")
 	void OnHealthChanged(float NewHealth, float NewMaxHealth);
 
-	UFUNCTION(BlueprintImplementableEvent, Category = "Health")
-	void OnDeath();
+	UPROPERTY(BlueprintAssignable, Category = "Health")
+	FOnDeathSignature OnDeath;
+
+	UPROPERTY(BlueprintAssignable, Category = "Health")
+	FHpChangedSignature HpChanged;
 
 	// Light Detection Functions
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
@@ -187,6 +206,9 @@ public:
 
 	UFUNCTION(Server, Reliable, Category = "Multiplayer")
 	void ServerTakeHealthDamage(float DamageAmount);
+
+	UFUNCTION(Server, Reliable, Category = "Capture")
+	void ServerSetCaptured(bool NewIsCaptured);
 
 	UFUNCTION(NetMulticast, Reliable, Category = "Multiplayer")
 	void MulticastOnDeath();
