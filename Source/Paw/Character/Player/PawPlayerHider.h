@@ -13,9 +13,9 @@
 #include "Net/UnrealNetwork.h"
 #include "PawPlayerHider.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathDelegate);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FHpChangedSignature, float, HpPercentage);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FHpChangedDelegate, float, HpPercentage);
 
 UCLASS()
 class PAW_API APawPlayerHider : public APawTPPlayer, public ITeamableInterface
@@ -153,10 +153,10 @@ public:
 	void OnHealthChanged(float NewHealth, float NewMaxHealth);
 
 	UPROPERTY(BlueprintAssignable, Category = "Health")
-	FOnDeathSignature OnDeath;
+	FOnDeathDelegate OnDeath;
 
 	UPROPERTY(BlueprintAssignable, Category = "Health")
-	FHpChangedSignature HpChanged;
+	FHpChangedDelegate HpChanged;
 
 	// Light Detection Functions
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
