@@ -3,6 +3,8 @@
 
 #include "PawBubbleLight.h"
 
+#include "Paw/Core/Systems/PawLightDetectionSubsystem.h"
+
 
 APawBubbleLight::APawBubbleLight()
 {
@@ -16,6 +18,18 @@ APawBubbleLight::APawBubbleLight()
 void APawBubbleLight::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// register to LightDetectionSubsystem
+	if (HasAuthority())
+	{
+		if (UPawLightDetectionSubsystem* LightDetectionSubsystem = GetWorld()->GetSubsystem<
+			UPawLightDetectionSubsystem>(); IsValid(LightDetectionSubsystem))
+		{
+			{
+				LightDetectionSubsystem->RegisterBubbleLight(this, PointLight);
+			}
+		}
+	}
 }
 
 void APawBubbleLight::Break_Implementation()
