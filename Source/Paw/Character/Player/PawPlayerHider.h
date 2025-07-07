@@ -139,7 +139,7 @@ public:
 	void UpdateStealthVisuals();
 
 	UFUNCTION(BlueprintCallable, Category = "Stealth")
-	float GetOpacityForViewingTeam() const;
+	float GetOpacityForViewerTeam() const;
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Stealth")
 	void OnInvisibilityChanged(bool bInvisible);
@@ -192,4 +192,9 @@ private:
 	void StartLitDamage();
 	void StopLitDamage();
 	void OnLitDamageTimeout();
+	
+	// === Stealth Helper Functions ===
+	bool IsViewerOnSeekerTeam() const;
+	void ApplyInvisibilityMaterials();
+	void RestoreOriginalMaterials();
 };

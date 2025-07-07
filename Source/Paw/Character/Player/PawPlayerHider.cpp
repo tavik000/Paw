@@ -238,41 +238,29 @@ void APawPlayerHider::DeactivateInvisibility()
 
 void APawPlayerHider::UpdateStealthVisuals()
 {
+	// Early validation
 	if (!IsValid(GetMesh()))
 	{
 		UE_LOG(LogTemp, Error, TEXT("UpdateStealthVisuals: Mesh is not valid for %s"), *GetName());
 		return;
 	}
 
-	const int32 MaterialCount = GetMesh()->GetNumMaterials();
-	
-	if (bIsInvisible)
+	// Handle visible state
+	if (!bIsInvisible)
 	{
-		if (IsValid(InvisibleMaterial))
+		RestoreOriginalMaterials();
+		if (!OpacityParameterName.IsNone())
 		{
-			// Apply invisible material to all material slots
-			for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; ++MaterialIndex)
-			{
-				GetMesh()->SetMaterial(MaterialIndex, InvisibleMaterial);
-			}
+			GetMesh()->SetScalarParameterValueOnMaterials(OpacityParameterName, 1.0f);
 		}
-	}
-	else
-	{
-		// Restore original materials
-		for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount && MaterialIndex < CachedBaseMaterials.Num(); ++MaterialIndex)
-		{
-			if (IsValid(CachedBaseMaterials[MaterialIndex]))
-			{
-				GetMesh()->SetMaterial(MaterialIndex, CachedBaseMaterials[MaterialIndex]);
-			}
-		}
+		return;
 	}
 
-	// Set opacity parameter if parameter name is configured
+	// Handle invisible state
+	ApplyInvisibilityMaterials();
 	if (!OpacityParameterName.IsNone())
 	{
-		const float OpacityValue = bIsInvisible ? GetOpacityForViewingTeam() : 1.0f;
+		const float OpacityValue = GetOpacityForViewerTeam();
 		GetMesh()->SetScalarParameterValueOnMaterials(OpacityParameterName, OpacityValue);
 	}
 }
@@ -295,46 +283,15 @@ void APawPlayerHider::OnRep_IsInvisible()
 	OnInvisibilityChanged(bIsInvisible);
 }
 
-float APawPlayerHider::GetOpacityForViewingTeam() const
+float APawPlayerHider::GetOpacityForViewerTeam() const
 {
-	// Get the local player's team to determine what opacity they should see
-	if (UWorld* World = GetWorld(); IsValid(World))
+	// Seekers see full invisibility, Hiders see partial opacity
+	if (IsViewerOnSeekerTeam())
 	{
-		// Check all local player controllers to find the one viewing this pawn
-		for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
-		{
-			if (APlayerController* PC = Iterator->Get(); IsValid(PC) && PC->IsLocalController())
-			{
-				if (APawn* LocalPawn = PC->GetPawn(); IsValid(LocalPawn))
-				{
-					// Check if local player implements team interface
-					if (LocalPawn->GetClass()->ImplementsInterface(UTeamableInterface::StaticClass()))
-					{
-						// Use Execute_ wrapper for Blueprint-compatible interface calls
-						ETeamId LocalTeam = ITeamableInterface::Execute_GetTeamId(LocalPawn);
-						
-						// If local player is on Seeker team, they should see full invisibility (0.0f)
-						if (LocalTeam == ETeamId::Seeker)
-						{
-							return 0.0f;
-						}
-						// If local player is on Hider team (same team), they should see partial opacity
-						if (LocalTeam == ETeamId::Hider)
-						{
-							return StealthOpacity; // Default 0.5f
-						}
-					}
-					else
-					{
-						UE_LOG(LogTemp, Error, TEXT("GetOpacityForViewingTeam: Local pawn %s does not implement ITeamableInterface"), *LocalPawn->GetName());
-					}
-				}
-			}
-		}
+		return 0.0f;
 	}
 	
-	// Fallback: use default stealth opacity
-	return StealthOpacity;
+	return StealthOpacity; // Default 0.5f for Hiders and fallback
 }
 
 // ================================================================
@@ -462,6 +419,99 @@ void APawPlayerHider::TriggerHpChangedManually()
 	if (IsEventDispatcherReady())
 	{
 		OnHpChanged.Broadcast(GetHealthPercentage());
+	}
+}
+
+// ================================================================
+// Internal System Functions
+// ================================================================
+// Stealth Helper Functions
+// ================================================================
+bool APawPlayerHider::IsViewerOnSeekerTeam() const
+{
+	UWorld* World = GetWorld();
+	if (!IsValid(World))
+	{
+		return false;
+	}
+
+	for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+	{
+		APlayerController* PC = Iterator->Get();
+		if (!IsValid(PC) || !PC->IsLocalController())
+		{
+			continue;
+		}
+
+		APawn* LocalPawn = PC->GetPawn();
+		if (!IsValid(LocalPawn))
+		{
+			continue;
+		}
+
+		if (!LocalPawn->GetClass()->ImplementsInterface(UTeamableInterface::StaticClass()))
+		{
+			continue;
+		}
+
+		ETeamId LocalTeam = Execute_GetTeamId(LocalPawn);
+		return LocalTeam == ETeamId::Seeker;
+	}
+
+	return false;
+}
+
+void APawPlayerHider::ApplyInvisibilityMaterials()
+{
+	if (!IsValid(InvisibleMaterial))
+	{
+		return;
+	}
+
+	const int32 MaterialCount = GetMesh()->GetNumMaterials();
+	const bool bViewerIsSeeker = IsViewerOnSeekerTeam();
+
+	for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; ++MaterialIndex)
+	{
+		if (MaterialIndex == 0)
+		{
+			// Slot 0 (body): Always use invisible material when invisible
+			GetMesh()->SetMaterial(MaterialIndex, InvisibleMaterial);
+		}
+		else if (MaterialIndex == 1)
+		{
+			// Slot 1 (facial): Only invisible for Seekers, visible for Hiders
+			if (bViewerIsSeeker)
+			{
+				GetMesh()->SetMaterial(MaterialIndex, InvisibleMaterial);
+			}
+			else
+			{
+				// Keep original facial material for Hiders
+				if (MaterialIndex < CachedBaseMaterials.Num() && IsValid(CachedBaseMaterials[MaterialIndex]))
+				{
+					GetMesh()->SetMaterial(MaterialIndex, CachedBaseMaterials[MaterialIndex]);
+				}
+			}
+		}
+		else
+		{
+			// Other slots: Use invisible material
+			GetMesh()->SetMaterial(MaterialIndex, InvisibleMaterial);
+		}
+	}
+}
+
+void APawPlayerHider::RestoreOriginalMaterials()
+{
+	const int32 MaterialCount = GetMesh()->GetNumMaterials();
+	
+	for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount && MaterialIndex < CachedBaseMaterials.Num(); ++MaterialIndex)
+	{
+		if (IsValid(CachedBaseMaterials[MaterialIndex]))
+		{
+			GetMesh()->SetMaterial(MaterialIndex, CachedBaseMaterials[MaterialIndex]);
+		}
 	}
 }
 
