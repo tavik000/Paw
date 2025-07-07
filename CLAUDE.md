@@ -139,6 +139,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
       DoSomething();
   ```
 
+### Code Modification and Collaboration Rules
+- **Respect user modifications**: Never automatically revert user renames, refactoring, or code changes to Claude-generated versions
+- **Preserve user intent**: Always maintain user naming conventions, architectural decisions, and code structure choices
+- **Ask before conflicting changes**: When user modifications conflict with suggestions, ask for clarification rather than overwriting
+- **Prevent code duplication**: Always check for existing similar functionality before creating new code
+- **Promote reusability**: Extract common patterns into reusable helper functions and shared systems
+- **Use shared resources**: Prefer shared timers, shared logic, and shared systems over duplicated implementations
+- **Examples**:
+  ```cpp
+  // Good: User renamed function, respect it
+  void StartHealthEffectTimer() { /* keep user's improved name */ }
+  
+  // Good: Shared timer for related functionality
+  FTimerHandle HealthEffectTimerHandle; // One timer for damage+healing
+  
+  // Bad: Duplicate similar functionality
+  void StartDamageTimer() { /* ... */ }
+  void StartHealTimer() { /* same interval, separate timer */ }
+  
+  // Good: Reusable helper function
+  bool IsValidForHealthEffect() const
+  {
+      return HasAuthority() && IsAlive();
+  }
+  
+  // Bad: Duplicated validation code
+  if (HasAuthority() && IsAlive()) { /* repeated everywhere */ }
+  ```
+
 ### Blueprint Integration
 - C++ classes expose functionality via `UPROPERTY` and `UFUNCTION` macros
 - Core logic in C++, gameplay tweaking and content creation in Blueprints
