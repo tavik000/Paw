@@ -146,6 +146,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Prevent code duplication**: Always check for existing similar functionality before creating new code
 - **Promote reusability**: Extract common patterns into reusable helper functions and shared systems
 - **Use shared resources**: Prefer shared timers, shared logic, and shared systems over duplicated implementations
+- **Blueprint exposure**: Ask user if they want configurable values exposed to Blueprint before adding UPROPERTY macros
+- **Modern pointers**: Always use TObjectPtr instead of raw pointers for UObject references
 - **Examples**:
   ```cpp
   // Good: User renamed function, respect it
@@ -184,6 +186,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Input mappings in `Content/Main/Input/`
 - UI widgets prefixed with `WBP_`
 - Maps prefixed with `L_` (levels) or `LI_` (level instances)
+
+## Development Best Practices
+- **Always expose value to Blueprints**: Ensure important variables and functions are accessible in Blueprint
+- **Avoid hardcoding in C++**: Use configurable parameters and expose them to Blueprints
+- **Use modern UE pointers**: Prefer UE smart pointers (TSharedPtr, TUniquePtr) over raw pointers
 
 ## Testing and Debugging
 
@@ -239,3 +246,4 @@ This project uses Git LFS extensively for Unreal Engine assets (.uasset, .umap, 
 - Visual Studio 2022 with C++ development tools
 - Windows SDK
 - Steam SDK (for online features)
+```
