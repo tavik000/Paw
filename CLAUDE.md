@@ -94,12 +94,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### C++ Code Style Rules
 - **Always use braces**: All if statements, loops, and control structures must use `{}` braces, even for single-line statements
+- **Always use newline braces**: All opening braces `{` must be placed on a new line (Allman/BSD brace style)
+- **Use early returns**: Prefer early validation returns over nested if statements to improve readability
 - **UObject validation**: Use `IsValid(Object)` instead of simple null checks (`if (Object)`) for all UObject-derived pointers
 - **Examples**:
   ```cpp
-  // Correct: Always use braces
-  if (bCondition)
+  // Correct: Newline braces and early return
+  void SomeFunction()
   {
+      if (!IsValid(SomeObject))
+      {
+          return;
+      }
+      
+      if (!bSomeCondition)
+      {
+          UE_LOG(LogTemp, Error, TEXT("Condition failed"));
+          return;
+      }
+      
+      // Main logic here
       DoSomething();
   }
   
@@ -109,15 +123,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
       SomeActor->DoSomething();
   }
   
+  // Incorrect: Same-line braces and nested ifs
+  void SomeFunction() {
+      if (IsValid(SomeObject)) {
+          if (bSomeCondition) {
+              DoSomething();
+          } else {
+              UE_LOG(LogTemp, Error, TEXT("Condition failed"));
+          }
+      }
+  }
+  
   // Incorrect: Missing braces
   if (bCondition)
       DoSomething();
-  
-  // Incorrect: Simple null check for UObject
-  if (SomeActor)
-  {
-      SomeActor->DoSomething();
-  }
   ```
 
 ### Blueprint Integration
