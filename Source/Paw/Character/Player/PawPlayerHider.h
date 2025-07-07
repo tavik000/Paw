@@ -42,10 +42,13 @@ protected:
 	float LitDamageAmount;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
-	float LitDamageInterval;
+	float ShadowHealAmount;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+	float HealthEffectInterval;
 
 	UPROPERTY(BlueprintReadWrite, Category = "Health")
-	FTimerHandle LitDamageTimerHandle;
+	FTimerHandle HealthEffectTimerHandle;
 
 	// === Light Detection System ===
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Light Detection")
@@ -189,9 +192,9 @@ public:
 private:
 	// === Internal System Functions ===
 	void InitializeMaterials();
-	void StartLitDamage();
-	void StopLitDamage();
-	void OnLitDamageTimeout();
+	void StartHealthEffectTimer();
+	void StopHealthEffects();
+	void OnHealthEffectTick();
 	
 	// === Stealth Helper Functions ===
 	bool IsViewerOnSeekerTeam() const;

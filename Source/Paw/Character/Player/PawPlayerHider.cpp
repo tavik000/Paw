@@ -20,8 +20,9 @@ APawPlayerHider::APawPlayerHider()
 	Health = 100.0f;
 	MaxHealth = 100.0f;
 	bIsDead = false;
-	LitDamageAmount = 10.0f;
-	LitDamageInterval = 0.1f;
+	LitDamageAmount = 0.5f;
+	ShadowHealAmount = 0.25f;
+	HealthEffectInterval = 0.03f;
 
 	// Light Detection System
 	bIsInLight = false;
@@ -52,7 +53,7 @@ void APawPlayerHider::BeginPlay()
 	// Start lit damage timer immediately (always running)
 	if (HasAuthority())
 	{
-		StartLitDamage();
+		StartHealthEffectTimer();
 	}
 
 	// Create HUD for player-controlled pawns
@@ -584,34 +585,44 @@ void APawPlayerHider::InitializeMaterials()
 }
 
 // ================================================================
-// Lit Damage System
+// Health Effects System
 // ================================================================
-void APawPlayerHider::StartLitDamage()
+void APawPlayerHider::StartHealthEffectTimer()
 {
-	if (HasAuthority() && IsAlive() && LitDamageAmount > 0 && LitDamageInterval > 0)
+	if (HasAuthority() && IsAlive() && HealthEffectInterval > 0)
 	{
-		// Start repeating timer for lit damage (always running)
-		GetWorldTimerManager().SetTimer(LitDamageTimerHandle, this, &APawPlayerHider::OnLitDamageTimeout,
-		                                LitDamageInterval, true, 0.0f);
+		// Start repeating timer for health effects (damage and healing)
+		GetWorldTimerManager().SetTimer(HealthEffectTimerHandle, this, &APawPlayerHider::OnHealthEffectTick,
+		                                HealthEffectInterval, true, 0.0f);
 	}
 }
 
-void APawPlayerHider::StopLitDamage()
+void APawPlayerHider::StopHealthEffects()
 {
 	if (HasAuthority())
 	{
-		GetWorldTimerManager().ClearTimer(LitDamageTimerHandle);
+		GetWorldTimerManager().ClearTimer(HealthEffectTimerHandle);
 	}
 }
 
-void APawPlayerHider::OnLitDamageTimeout()
+void APawPlayerHider::OnHealthEffectTick()
 {
-	if (HasAuthority() && IsAlive())
+	if (!HasAuthority() || !IsAlive())
 	{
-		// Only apply damage if currently lit (in light or spotlight)
-		if (bool bCurrentlyLit = bIsInLight || bIsSpotLighted)
-		{
-			TakeHealthDamage(LitDamageAmount);
-		}
+		return;
 	}
+
+	bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
+
+	if (bCurrentlyLit)
+	{
+		// Apply lit damage
+		TakeHealthDamage(LitDamageAmount);
+	}
+	else if (!IsCaptured)
+	{
+		// Apply shadow healing
+		Heal(ShadowHealAmount);
+	}
+	// Do nothing if in shadow but captured
 }
