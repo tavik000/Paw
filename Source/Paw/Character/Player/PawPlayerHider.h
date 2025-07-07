@@ -197,4 +197,9 @@ private:
 	bool IsViewerOnSeekerTeam() const;
 	void ApplyInvisibilityMaterials();
 	void RestoreOriginalMaterials();
+	
+	// === UI Helper Functions ===
+	void SetupHUDWidget(APlayerController* PC);
+	void ConfigureCrosshair();
+	void ConfigureHealthBar();
 };

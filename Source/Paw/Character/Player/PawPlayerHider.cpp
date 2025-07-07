@@ -221,7 +221,7 @@ void APawPlayerHider::ActivateInvisibility()
 	{
 		bIsInvisible = true;
 		MulticastUpdateStealthVisuals();
-		 
+
 		OnInvisibilityChanged(true);
 	}
 }
@@ -290,7 +290,7 @@ float APawPlayerHider::GetOpacityForViewerTeam() const
 	{
 		return 0.0f;
 	}
-	
+
 	return StealthOpacity; // Default 0.5f for Hiders and fallback
 }
 
@@ -324,66 +324,94 @@ void APawPlayerHider::ClientUpdateHealth_Implementation(float NewHealth)
 	OnHpChanged.Broadcast(GetHealthPercentage());
 }
 
+// ================================================================
+// UI Helper Functions
+// ================================================================
+void APawPlayerHider::SetupHUDWidget(APlayerController* PC)
+{
+	HUD = CreateWidget<UUserWidget>(PC, HUDWidgetClass);
+	if (!IsValid(HUD))
+	{
+		return;
+	}
+
+	// Add widget to viewport
+	HUD->AddToViewport();
+	HUD->SetVisibility(ESlateVisibility::Visible);
+
+	// Configure child widgets
+	ConfigureCrosshair();
+	ConfigureHealthBar();
+
+	// Broadcast initial HP changed event
+	OnHpChanged.Broadcast(GetHealthPercentage());
+}
+
+void APawPlayerHider::ConfigureCrosshair()
+{
+	if (!IsValid(HUD))
+	{
+		return;
+	}
+
+	UWidget* CrosshairWidget = HUD->GetWidgetFromName(TEXT("IMG_Crosshair"));
+	if (IsValid(CrosshairWidget))
+	{
+		CrosshairWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void APawPlayerHider::ConfigureHealthBar()
+{
+	if (!IsValid(HUD))
+	{
+		return;
+	}
+
+	UWidget* HealthBarWidget = HUD->GetWidgetFromName(TEXT("WBP_HealthBar"));
+	if (!IsValid(HealthBarWidget))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Client_CreateHUD: HealthBar widget not found in HUD for %s"), *GetName());
+		return;
+	}
+
+	// Call Blueprint Custom Event to set target Pawn for HealthBar
+	UFunction* SetTargetPawnEvent = HealthBarWidget->GetClass()->FindFunctionByName(TEXT("SetTargetPawn"));
+	if (!IsValid(SetTargetPawnEvent))
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("Client_CreateHUD: SetTargetPawn Custom Event not found on HealthBar widget for %s"), *GetName());
+		return;
+	}
+
+	struct FSetTargetPawnParams
+	{
+		APawn* TargetPawn;
+	};
+
+	FSetTargetPawnParams Params;
+	Params.TargetPawn = this;
+	HealthBarWidget->ProcessEvent(SetTargetPawnEvent, &Params);
+}
+
 void APawPlayerHider::Client_CreateHUD_Implementation()
 {
-	// Only create HUD for player-controlled pawns
-	if (APlayerController* PC = Cast<APlayerController>(GetController()); IsValid(PC))
+	// Early validation - only create HUD for player-controlled pawns
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!IsValid(PC))
 	{
-		// Create the HUD widget using configurable class
-		if (IsValid(HUDWidgetClass))
-		{
-			HUD = CreateWidget<UUserWidget>(PC, HUDWidgetClass);
-
-			if (IsValid(HUD))
-			{
-				// Add widget to viewport
-				HUD->AddToViewport();
-
-				// Set widget visibility
-				HUD->SetVisibility(ESlateVisibility::Visible);
-
-				// Hide crosshair for hiders (as shown in Blueprint)
-				if (UWidget* CrosshairWidget = HUD->GetWidgetFromName(TEXT("IMG_Crosshair")); IsValid(CrosshairWidget))
-				{
-					CrosshairWidget->SetVisibility(ESlateVisibility::Collapsed);
-				}
-
-				// Find and configure HealthBar child widget
-				if (UWidget* HealthBarWidget = HUD->GetWidgetFromName(TEXT("WBP_HealthBar")); IsValid(HealthBarWidget))
-				{
-					// Call Blueprint Custom Event to set target Pawn for HealthBar
-					if (UFunction* SetTargetPawnEvent = HealthBarWidget->GetClass()->FindFunctionByName(TEXT("SetTargetPawn")))
-					{
-						struct FSetTargetPawnParams
-						{
-							APawn* TargetPawn;
-						};
-						
-						FSetTargetPawnParams Params;
-						Params.TargetPawn = this;
-						HealthBarWidget->ProcessEvent(SetTargetPawnEvent, &Params);
-						
-						// SetTargetPawn event called successfully
-					}
-					else
-					{
-						UE_LOG(LogTemp, Warning, TEXT("Client_CreateHUD: SetTargetPawn Custom Event not found on HealthBar widget for %s"), *GetName());
-					}
-				}
-				else
-				{
-					UE_LOG(LogTemp, Warning, TEXT("Client_CreateHUD: HealthBar widget not found in HUD for %s"), *GetName());
-				}
-
-				// Broadcast initial HP changed event
-				OnHpChanged.Broadcast(GetHealthPercentage());
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("HUDWidgetClass is not set for %s"), *GetName());
-		}
+		return;
 	}
+
+	// Early validation - check if HUD widget class is configured
+	if (!IsValid(HUDWidgetClass))
+	{
+		UE_LOG(LogTemp, Error, TEXT("HUDWidgetClass is not set for %s"), *GetName());
+		return;
+	}
+
+	// Setup HUD widget and configure child widgets
+	SetupHUDWidget(PC);
 }
 
 // ================================================================
@@ -505,8 +533,9 @@ void APawPlayerHider::ApplyInvisibilityMaterials()
 void APawPlayerHider::RestoreOriginalMaterials()
 {
 	const int32 MaterialCount = GetMesh()->GetNumMaterials();
-	
-	for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount && MaterialIndex < CachedBaseMaterials.Num(); ++MaterialIndex)
+
+	for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount && MaterialIndex < CachedBaseMaterials.Num(); ++
+	     MaterialIndex)
 	{
 		if (IsValid(CachedBaseMaterials[MaterialIndex]))
 		{
@@ -535,17 +564,20 @@ void APawPlayerHider::InitializeMaterials()
 	{
 		UMaterialInterface* Material = GetMesh()->GetMaterial(MaterialIndex);
 		CachedBaseMaterials.Add(Material);
-		
+
 		if (!IsValid(Material))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("InitializeMaterials: Material at slot %d is null for %s"), MaterialIndex, *GetName());
+			UE_LOG(LogTemp, Warning, TEXT("InitializeMaterials: Material at slot %d is null for %s"), MaterialIndex,
+			       *GetName());
 		}
 	}
 
 	// Validate invisible material setup
 	if (!IsValid(InvisibleMaterial))
 	{
-		UE_LOG(LogTemp, Error, TEXT("InitializeMaterials: InvisibleMaterial is not set for %s. Stealth effects will not work properly."), *GetName());
+		UE_LOG(LogTemp, Error,
+		       TEXT("InitializeMaterials: InvisibleMaterial is not set for %s. Stealth effects will not work properly."
+		       ), *GetName());
 	}
 
 	// Materials cached successfully
