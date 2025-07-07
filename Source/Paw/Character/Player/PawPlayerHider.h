@@ -7,6 +7,11 @@
 #include "Components/WidgetComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "Net/UnrealNetwork.h"
+#include "Engine/StreamableManager.h"
+#include "NiagaraSystem.h"
+#include "NiagaraComponent.h"
+#include "Sound/SoundBase.h"
+#include "GameFramework/ForceFeedbackEffect.h"
 #include "PawPlayerHider.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathDelegate);
@@ -27,6 +32,8 @@ protected:
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void Jump() override;
+	virtual void Landed(const FHitResult& Hit) override;
 
 	// === Health System ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, ReplicatedUsing = OnRep_Health, Category = "Health")
@@ -90,6 +97,59 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TSubclassOf<UUserWidget> HUDWidgetClass;
+
+	// === Jump System ===
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")
+	float HangTimeGravityScale;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")
+	float JumpVFXVelocityScale;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")
+	float LandVFXVelocityScale;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")
+	float LandingVolumeDivisor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")
+	float HangTimeVelocityZMin;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")
+	float HangTimeVelocityZMax;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")
+	float AirControlInputTolerance;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")
+	float JumpSFXVolumeMin;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")
+	float JumpSFXVolumeMax;
+
+	UPROPERTY(EditAnywhere, Category = "Jump System")
+	TSoftObjectPtr<USoundBase> JumpSoundAsset;
+	
+	UPROPERTY(EditAnywhere, Category = "Jump System")
+	TSoftObjectPtr<USoundBase> LandSoundAsset;
+
+	UPROPERTY(EditAnywhere, Category = "Jump System")
+	TSoftObjectPtr<UNiagaraSystem> JumpVFXAsset;
+
+	UPROPERTY(EditAnywhere, Category = "Jump System")
+	TSoftObjectPtr<UNiagaraSystem> LandVFXAsset;
+
+	UPROPERTY(EditAnywhere, Category = "Jump System")
+	TSoftObjectPtr<UForceFeedbackEffect> LandForceFeedbackAsset;
+
+	// Cached loaded assets
+	TObjectPtr<USoundBase> JumpSound;
+	TObjectPtr<USoundBase> LandSound;
+	TObjectPtr<UNiagaraSystem> JumpVFX;
+	TObjectPtr<UNiagaraSystem> LandVFX;
+	TObjectPtr<UForceFeedbackEffect> LandForceFeedback;
+
+	TSharedPtr<FStreamableHandle> JumpAssetsHandle;
+	float DefaultGravityScale;
 
 
 public:
@@ -170,6 +230,9 @@ public:
 	UFUNCTION(Server, Reliable, Category = "Capture")
 	void ServerSetCaptured(bool NewIsCaptured);
 
+	UFUNCTION(Server, Reliable, Category = "Movement")
+	void ServerRequestCancelHorizontalVelocity();
+
 	UFUNCTION(NetMulticast, Reliable, Category = "Stealth")
 	void MulticastUpdateStealthVisuals();
 
@@ -181,6 +244,12 @@ public:
 
 	UFUNCTION(Client, Reliable, Category = "UI")
 	void Client_CreateHUD();
+
+	UFUNCTION(NetMulticast, Reliable, Category = "Jump System")
+	void MulticastPlayJumpEffects();
+
+	UFUNCTION(NetMulticast, Reliable, Category = "Jump System")
+	void MulticastPlayLandEffects();
 
 	// === RepNotify Functions ===
 	UFUNCTION()
@@ -205,4 +274,13 @@ private:
 	void SetupHUDWidget(APlayerController* PC);
 	void ConfigureCrosshair();
 	void ConfigureHealthBar();
+	
+	// === Jump System Helper Functions ===
+	void LoadJumpAssetsAsync();
+	void OnJumpAssetsLoaded();
+	void SpawnJumpVFX();
+	void SpawnLandVFX();
+	void PlayJumpSound();
+	void PlayLandSound(float Volume);
+	void PlayLandForceFeedback();
 };

@@ -7,6 +7,12 @@
 #include "Net/UnrealNetwork.h"
 #include "UObject/ConstructorHelpers.h"
 #include "../../Core/System/PawLightDetectionSubsystem.h"
+#include "Engine/AssetManager.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 APawPlayerHider::APawPlayerHider()
 {
@@ -42,6 +48,24 @@ APawPlayerHider::APawPlayerHider()
 
 	// UI System
 	HUD = nullptr;
+
+	// Jump System Defaults
+	HangTimeGravityScale = 1.4f;
+	JumpVFXVelocityScale = 0.5f;
+	LandVFXVelocityScale = 1.0f;
+	LandingVolumeDivisor = 700.0f;
+	HangTimeVelocityZMin = -100.0f;
+	HangTimeVelocityZMax = 100.0f;
+	AirControlInputTolerance = 0.0001f;
+	JumpSFXVolumeMin = 0.1f;
+	JumpSFXVolumeMax = 1.0f;
+	DefaultGravityScale = 3.7f;
+
+	// Cached assets initialized to nullptr
+	JumpSound = nullptr;
+	JumpVFX = nullptr;
+	LandVFX = nullptr;
+	LandForceFeedback = nullptr;
 }
 
 void APawPlayerHider::BeginPlay()
@@ -49,6 +73,15 @@ void APawPlayerHider::BeginPlay()
 	Super::BeginPlay();
 
 	InitializeMaterials();
+
+	// Cache default gravity scale (set in BP)
+	if (GetCharacterMovement())
+	{
+		DefaultGravityScale = GetCharacterMovement()->GravityScale;
+	}
+
+	// Start async loading of jump assets
+	LoadJumpAssetsAsync();
 
 	// Start lit damage timer immediately (always running)
 	if (HasAuthority())
@@ -70,6 +103,33 @@ void APawPlayerHider::Tick(float DeltaTime)
 	if (HasAuthority())
 	{
 		CheckLightExposure();
+	}
+
+	// Jump System: Max Hang Time and Air Control
+	if (GetCharacterMovement())
+	{
+		const FVector Velocity = GetCharacterMovement()->Velocity;
+
+		// Max Hang Time: Z <= HangTimeVelocityZMax AND Z >= HangTimeVelocityZMin
+		if (Velocity.Z <= HangTimeVelocityZMax && Velocity.Z >= HangTimeVelocityZMin)
+		{
+			GetCharacterMovement()->GravityScale = HangTimeGravityScale;
+		}
+		else
+		{
+			GetCharacterMovement()->GravityScale = DefaultGravityScale;
+		}
+
+		// Air Control: Is Falling AND Has Input AND Locally Controlled
+		const bool bIsFalling = GetCharacterMovement()->IsFalling();
+		const FVector LastInput = GetLastMovementInputVector();
+		const bool bHasInput = !LastInput.IsNearlyZero(AirControlInputTolerance);
+		const bool bIsLocallyControlled = IsLocallyControlled();
+
+		if (bIsFalling && !bHasInput && bIsLocallyControlled)
+		{
+			ServerRequestCancelHorizontalVelocity();
+		}
 	}
 }
 
@@ -311,6 +371,18 @@ void APawPlayerHider::ServerTakeHealthDamage_Implementation(float DamageAmount)
 void APawPlayerHider::ServerSetCaptured_Implementation(bool NewIsCaptured)
 {
 	IsCaptured = NewIsCaptured;
+}
+
+void APawPlayerHider::ServerRequestCancelHorizontalVelocity_Implementation()
+{
+	if (GetCharacterMovement())
+	{
+		FVector CurrentVelocity = GetCharacterMovement()->Velocity;
+		CurrentVelocity.X = 0.0f;
+		CurrentVelocity.Y = 0.0f;
+		// Z unchanged
+		GetCharacterMovement()->Velocity = CurrentVelocity;
+	}
 }
 
 void APawPlayerHider::MulticastOnDeath_Implementation()
@@ -625,4 +697,176 @@ void APawPlayerHider::OnHealthEffectTick()
 		Heal(ShadowHealAmount);
 	}
 	// Do nothing if in shadow but captured
+}
+
+// ================================================================
+// Jump System Overrides
+// ================================================================
+void APawPlayerHider::Jump()
+{
+	Super::Jump();
+	MulticastPlayJumpEffects();
+}
+
+void APawPlayerHider::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
+
+	// VFX/SFX for all clients
+	MulticastPlayLandEffects();
+
+	// Force feedback only for local player
+	if (IsLocallyControlled())
+	{
+		PlayLandForceFeedback();
+	}
+}
+
+// ================================================================
+// Jump System Asset Loading
+// ================================================================
+void APawPlayerHider::LoadJumpAssetsAsync()
+{
+	TArray<FSoftObjectPath> AssetsToLoad;
+
+	if (!JumpSoundAsset.IsNull()) AssetsToLoad.Add(JumpSoundAsset.ToSoftObjectPath());
+	if (!LandSoundAsset.IsNull()) AssetsToLoad.Add(LandSoundAsset.ToSoftObjectPath());
+	if (!JumpVFXAsset.IsNull()) AssetsToLoad.Add(JumpVFXAsset.ToSoftObjectPath());
+	if (!LandVFXAsset.IsNull()) AssetsToLoad.Add(LandVFXAsset.ToSoftObjectPath());
+	if (!LandForceFeedbackAsset.IsNull()) AssetsToLoad.Add(LandForceFeedbackAsset.ToSoftObjectPath());
+
+	if (AssetsToLoad.Num() > 0)
+	{
+		JumpAssetsHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(
+			AssetsToLoad,
+			FStreamableDelegate::CreateUObject(this, &APawPlayerHider::OnJumpAssetsLoaded)
+		);
+	}
+}
+
+void APawPlayerHider::OnJumpAssetsLoaded()
+{
+	JumpSound = JumpSoundAsset.Get();
+	if (!JumpSound && !JumpSoundAsset.IsNull())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to load JumpSoundAsset for %s"), *GetName());
+	}
+
+	LandSound = LandSoundAsset.Get();
+	if (!LandSound && !LandSoundAsset.IsNull())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to load LandSoundAsset for %s"), *GetName());
+	}
+
+	JumpVFX = JumpVFXAsset.Get();
+	if (!JumpVFX && !JumpVFXAsset.IsNull())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to load JumpVFXAsset for %s"), *GetName());
+	}
+
+	LandVFX = LandVFXAsset.Get();
+	if (!LandVFX && !LandVFXAsset.IsNull())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to load LandVFXAsset for %s"), *GetName());
+	}
+
+	LandForceFeedback = LandForceFeedbackAsset.Get();
+	if (!LandForceFeedback && !LandForceFeedbackAsset.IsNull())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to load LandForceFeedbackAsset for %s"), *GetName());
+	}
+}
+
+// ================================================================
+// Jump System Multicast Functions
+// ================================================================
+void APawPlayerHider::MulticastPlayJumpEffects_Implementation()
+{
+	PlayJumpSound();
+	SpawnJumpVFX();
+}
+
+void APawPlayerHider::MulticastPlayLandEffects_Implementation()
+{
+	const float LandingVelocity = FMath::Abs(GetCharacterMovement()->Velocity.Z);
+	const float Volume = FMath::Clamp(LandingVelocity / LandingVolumeDivisor, JumpSFXVolumeMin, JumpSFXVolumeMax);
+
+	PlayLandSound(Volume);
+	SpawnLandVFX();
+}
+
+// ================================================================
+// Jump System Helper Functions
+// ================================================================
+void APawPlayerHider::SpawnJumpVFX()
+{
+	if (!IsValid(JumpVFX))
+	{
+		if (!JumpVFXAsset.IsNull())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("JumpVFX not loaded for %s"), *GetName());
+		}
+		return;
+	}
+
+	TObjectPtr<UNiagaraComponent> JumpVFXComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		GetWorld(), JumpVFX, GetActorLocation(), GetActorRotation(),
+		FVector::OneVector, true, true, ENCPoolMethod::AutoRelease, true);
+
+	if (IsValid(JumpVFXComp))
+	{
+		JumpVFXComp->SetVariableFloat(FName("VelocityScale"), JumpVFXVelocityScale);
+	}
+}
+
+void APawPlayerHider::SpawnLandVFX()
+{
+	if (!IsValid(LandVFX))
+	{
+		if (!LandVFXAsset.IsNull())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("LandVFX not loaded for %s"), *GetName());
+		}
+		return;
+	}
+
+	TObjectPtr<UNiagaraComponent> LandVFXComp = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		GetWorld(), LandVFX, GetActorLocation(), GetActorRotation(),
+		FVector::OneVector, true, true, ENCPoolMethod::AutoRelease, true);
+
+	if (IsValid(LandVFXComp))
+	{
+		LandVFXComp->SetVariableFloat(FName("VelocityScale"), LandVFXVelocityScale);
+	}
+}
+
+void APawPlayerHider::PlayJumpSound()
+{
+	if (IsValid(JumpSound))
+	{
+		UGameplayStatics::PlaySoundAtLocation(GetWorld(), JumpSound, GetActorLocation());
+	}
+}
+
+void APawPlayerHider::PlayLandSound(float Volume)
+{
+	if (IsValid(LandSound))
+	{
+		UGameplayStatics::PlaySoundAtLocation(GetWorld(), LandSound, GetActorLocation(), Volume);
+	}
+}
+
+void APawPlayerHider::PlayLandForceFeedback()
+{
+	if (!IsValid(LandForceFeedback))
+	{
+		return;
+	}
+
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (IsValid(PC))
+	{
+		FForceFeedbackParameters Params;
+		PC->ClientPlayForceFeedback(LandForceFeedback, Params);
+	}
 }
