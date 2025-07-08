@@ -170,6 +170,91 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   if (HasAuthority() && IsAlive()) { /* repeated everywhere */ }
   ```
 
+### Code Organization by Class Size
+
+#### Classes Under 250 Lines:
+- **Use minimal commenting** with clean structure
+- **No section header comments** (remove detailed headers like "public: // Constructor & Public Engine Overrides")
+- **No interface grouping comments** (remove all "//~ Interface" and "//~ End Interface" comments)
+- **Maintain logical organization** without verbose headers
+- **Use two separate `protected:` sections** (functions first, then properties)
+
+#### Classes Over 250 Lines:
+- **Use detailed section headers** for navigation
+- **No interface grouping comments** (remove all "//~ Interface" and "//~ End Interface" comments)
+- **Clear section boundaries** with comment headers
+- **Use two separate `protected:` sections** with headers
+
+#### Standard Class Structure (All Sizes):
+1. **public:** Constructor & Public Engine Overrides
+2. **public:** Blueprint-Callable API
+3. **public:** C++ Public Helpers
+4. **public:** Blueprint Events & Delegates
+5. **protected:** Protected Engine Overrides (functions only)
+6. **protected:** Properties (UPROPERTY variables only)
+7. **protected:** Networking (RPCs & RepNotifies)
+8. **private:** Internal Helper Methods
+9. **private:** Cached State
+
+#### Example for Classes Under 250 Lines:
+```cpp
+UCLASS()
+class PAW_API APawTPPlayer : public APawPlayerBase
+{
+	GENERATED_BODY()
+
+public:
+	APawTPPlayer();
+	virtual void Tick(float DeltaTime) override;
+
+	UFUNCTION(BlueprintCallable, Category = "Camera")
+	UCameraComponent* GetThirdPersonCameraComponent() const;
+
+protected:
+	virtual void BeginPlay() override;
+	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	USpringArmComponent* CameraBoom;
+};
+```
+
+#### Example for Classes Over 250 Lines:
+```cpp
+UCLASS()
+class PAW_API APawPlayerHider : public APawTPPlayer
+{
+	GENERATED_BODY()
+
+public: // Constructor & Public Engine Overrides
+	APawPlayerHider();
+	virtual void Tick(float DeltaTime) override;
+
+public: // Blueprint-Callable API
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void TakeHealthDamage(float DamageAmount);
+
+protected: // Protected Engine Overrides
+	virtual void BeginPlay() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+protected: // Properties
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+	float Health;
+
+protected: // Networking (RPCs & RepNotifies)
+	UFUNCTION(Server, Reliable)
+	void ServerTakeHealthDamage(float DamageAmount);
+
+private: // Internal Helper Methods
+	void InitializeMaterials();
+
+private: // Cached State
+	FTimerHandle HealthEffectTimerHandle;
+};
+```
+
 ### Blueprint Integration
 - C++ classes expose functionality via `UPROPERTY` and `UFUNCTION` macros
 - Core logic in C++, gameplay tweaking and content creation in Blueprints
