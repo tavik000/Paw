@@ -4,12 +4,9 @@
 #include "PawTPPlayer.h"
 #include "Engine/TimerHandle.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "Components/WidgetComponent.h"
 #include "Blueprint/UserWidget.h"
-#include "Net/UnrealNetwork.h"
 #include "Engine/StreamableManager.h"
 #include "NiagaraSystem.h"
-#include "NiagaraComponent.h"
 #include "Sound/SoundBase.h"
 #include "GameFramework/ForceFeedbackEffect.h"
 #include "PawPlayerHider.generated.h"
@@ -23,18 +20,93 @@ class PAW_API APawPlayerHider : public APawTPPlayer
 {
 	GENERATED_BODY()
 
-public:
+public: // Constructor & Core Engine Overrides
 	APawPlayerHider();
 
-protected:
-	// Core Overrides
-	virtual void BeginPlay() override;
+	//~ AActor interface
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-	virtual void Jump() override;
 	virtual void Landed(const FHitResult& Hit) override;
+	//~ End AActor interface
 
+	//~ APawn interface
+	virtual void Jump() override;
+	//~ End APawn interface
+
+public: // Blueprint Callable API
+	// Health
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void TakeHealthDamage(float DamageAmount);
+
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void Heal(float HealAmount);
+
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void Die();
+
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	void Respawn();
+
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	bool IsAlive() const { return !bIsDead && Health > 0; }
+
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	float GetHealthPercentage() const { return MaxHealth > 0 ? Health / MaxHealth : 0.0f; }
+
+	// Light Detection
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	void CheckLightExposure();
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	void SetInLight(bool bInLight);
+
+	// Stealth
+	UFUNCTION(BlueprintCallable, Category = "Stealth")
+	void ActivateInvisibility();
+
+	UFUNCTION(BlueprintCallable, Category = "Stealth")
+	void DeactivateInvisibility();
+
+	UFUNCTION(BlueprintCallable, Category = "Stealth")
+	void UpdateStealthVisuals();
+
+	UFUNCTION(BlueprintCallable, Category = "Stealth")
+	float GetOpacityForViewerTeam() const;
+
+	// UI
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	UUserWidget* GetHUDSafe() const;
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	bool HasValidHUD() const;
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	bool IsEventDispatcherReady() const;
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void TriggerHpChangedManually();
+
+public: // Blueprint Events & Delegates
+	UPROPERTY(BlueprintAssignable, Category = "Health")
+	FOnDeathDelegate OnDeath;
+
+	UPROPERTY(BlueprintAssignable, Category = "Health")
+	FOnHpChangedDelegate OnHpChanged;
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Health")
+	void OnHealthChanged(float NewHealth, float NewMaxHealth);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Light Detection")
+	void OnLightExposureChanged(bool bInLight);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Stealth")
+	void OnInvisibilityChanged(bool bInvisible);
+
+protected: // Engine Overrides
+	virtual void BeginPlay() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+protected: // Properties (State & Configuration)
 	// === Health System ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, ReplicatedUsing = OnRep_Health, Category = "Health")
 	float Health;
@@ -54,9 +126,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
 	float HealthEffectInterval;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Health")
-	FTimerHandle HealthEffectTimerHandle;
-
 	// === Light Detection System ===
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Light Detection")
 	bool bIsInLight;
@@ -70,9 +139,6 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stealth")
 	float StealthOpacity;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Stealth")
-	TArray<TObjectPtr<UMaterialInterface>> CachedBaseMaterials;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stealth")
 	TObjectPtr<UMaterialInterface> InvisibleMaterial;
@@ -92,9 +158,6 @@ protected:
 	int32 PlayerIndex;
 
 	// === UI System ===
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-	TObjectPtr<UUserWidget> HUD;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TSubclassOf<UUserWidget> HUDWidgetClass;
 
@@ -128,7 +191,7 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Jump System")
 	TSoftObjectPtr<USoundBase> JumpSoundAsset;
-	
+
 	UPROPERTY(EditAnywhere, Category = "Jump System")
 	TSoftObjectPtr<USoundBase> LandSoundAsset;
 
@@ -141,86 +204,8 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Jump System")
 	TSoftObjectPtr<UForceFeedbackEffect> LandForceFeedbackAsset;
 
-	// Cached loaded assets
-	TObjectPtr<USoundBase> JumpSound;
-	TObjectPtr<USoundBase> LandSound;
-	TObjectPtr<UNiagaraSystem> JumpVFX;
-	TObjectPtr<UNiagaraSystem> LandVFX;
-	TObjectPtr<UForceFeedbackEffect> LandForceFeedback;
-
-	TSharedPtr<FStreamableHandle> JumpAssetsHandle;
-	float DefaultGravityScale;
-
-
-public:
-	// === Health System ===
-	UFUNCTION(BlueprintCallable, Category = "Health")
-	void TakeHealthDamage(float DamageAmount);
-
-	UFUNCTION(BlueprintCallable, Category = "Health")
-	void Heal(float HealAmount);
-
-	UFUNCTION(BlueprintCallable, Category = "Health")
-	void Die();
-
-	UFUNCTION(BlueprintCallable, Category = "Health")
-	void Respawn();
-
-	UFUNCTION(BlueprintCallable, Category = "Health")
-	bool IsAlive() const { return !bIsDead && Health > 0; }
-
-	UFUNCTION(BlueprintCallable, Category = "Health")
-	float GetHealthPercentage() const { return MaxHealth > 0 ? Health / MaxHealth : 0.0f; }
-
-	UFUNCTION(BlueprintImplementableEvent, Category = "Health")
-	void OnHealthChanged(float NewHealth, float NewMaxHealth);
-
-	UPROPERTY(BlueprintAssignable, Category = "Health")
-	FOnDeathDelegate OnDeath;
-
-	UPROPERTY(BlueprintAssignable, Category = "Health")
-	FOnHpChangedDelegate OnHpChanged;
-
-	// === Light Detection System ===
-	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void CheckLightExposure();
-
-	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void SetInLight(bool bInLight);
-
-	UFUNCTION(BlueprintImplementableEvent, Category = "Light Detection")
-	void OnLightExposureChanged(bool bInLight);
-
-	// === Stealth System ===
-	UFUNCTION(BlueprintCallable, Category = "Stealth")
-	void ActivateInvisibility();
-
-	UFUNCTION(BlueprintCallable, Category = "Stealth")
-	void DeactivateInvisibility();
-
-	UFUNCTION(BlueprintCallable, Category = "Stealth")
-	void UpdateStealthVisuals();
-
-	UFUNCTION(BlueprintCallable, Category = "Stealth")
-	float GetOpacityForViewerTeam() const;
-
-	UFUNCTION(BlueprintImplementableEvent, Category = "Stealth")
-	void OnInvisibilityChanged(bool bInvisible);
-
-	// === UI System ===
-	UFUNCTION(BlueprintCallable, Category = "UI")
-	UUserWidget* GetHUDSafe() const;
-
-	UFUNCTION(BlueprintCallable, Category = "UI")
-	bool HasValidHUD() const;
-
-	UFUNCTION(BlueprintCallable, Category = "UI")
-	bool IsEventDispatcherReady() const;
-
-	UFUNCTION(BlueprintCallable, Category = "UI")
-	void TriggerHpChangedManually();
-
-	// === RPC Functions ===
+protected: // Networking (RPCs & RepNotifies)
+	// RPCs
 	UFUNCTION(Server, Reliable, Category = "Multiplayer")
 	void ServerSetTeamId(ETeamId NewTeamId);
 
@@ -251,30 +236,30 @@ public:
 	UFUNCTION(NetMulticast, Reliable, Category = "Jump System")
 	void MulticastPlayLandEffects();
 
-	// === RepNotify Functions ===
+	// RepNotifies
 	UFUNCTION()
 	void OnRep_Health();
 
 	UFUNCTION()
 	void OnRep_IsInvisible();
 
-private:
+private: // Internal Helper Functions
 	// === Internal System Functions ===
 	void InitializeMaterials();
 	void StartHealthEffectTimer();
 	void StopHealthEffects();
 	void OnHealthEffectTick();
-	
+
 	// === Stealth Helper Functions ===
 	bool IsViewerOnSeekerTeam() const;
 	void ApplyInvisibilityMaterials();
 	void RestoreOriginalMaterials();
-	
+
 	// === UI Helper Functions ===
 	void SetupHUDWidget(APlayerController* PC);
 	void ConfigureCrosshair();
 	void ConfigureHealthBar();
-	
+
 	// === Jump System Helper Functions ===
 	void LoadJumpAssetsAsync();
 	void OnJumpAssetsLoaded();
@@ -283,4 +268,24 @@ private:
 	void PlayJumpSound();
 	void PlayLandSound(float Volume);
 	void PlayLandForceFeedback();
+
+private: // Internal State & Cached Data
+	// === Health System ===
+	FTimerHandle HealthEffectTimerHandle;
+
+	// === Stealth System ===
+	TArray<TObjectPtr<UMaterialInterface>> CachedBaseMaterials;
+
+	// === UI System ===
+	TObjectPtr<UUserWidget> HUD;
+
+	// === Jump System ===
+	// Cached loaded assets
+	TObjectPtr<USoundBase> JumpSound;
+	TObjectPtr<USoundBase> LandSound;
+	TObjectPtr<UNiagaraSystem> JumpVFX;
+	TObjectPtr<UNiagaraSystem> LandVFX;
+	TObjectPtr<UForceFeedbackEffect> LandForceFeedback;
+	TSharedPtr<FStreamableHandle> JumpAssetsHandle;
+	float DefaultGravityScale;
 };

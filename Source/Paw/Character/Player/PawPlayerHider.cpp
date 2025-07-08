@@ -14,6 +14,10 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
+// ================================================================
+// Constructor & Core Engine Overrides
+// ================================================================
+
 APawPlayerHider::APawPlayerHider()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -68,34 +72,7 @@ APawPlayerHider::APawPlayerHider()
 	LandForceFeedback = nullptr;
 }
 
-void APawPlayerHider::BeginPlay()
-{
-	Super::BeginPlay();
-
-	InitializeMaterials();
-
-	// Cache default gravity scale (set in BP)
-	if (GetCharacterMovement())
-	{
-		DefaultGravityScale = GetCharacterMovement()->GravityScale;
-	}
-
-	// Start async loading of jump assets
-	LoadJumpAssetsAsync();
-
-	// Start lit damage timer immediately (always running)
-	if (HasAuthority())
-	{
-		StartHealthEffectTimer();
-	}
-
-	// Create HUD for player-controlled pawns
-	if (IsLocallyControlled())
-	{
-		Client_CreateHUD();
-	}
-}
-
+//~ AActor interface
 void APawPlayerHider::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
@@ -138,6 +115,61 @@ void APawPlayerHider::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
 
+void APawPlayerHider::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
+
+	// VFX/SFX for all clients
+	MulticastPlayLandEffects();
+
+	// Force feedback only for local player
+	if (IsLocallyControlled())
+	{
+		PlayLandForceFeedback();
+	}
+}
+//~ End AActor interface
+
+//~ APawn interface
+void APawPlayerHider::Jump()
+{
+	Super::Jump();
+	MulticastPlayJumpEffects();
+}
+//~ End APawn interface
+
+// ================================================================
+// Engine Overrides
+// ================================================================
+
+void APawPlayerHider::BeginPlay()
+{
+	Super::BeginPlay();
+
+	InitializeMaterials();
+
+	// Cache default gravity scale (set in BP)
+	if (GetCharacterMovement())
+	{
+		DefaultGravityScale = GetCharacterMovement()->GravityScale;
+	}
+
+	// Start async loading of jump assets
+	LoadJumpAssetsAsync();
+
+	// Start lit damage timer immediately (always running)
+	if (HasAuthority())
+	{
+		StartHealthEffectTimer();
+	}
+
+	// Create HUD for player-controlled pawns
+	if (IsLocallyControlled())
+	{
+		Client_CreateHUD();
+	}
+}
+
 void APawPlayerHider::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -153,8 +185,9 @@ void APawPlayerHider::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 }
 
 // ================================================================
-// Health System
+// Blueprint Callable API - Health System
 // ================================================================
+
 void APawPlayerHider::TakeHealthDamage(float DamageAmount)
 {
 	if (HasAuthority() && IsAlive())
@@ -207,8 +240,9 @@ void APawPlayerHider::Respawn()
 }
 
 // ================================================================
-// Light Detection System
+// Blueprint Callable API - Light Detection System
 // ================================================================
+
 void APawPlayerHider::CheckLightExposure()
 {
 	if (!HasAuthority())
@@ -274,8 +308,9 @@ void APawPlayerHider::SetInLight(bool bInLight)
 }
 
 // ================================================================
-// Stealth System
+// Blueprint Callable API - Stealth System
 // ================================================================
+
 void APawPlayerHider::ActivateInvisibility()
 {
 	if (HasAuthority() && !bIsInvisible)
@@ -326,24 +361,6 @@ void APawPlayerHider::UpdateStealthVisuals()
 	}
 }
 
-void APawPlayerHider::MulticastUpdateStealthVisuals_Implementation()
-{
-	UpdateStealthVisuals();
-}
-
-void APawPlayerHider::OnRep_Health()
-{
-	// Trigger health change events on clients when health replicates
-	OnHealthChanged(Health, MaxHealth);
-	OnHpChanged.Broadcast(GetHealthPercentage());
-}
-
-void APawPlayerHider::OnRep_IsInvisible()
-{
-	UpdateStealthVisuals();
-	OnInvisibilityChanged(bIsInvisible);
-}
-
 float APawPlayerHider::GetOpacityForViewerTeam() const
 {
 	// Seekers see full invisibility, Hiders see partial opacity
@@ -356,8 +373,45 @@ float APawPlayerHider::GetOpacityForViewerTeam() const
 }
 
 // ================================================================
-// RPC Functions
+// Blueprint Callable API - UI System
 // ================================================================
+
+UUserWidget* APawPlayerHider::GetHUDSafe() const
+{
+	// Only return HUD on locally controlled clients
+	if (IsLocallyControlled() && IsValid(HUD))
+	{
+		return HUD;
+	}
+	return nullptr;
+}
+
+bool APawPlayerHider::HasValidHUD() const
+{
+	// Only check HUD on locally controlled clients
+	return IsLocallyControlled() && IsValid(HUD);
+}
+
+bool APawPlayerHider::IsEventDispatcherReady() const
+{
+	// Event dispatchers are ready when the object is fully initialized
+	// Check if we're not in construction phase and object is valid
+	return IsValid(this) && !HasAnyFlags(RF_NeedInitialization | RF_NeedLoad) && GetWorld() != nullptr;
+}
+
+void APawPlayerHider::TriggerHpChangedManually()
+{
+	// Manually trigger the HP changed event for UI binding
+	if (IsEventDispatcherReady())
+	{
+		OnHpChanged.Broadcast(GetHealthPercentage());
+	}
+}
+
+// ================================================================
+// Networking - RPC Implementations
+// ================================================================
+
 void APawPlayerHider::ServerSetTeamId_Implementation(ETeamId NewTeamId)
 {
 	TeamId = NewTeamId;
@@ -385,6 +439,11 @@ void APawPlayerHider::ServerRequestCancelHorizontalVelocity_Implementation()
 	}
 }
 
+void APawPlayerHider::MulticastUpdateStealthVisuals_Implementation()
+{
+	UpdateStealthVisuals();
+}
+
 void APawPlayerHider::MulticastOnDeath_Implementation()
 {
 	OnDeath.Broadcast();
@@ -395,76 +454,6 @@ void APawPlayerHider::ClientUpdateHealth_Implementation(float NewHealth)
 	Health = NewHealth;
 	OnHealthChanged(Health, MaxHealth);
 	OnHpChanged.Broadcast(GetHealthPercentage());
-}
-
-// ================================================================
-// UI Helper Functions
-// ================================================================
-void APawPlayerHider::SetupHUDWidget(APlayerController* PC)
-{
-	HUD = CreateWidget<UUserWidget>(PC, HUDWidgetClass);
-	if (!IsValid(HUD))
-	{
-		return;
-	}
-
-	// Add widget to viewport
-	HUD->AddToViewport();
-	HUD->SetVisibility(ESlateVisibility::Visible);
-
-	// Configure child widgets
-	ConfigureCrosshair();
-	ConfigureHealthBar();
-
-	// Broadcast initial HP changed event
-	OnHpChanged.Broadcast(GetHealthPercentage());
-}
-
-void APawPlayerHider::ConfigureCrosshair()
-{
-	if (!IsValid(HUD))
-	{
-		return;
-	}
-
-	UWidget* CrosshairWidget = HUD->GetWidgetFromName(TEXT("IMG_Crosshair"));
-	if (IsValid(CrosshairWidget))
-	{
-		CrosshairWidget->SetVisibility(ESlateVisibility::Collapsed);
-	}
-}
-
-void APawPlayerHider::ConfigureHealthBar()
-{
-	if (!IsValid(HUD))
-	{
-		return;
-	}
-
-	UWidget* HealthBarWidget = HUD->GetWidgetFromName(TEXT("WBP_HealthBar"));
-	if (!IsValid(HealthBarWidget))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Client_CreateHUD: HealthBar widget not found in HUD for %s"), *GetName());
-		return;
-	}
-
-	// Call Blueprint Custom Event to set target Pawn for HealthBar
-	UFunction* SetTargetPawnEvent = HealthBarWidget->GetClass()->FindFunctionByName(TEXT("SetTargetPawn"));
-	if (!IsValid(SetTargetPawnEvent))
-	{
-		UE_LOG(LogTemp, Warning,
-		       TEXT("Client_CreateHUD: SetTargetPawn Custom Event not found on HealthBar widget for %s"), *GetName());
-		return;
-	}
-
-	struct FSetTargetPawnParams
-	{
-		APawn* TargetPawn;
-	};
-
-	FSetTargetPawnParams Params;
-	Params.TargetPawn = this;
-	HealthBarWidget->ProcessEvent(SetTargetPawnEvent, &Params);
 }
 
 void APawPlayerHider::Client_CreateHUD_Implementation()
@@ -487,47 +476,122 @@ void APawPlayerHider::Client_CreateHUD_Implementation()
 	SetupHUDWidget(PC);
 }
 
-// ================================================================
-// UI System Functions
-// ================================================================
-UUserWidget* APawPlayerHider::GetHUDSafe() const
+void APawPlayerHider::MulticastPlayJumpEffects_Implementation()
 {
-	// Only return HUD on locally controlled clients
-	if (IsLocallyControlled() && IsValid(HUD))
+	PlayJumpSound();
+	SpawnJumpVFX();
+}
+
+void APawPlayerHider::MulticastPlayLandEffects_Implementation()
+{
+	const float LandingVelocity = FMath::Abs(GetCharacterMovement()->Velocity.Z);
+	const float Volume = FMath::Clamp(LandingVelocity / LandingVolumeDivisor, JumpSFXVolumeMin, JumpSFXVolumeMax);
+
+	PlayLandSound(Volume);
+	SpawnLandVFX();
+}
+
+// ================================================================
+// Networking - RepNotify Functions
+// ================================================================
+
+void APawPlayerHider::OnRep_Health()
+{
+	// Trigger health change events on clients when health replicates
+	OnHealthChanged(Health, MaxHealth);
+	OnHpChanged.Broadcast(GetHealthPercentage());
+}
+
+void APawPlayerHider::OnRep_IsInvisible()
+{
+	UpdateStealthVisuals();
+	OnInvisibilityChanged(bIsInvisible);
+}
+
+// ================================================================
+// Private Helper Functions - Internal System Functions
+// ================================================================
+
+void APawPlayerHider::InitializeMaterials()
+{
+	if (!IsValid(GetMesh()))
 	{
-		return HUD;
+		UE_LOG(LogTemp, Error, TEXT("InitializeMaterials: Mesh is not valid for %s"), *GetName());
+		return;
 	}
-	return nullptr;
-}
 
-bool APawPlayerHider::HasValidHUD() const
-{
-	// Only check HUD on locally controlled clients
-	return IsLocallyControlled() && IsValid(HUD);
-}
+	const int32 MaterialCount = GetMesh()->GetNumMaterials();
+	CachedBaseMaterials.Empty();
+	CachedBaseMaterials.Reserve(MaterialCount);
 
-// Event Dispatcher Helper Functions
-bool APawPlayerHider::IsEventDispatcherReady() const
-{
-	// Event dispatchers are ready when the object is fully initialized
-	// Check if we're not in construction phase and object is valid
-	return IsValid(this) && !HasAnyFlags(RF_NeedInitialization | RF_NeedLoad) && GetWorld() != nullptr;
-}
-
-void APawPlayerHider::TriggerHpChangedManually()
-{
-	// Manually trigger the HP changed event for UI binding
-	if (IsEventDispatcherReady())
+	// Cache all materials from the mesh
+	for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; ++MaterialIndex)
 	{
-		OnHpChanged.Broadcast(GetHealthPercentage());
+		UMaterialInterface* Material = GetMesh()->GetMaterial(MaterialIndex);
+		CachedBaseMaterials.Add(Material);
+
+		if (!IsValid(Material))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("InitializeMaterials: Material at slot %d is null for %s"), MaterialIndex,
+			       *GetName());
+		}
+	}
+
+	// Validate invisible material setup
+	if (!IsValid(InvisibleMaterial))
+	{
+		UE_LOG(LogTemp, Error,
+		       TEXT("InitializeMaterials: InvisibleMaterial is not set for %s. Stealth effects will not work properly."
+		       ), *GetName());
+	}
+
+	// Materials cached successfully
+}
+
+void APawPlayerHider::StartHealthEffectTimer()
+{
+	if (HasAuthority() && IsAlive() && HealthEffectInterval > 0)
+	{
+		// Start repeating timer for health effects (damage and healing)
+		GetWorldTimerManager().SetTimer(HealthEffectTimerHandle, this, &APawPlayerHider::OnHealthEffectTick,
+		                                HealthEffectInterval, true, 0.0f);
 	}
 }
 
+void APawPlayerHider::StopHealthEffects()
+{
+	if (HasAuthority())
+	{
+		GetWorldTimerManager().ClearTimer(HealthEffectTimerHandle);
+	}
+}
+
+void APawPlayerHider::OnHealthEffectTick()
+{
+	if (!HasAuthority() || !IsAlive())
+	{
+		return;
+	}
+
+	bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
+
+	if (bCurrentlyLit)
+	{
+		// Apply lit damage
+		TakeHealthDamage(LitDamageAmount);
+	}
+	else if (!IsCaptured)
+	{
+		// Apply shadow healing
+		Heal(ShadowHealAmount);
+	}
+	// Do nothing if in shadow but captured
+}
+
 // ================================================================
-// Internal System Functions
+// Private Helper Functions - Stealth Helper Functions
 // ================================================================
-// Stealth Helper Functions
-// ================================================================
+
 bool APawPlayerHider::IsViewerOnSeekerTeam() const
 {
 	UWorld* World = GetWorld();
@@ -618,113 +682,80 @@ void APawPlayerHider::RestoreOriginalMaterials()
 }
 
 // ================================================================
-// Internal System Functions
+// Private Helper Functions - UI Helper Functions
 // ================================================================
-void APawPlayerHider::InitializeMaterials()
+
+void APawPlayerHider::SetupHUDWidget(APlayerController* PC)
 {
-	if (!IsValid(GetMesh()))
-	{
-		UE_LOG(LogTemp, Error, TEXT("InitializeMaterials: Mesh is not valid for %s"), *GetName());
-		return;
-	}
-
-	const int32 MaterialCount = GetMesh()->GetNumMaterials();
-	CachedBaseMaterials.Empty();
-	CachedBaseMaterials.Reserve(MaterialCount);
-
-	// Cache all materials from the mesh
-	for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; ++MaterialIndex)
-	{
-		UMaterialInterface* Material = GetMesh()->GetMaterial(MaterialIndex);
-		CachedBaseMaterials.Add(Material);
-
-		if (!IsValid(Material))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("InitializeMaterials: Material at slot %d is null for %s"), MaterialIndex,
-			       *GetName());
-		}
-	}
-
-	// Validate invisible material setup
-	if (!IsValid(InvisibleMaterial))
-	{
-		UE_LOG(LogTemp, Error,
-		       TEXT("InitializeMaterials: InvisibleMaterial is not set for %s. Stealth effects will not work properly."
-		       ), *GetName());
-	}
-
-	// Materials cached successfully
-}
-
-// ================================================================
-// Health Effects System
-// ================================================================
-void APawPlayerHider::StartHealthEffectTimer()
-{
-	if (HasAuthority() && IsAlive() && HealthEffectInterval > 0)
-	{
-		// Start repeating timer for health effects (damage and healing)
-		GetWorldTimerManager().SetTimer(HealthEffectTimerHandle, this, &APawPlayerHider::OnHealthEffectTick,
-		                                HealthEffectInterval, true, 0.0f);
-	}
-}
-
-void APawPlayerHider::StopHealthEffects()
-{
-	if (HasAuthority())
-	{
-		GetWorldTimerManager().ClearTimer(HealthEffectTimerHandle);
-	}
-}
-
-void APawPlayerHider::OnHealthEffectTick()
-{
-	if (!HasAuthority() || !IsAlive())
+	HUD = CreateWidget<UUserWidget>(PC, HUDWidgetClass);
+	if (!IsValid(HUD))
 	{
 		return;
 	}
 
-	bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
+	// Add widget to viewport
+	HUD->AddToViewport();
+	HUD->SetVisibility(ESlateVisibility::Visible);
 
-	if (bCurrentlyLit)
-	{
-		// Apply lit damage
-		TakeHealthDamage(LitDamageAmount);
-	}
-	else if (!IsCaptured)
-	{
-		// Apply shadow healing
-		Heal(ShadowHealAmount);
-	}
-	// Do nothing if in shadow but captured
+	// Configure child widgets
+	ConfigureCrosshair();
+	ConfigureHealthBar();
+
+	// Broadcast initial HP changed event
+	OnHpChanged.Broadcast(GetHealthPercentage());
 }
 
-// ================================================================
-// Jump System Overrides
-// ================================================================
-void APawPlayerHider::Jump()
+void APawPlayerHider::ConfigureCrosshair()
 {
-	Super::Jump();
-	MulticastPlayJumpEffects();
-}
-
-void APawPlayerHider::Landed(const FHitResult& Hit)
-{
-	Super::Landed(Hit);
-
-	// VFX/SFX for all clients
-	MulticastPlayLandEffects();
-
-	// Force feedback only for local player
-	if (IsLocallyControlled())
+	if (!IsValid(HUD))
 	{
-		PlayLandForceFeedback();
+		return;
+	}
+
+	UWidget* CrosshairWidget = HUD->GetWidgetFromName(TEXT("IMG_Crosshair"));
+	if (IsValid(CrosshairWidget))
+	{
+		CrosshairWidget->SetVisibility(ESlateVisibility::Collapsed);
 	}
 }
 
+void APawPlayerHider::ConfigureHealthBar()
+{
+	if (!IsValid(HUD))
+	{
+		return;
+	}
+
+	UWidget* HealthBarWidget = HUD->GetWidgetFromName(TEXT("WBP_HealthBar"));
+	if (!IsValid(HealthBarWidget))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Client_CreateHUD: HealthBar widget not found in HUD for %s"), *GetName());
+		return;
+	}
+
+	// Call Blueprint Custom Event to set target Pawn for HealthBar
+	UFunction* SetTargetPawnEvent = HealthBarWidget->GetClass()->FindFunctionByName(TEXT("SetTargetPawn"));
+	if (!IsValid(SetTargetPawnEvent))
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("Client_CreateHUD: SetTargetPawn Custom Event not found on HealthBar widget for %s"), *GetName());
+		return;
+	}
+
+	struct FSetTargetPawnParams
+	{
+		APawn* TargetPawn;
+	};
+
+	FSetTargetPawnParams Params;
+	Params.TargetPawn = this;
+	HealthBarWidget->ProcessEvent(SetTargetPawnEvent, &Params);
+}
+
 // ================================================================
-// Jump System Asset Loading
+// Private Helper Functions - Jump System Helper Functions
 // ================================================================
+
 void APawPlayerHider::LoadJumpAssetsAsync()
 {
 	TArray<FSoftObjectPath> AssetsToLoad;
@@ -777,27 +808,6 @@ void APawPlayerHider::OnJumpAssetsLoaded()
 	}
 }
 
-// ================================================================
-// Jump System Multicast Functions
-// ================================================================
-void APawPlayerHider::MulticastPlayJumpEffects_Implementation()
-{
-	PlayJumpSound();
-	SpawnJumpVFX();
-}
-
-void APawPlayerHider::MulticastPlayLandEffects_Implementation()
-{
-	const float LandingVelocity = FMath::Abs(GetCharacterMovement()->Velocity.Z);
-	const float Volume = FMath::Clamp(LandingVelocity / LandingVolumeDivisor, JumpSFXVolumeMin, JumpSFXVolumeMax);
-
-	PlayLandSound(Volume);
-	SpawnLandVFX();
-}
-
-// ================================================================
-// Jump System Helper Functions
-// ================================================================
 void APawPlayerHider::SpawnJumpVFX()
 {
 	if (!IsValid(JumpVFX))
