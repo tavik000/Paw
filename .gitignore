@@ -349,3 +349,4 @@ Build/Windows/FileOpenOrder
 Build/*
 Paw.sln.DotSettings.user
 Documents/Images/Screenshots
+.claude/task
