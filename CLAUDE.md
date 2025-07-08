@@ -192,6 +192,81 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Avoid hardcoding in C++**: Use configurable parameters and expose them to Blueprints
 - **Use modern UE pointers**: Prefer UE smart pointers (TSharedPtr, TUniquePtr) over raw pointers
 
+## Unreal Engine C++ Code Organization Standard
+
+### Class Structure Guidelines
+You are a code style enforcer for Unreal Engine C++ projects. Whenever you generate or refactor an Unreal Engine class, organize it exactly as follows—mirroring each override's engine-declared access level and grouping by purpose:
+
+1. public: Constructor & Public Engine Overrides  
+   - **Constructor declaration**  
+   - All engine overrides declared **public** in the base class, grouped by interface with "//~ … interface" comments.  
+     ```cpp
+     //~ AActor interface
+     virtual void Tick(float DeltaTime) override;
+     //~ APawn interface
+     virtual void Jump() override;
+     //~ ACharacter interface
+     virtual void Landed(const FHitResult& Hit) override;
+     //…other public engine hooks
+     ```
+
+2. public: Blueprint-Callable API  
+   - All `UFUNCTION(BlueprintCallable)` methods, grouped by subsystem (Health, Light Detection, Stealth, UI, etc.).
+
+3. public: C++ Public Helpers  
+   - Any plain C++ methods (non-UFUNCTION) exposed only to C++ callers:
+     ```cpp
+     void DoSomethingHeavy();
+     FVector CalculateSpawnLocation() const;
+     ```
+
+4. public: Blueprint Events & Delegates  
+   - All `UPROPERTY(BlueprintAssignable)` delegates.  
+   - All `UFUNCTION(BlueprintImplementableEvent)` hooks.
+
+5. protected: Protected Engine Overrides  
+   - All engine overrides declared **protected** in the base class:
+     ```cpp
+     virtual void BeginPlay() override;
+     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+     //…other protected engine hooks
+     ```
+
+6. protected: Properties  
+   - All `UPROPERTY` member variables (`EditAnywhere`, `Replicated`, etc.), grouped by subsystem, under a "// Properties" header:
+     ```cpp
+     // Properties: Health System
+     UPROPERTY(EditAnywhere, BlueprintReadWrite, ReplicatedUsing=OnRep_Health, Category="Health")
+     float Health;
+     //…other properties
+     ```
+
+7. protected: Networking (RPCs & RepNotifies)  
+   - All `UFUNCTION(Server/Client/NetMulticast, Reliable)` RPC declarations.  
+   - All `UFUNCTION()` replication-notify handlers (`OnRep_*`).
+
+8. private: Internal Helper Methods  
+   - All non-UFUNCTION helper methods:
+     ```cpp
+     void InitializeMaterials();
+     void StartHealthEffectTimer();
+     //…etc.
+     ```
+
+9. private: Cached State  
+   - Any private `UPROPERTY` or raw member variables (TimerHandles, cached materials, asset pointers, streamable handles, etc.):
+     ```cpp
+     FTimerHandle HealthEffectTimerHandle;
+     TArray<TObjectPtr<UMaterialInterface>> CachedBaseMaterials;
+     //…etc.
+     ```
+
+**Formatting rules:**  
+- Prefix each section with a comment header (e.g. `public: // Constructor & Public Engine Overrides`).  
+- Keep related functions and variables together; sub-group by subsystem when needed.  
+- Maintain the engine-declared access level for every override so the code compiles.  
+- Follow this ordering strictly for readability, merge-friendliness, and consistency with Epic's own code style.  
+
 ## Testing and Debugging
 
 ### Multiplayer Testing
@@ -246,4 +321,3 @@ This project uses Git LFS extensively for Unreal Engine assets (.uasset, .umap, 
 - Visual Studio 2022 with C++ development tools
 - Windows SDK
 - Steam SDK (for online features)
-```
