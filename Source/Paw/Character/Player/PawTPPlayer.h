@@ -16,6 +16,13 @@ class PAW_API APawTPPlayer : public APawPlayerBase
 
 public:
 	APawTPPlayer();
+	virtual void Tick(float DeltaTime) override;
+
+	UFUNCTION(BlueprintCallable, Category = "Camera")
+	UCameraComponent* GetThirdPersonCameraComponent() const { return ThirdPersonCameraComponent; }
+
+	UFUNCTION(BlueprintCallable, Category = "Camera")
+	USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -24,19 +31,10 @@ protected:
 	virtual void Move(const FInputActionValue& Value) override;
 	virtual void Look(const FInputActionValue& Value) override;
 
-	// Third Person Camera Components
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
 	USpringArmComponent* CameraBoom;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* ThirdPersonCameraComponent;
-
-public:
-	virtual void Tick(float DeltaTime) override;
-
-	UFUNCTION(BlueprintCallable)
-	UCameraComponent* GetThirdPersonCameraComponent() const { return ThirdPersonCameraComponent; }
-
-	UFUNCTION(BlueprintCallable)
-	USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 };

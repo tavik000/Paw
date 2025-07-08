@@ -31,14 +31,14 @@ APawTPPlayer::APawTPPlayer()
 	ThirdPersonCameraComponent->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 }
 
-void APawTPPlayer::BeginPlay()
-{
-	Super::BeginPlay();
-}
-
 void APawTPPlayer::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+}
+
+void APawTPPlayer::BeginPlay()
+{
+	Super::BeginPlay();
 }
 
 void APawTPPlayer::NotifyControllerChanged()
