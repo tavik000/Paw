@@ -65,6 +65,7 @@ void APawFPSPlayer::Move(const FInputActionValue& Value)
 	{
 		return;
 	}
+	
 	Super::Move(Value);
 	
 	// input is a Vector2D

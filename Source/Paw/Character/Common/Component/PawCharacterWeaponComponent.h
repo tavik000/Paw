@@ -16,17 +16,8 @@ class PAW_API UPawCharacterWeaponComponent : public UActorComponent
 
 public:
 	UPawCharacterWeaponComponent();
-
-protected:
-	virtual void BeginPlay() override;
-
-public:
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType,
-	                           FActorComponentTickFunction* ThisTickFunction) override;
-
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-
-
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	UFUNCTION(BlueprintCallable)
@@ -42,10 +33,12 @@ public:
 	void ServerCreateEquipWeapon(UClass* WeaponClass);
 
 	void DeleteEquipWeapon();
-
 	void ChangeEquipWeapon(UClass* ChangeWeaponClass);
 
+protected:
+	virtual void BeginPlay() override;
 
+protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Weapon")
 	TSubclassOf<APawWeaponBase> DefaultWeaponClass;
 

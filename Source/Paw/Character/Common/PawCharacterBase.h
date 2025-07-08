@@ -16,19 +16,8 @@ class PAW_API APawCharacterBase : public ACharacter, public ITeamableInterface
 
 public:
 	APawCharacterBase();
-
-protected:
-	virtual void BeginPlay() override;
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-
-	// Team System
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Team")
-	ETeamId TeamId;
-
-public:
 	virtual void Tick(float DeltaTime) override;
 
-	// Team Interface Implementation
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Team")
 	ETeamId GetTeamId() const;
 	virtual ETeamId GetTeamId_Implementation() const;
@@ -36,4 +25,12 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Team")
 	void SetTeamId(ETeamId NewTeamId);
 	virtual void SetTeamId_Implementation(ETeamId NewTeamId);
+
+protected:
+	virtual void BeginPlay() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+protected:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Team")
+	ETeamId TeamId;
 };

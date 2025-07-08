@@ -15,15 +15,14 @@ class PAW_API APawBattleCharacter : public APawCharacterBase
 
 public:
 	APawBattleCharacter();
+	virtual void Tick(float DeltaTime) override;
 
 protected:
 	virtual void BeginPlay() override;
 
+protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	UPawCharacterWeaponComponent* CharacterWeaponComponent;
-	
-public:
-	virtual void Tick(float DeltaTime) override;
 
 
 };
