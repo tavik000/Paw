@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Paw/Character/Player/PawCharacter.h"
+#include "Paw/Character/Player/PawPlayerHider.h"
 
 
 APawBubbleHiderCapture::APawBubbleHiderCapture()
@@ -33,13 +34,18 @@ void APawBubbleHiderCapture::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void APawBubbleHiderCapture::MulticastSetHiderFloatingEnable_Implementation(APawCharacter* Hider, bool bEnable)
+void APawBubbleHiderCapture::MulticastSetHiderFloatingEnable_Implementation(APawPlayerHider* Hider, bool bEnable)
 {
+	if (!IsValid(Hider))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("APawBubbleHiderCapture::MulticastSetHiderFloatingEnable - Invalid Hider"));
+		return;
+	}
 	Hider->SetActorEnableCollision(!bEnable);
-	Hider->GetCharacterMovement()->GravityScale = !bEnable ? 1.75f : 0.0f;
+	Hider->GetCharacterMovement()->GravityScale = !bEnable ? Hider->GetDefaultGravityScale() : 0.0f;
 }
 
-void APawBubbleHiderCapture::ServerCaptureHider_Implementation(APawCharacter* Hider)
+void APawBubbleHiderCapture::ServerCaptureHider_Implementation(APawPlayerHider* Hider)
 {
 	if (!HasAuthority())
 	{
@@ -61,7 +67,7 @@ void APawBubbleHiderCapture::ServerCaptureHider_Implementation(APawCharacter* Hi
 		                                                     EAttachmentRule::KeepRelative, true));
 	CapturedHider->SetActorRelativeLocation(FVector::ZeroVector);
 
-	CapturedHider->ServerSetCaptured(true);
+	CapturedHider->ServerSetCaptured_Implementation(true);
 	CapturedHider->OnDestroyed.AddDynamic(this, &APawBubbleHiderCapture::OnCapturedHiderDestroy);
 }
 
@@ -79,7 +85,7 @@ void APawBubbleHiderCapture::ServerReleaseHider_Implementation()
 	// Detach it from BubbleMesh
 	if (HasAuthority())
 	{
-		CapturedHider->ServerSetCaptured(false);
+		CapturedHider->ServerSetCaptured_Implementation(false);
 	}
 	CapturedHider->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 	MulticastSetHiderFloatingEnable(CapturedHider.Get(), false);

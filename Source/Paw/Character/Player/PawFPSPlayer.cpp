@@ -61,6 +61,10 @@ void APawFPSPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 void APawFPSPlayer::Move(const FInputActionValue& Value)
 {
+	if (!CanMove())
+	{
+		return;
+	}
 	Super::Move(Value);
 	
 	// input is a Vector2D

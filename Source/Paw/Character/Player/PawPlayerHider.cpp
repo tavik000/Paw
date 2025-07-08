@@ -32,6 +32,7 @@ APawPlayerHider::APawPlayerHider()
 	bIsDead = false;
 	LitDamageAmount = 0.5f;
 	ShadowHealAmount = 0.25f;
+	CaptureDamageAmount = 0.25f;
 	HealthEffectInterval = 0.03f;
 
 	// Light Detection System
@@ -44,7 +45,7 @@ APawPlayerHider::APawPlayerHider()
 	OpacityParameterName = FName("Opacity");
 
 	// Capture System
-	IsCaptured = false;
+	bIsCaptured = false;
 
 	// Multiplayer Properties
 	bIsLocalPlayer = false;
@@ -175,9 +176,19 @@ void APawPlayerHider::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(APawPlayerHider, bIsInLight);
 	DOREPLIFETIME(APawPlayerHider, bIsSpotLighted);
 	DOREPLIFETIME(APawPlayerHider, bIsInvisible);
-	DOREPLIFETIME(APawPlayerHider, IsCaptured);
+	DOREPLIFETIME(APawPlayerHider, bIsCaptured);
 	DOREPLIFETIME(APawPlayerHider, bIsLocalPlayer);
 	DOREPLIFETIME(APawPlayerHider, PlayerIndex);
+}
+
+bool APawPlayerHider::CanMove()
+{
+	return !bIsCaptured;
+}
+
+bool APawPlayerHider::CanJump()
+{
+	return !bIsCaptured;
 }
 
 // ================================================================
@@ -269,7 +280,7 @@ void APawPlayerHider::CheckLightExposure()
 
 	// Handle invisibility 
 	bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
-	bool bCanBecomeInvisible = !bCurrentlyLit && !IsCaptured;
+	bool bCanBecomeInvisible = !bCurrentlyLit && !bIsCaptured;
 
 	// Automatically become invisible if in shadows and not captured
 	if (bCanBecomeInvisible && !bIsInvisible)
@@ -277,7 +288,7 @@ void APawPlayerHider::CheckLightExposure()
 		ActivateInvisibility();
 	}
 	// Become visible if lit or captured
-	else if (bIsInvisible && (bCurrentlyLit || IsCaptured))
+	else if (bIsInvisible && (bCurrentlyLit || bIsCaptured))
 	{
 		DeactivateInvisibility();
 	}
@@ -420,7 +431,7 @@ void APawPlayerHider::ServerTakeHealthDamage_Implementation(float DamageAmount)
 
 void APawPlayerHider::ServerSetCaptured_Implementation(bool NewIsCaptured)
 {
-	IsCaptured = NewIsCaptured;
+	bIsCaptured = NewIsCaptured;
 }
 
 void APawPlayerHider::ServerRequestCancelHorizontalVelocity_Implementation()
@@ -571,12 +582,19 @@ void APawPlayerHider::OnHealthEffectTick()
 
 	bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
 
+	if (bIsCaptured)
+	{
+		// Apply capture damage
+		TakeHealthDamage(CaptureDamageAmount);
+		return;
+	}
+
 	if (bCurrentlyLit)
 	{
 		// Apply lit damage
 		TakeHealthDamage(LitDamageAmount);
 	}
-	else if (!IsCaptured)
+	else if (!bIsCaptured)
 	{
 		// Apply shadow healing
 		Heal(ShadowHealAmount);

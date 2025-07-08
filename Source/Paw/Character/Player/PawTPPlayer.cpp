@@ -53,6 +53,11 @@ void APawTPPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void APawTPPlayer::Move(const FInputActionValue& Value)
 {
+	if (!CanMove())
+	{
+		return;
+	}
+	
 	// Call parent first (in case there's base logic)
 	Super::Move(Value);
 

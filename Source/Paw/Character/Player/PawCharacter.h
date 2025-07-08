@@ -17,6 +17,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnJumpDelegate);
 
+// Deprecated
 UCLASS(config=Game)
 class APawCharacter : public ACharacter
 {

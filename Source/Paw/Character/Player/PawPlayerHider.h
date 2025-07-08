@@ -81,6 +81,27 @@ public: // Blueprint Callable API
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void TriggerHpChangedManually();
 
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	float GetHealth() const { return Health; }
+
+	UFUNCTION(BlueprintCallable, Category = "Health")
+	float GetMaxHealth() const { return MaxHealth; }
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	bool IsInLight() const { return bIsInLight; }
+
+	UFUNCTION(BlueprintCallable, Category = "Stealth")
+	bool IsInvisible() const { return bIsInvisible; }
+
+	UFUNCTION(BlueprintCallable, Category = "Capture")
+	bool IsCaptured() const { return bIsCaptured; }
+
+	UFUNCTION(BlueprintCallable, Category = "Multiplayer")
+	bool IsLocalPlayer() const { return bIsLocalPlayer; }
+
+public: // C++ Public Helper
+	float GetDefaultGravityScale() const { return DefaultGravityScale; }
+
 public: // Blueprint Events & Delegates
 	UPROPERTY(BlueprintAssignable, Category = "Health")
 	FOnDeathDelegate OnDeath;
@@ -100,6 +121,8 @@ public: // Blueprint Events & Delegates
 protected: // Engine Overrides
 	virtual void BeginPlay() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual bool CanMove() override;
+	virtual bool CanJump() override;
 
 protected: // Properties (State & Configuration)
 	// === Health System ===
@@ -117,6 +140,9 @@ protected: // Properties (State & Configuration)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
 	float ShadowHealAmount;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+	float CaptureDamageAmount;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
 	float HealthEffectInterval;
@@ -143,7 +169,7 @@ protected: // Properties (State & Configuration)
 
 	// === Capture System ===
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Capture")
-	bool IsCaptured;
+	bool bIsCaptured;
 
 	// === Multiplayer Properties ===
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Multiplayer")

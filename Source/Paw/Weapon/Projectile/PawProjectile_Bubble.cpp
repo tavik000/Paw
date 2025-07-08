@@ -5,13 +5,10 @@
 
 #include "Components/SphereComponent.h"
 #include "Engine/AssetManager.h"
-#include "Field/FieldSystemActor.h"
-#include "GameFramework/ProjectileMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GeometryCollection/GeometryCollectionComponent.h"
-#include "Paw/Character/Player/PawCharacter.h"
+#include "Paw/Character/Player/PawPlayerHider.h"
 #include "Paw/Environment/GameplayElement/Bubble/PawBubbleHiderCapture.h"
-
 
 // Sets default values
 APawProjectile_Bubble::APawProjectile_Bubble()
@@ -110,7 +107,7 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 		return;
 	}
 
-	APawCharacter* HitHider = Cast<APawCharacter>(OtherActor);
+	TObjectPtr<APawPlayerHider> HitHider = Cast<APawPlayerHider>(OtherActor);
 	if (!IsValid(HitHider))
 	{
 		// Only add impulse and destroy projectile if we hit a physics

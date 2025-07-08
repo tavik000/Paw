@@ -6,7 +6,7 @@
 #include "PawBubbleObjectCapture.h"
 #include "PawBubbleHiderCapture.generated.h"
 
-class APawCharacter;
+class APawPlayerHider;
 
 UCLASS()
 class PAW_API APawBubbleHiderCapture : public APawBubbleObjectCapture
@@ -25,18 +25,18 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	UFUNCTION(Server, Reliable, BlueprintCallable)
-	void ServerCaptureHider(APawCharacter *Hider);
+	void ServerCaptureHider(APawPlayerHider *Hider);
 
 	UFUNCTION(Server, Reliable, BlueprintCallable)
 	void ServerReleaseHider();
 	
 	UFUNCTION(NetMulticast, Reliable)
-	void MulticastSetHiderFloatingEnable(APawCharacter* Hider, bool bEnable);
+	void MulticastSetHiderFloatingEnable(APawPlayerHider* Hider, bool bEnable);
 
 private:
 
 	UFUNCTION()
 	void OnCapturedHiderDestroy(AActor* DestroyedActor);
 	
-	TWeakObjectPtr<APawCharacter> CapturedHider;
+	TWeakObjectPtr<APawPlayerHider> CapturedHider;
 };
