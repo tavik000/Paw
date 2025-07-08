@@ -594,7 +594,7 @@ void APawPlayerHider::OnHealthEffectTick()
 		// Apply lit damage
 		TakeHealthDamage(LitDamageAmount);
 	}
-	else if (!bIsCaptured)
+	else
 	{
 		// Apply shadow healing
 		Heal(ShadowHealAmount);
