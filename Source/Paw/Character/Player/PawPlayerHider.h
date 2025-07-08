@@ -23,15 +23,10 @@ class PAW_API APawPlayerHider : public APawTPPlayer
 public: // Constructor & Core Engine Overrides
 	APawPlayerHider();
 
-	//~ AActor interface
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void Landed(const FHitResult& Hit) override;
-	//~ End AActor interface
-
-	//~ APawn interface
 	virtual void Jump() override;
-	//~ End APawn interface
 
 public: // Blueprint Callable API
 	// Health

@@ -72,7 +72,6 @@ APawPlayerHider::APawPlayerHider()
 	LandForceFeedback = nullptr;
 }
 
-//~ AActor interface
 void APawPlayerHider::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
@@ -128,15 +127,12 @@ void APawPlayerHider::Landed(const FHitResult& Hit)
 		PlayLandForceFeedback();
 	}
 }
-//~ End AActor interface
 
-//~ APawn interface
 void APawPlayerHider::Jump()
 {
 	Super::Jump();
 	MulticastPlayJumpEffects();
 }
-//~ End APawn interface
 
 // ================================================================
 // Engine Overrides
