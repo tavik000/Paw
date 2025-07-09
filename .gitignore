@@ -349,4 +349,8 @@ Build/Windows/FileOpenOrder
 Build/*
 Paw.sln.DotSettings.user
 Documents/Images/Screenshots
+
+# Claude
 .claude/task
+.claude
+CLAUDE.md
