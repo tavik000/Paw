@@ -18,9 +18,6 @@ APawProjectileBase::APawProjectileBase()
 	CollisionComp->InitSphereRadius(5.0f);
 	CollisionComp->BodyInstance.SetCollisionProfileName("Projectile");
 
-	// set up a notification for when this component hits something blocking
-	CollisionComp->OnComponentHit.AddDynamic(this, &APawProjectileBase::OnHit);
-
 	// Players can't walk on it
 	CollisionComp->SetWalkableSlopeOverride(FWalkableSlopeOverride(WalkableSlope_Unwalkable, 0.f));
 	CollisionComp->CanCharacterStepUpOn = ECB_No;
@@ -47,6 +44,9 @@ APawProjectileBase::APawProjectileBase()
 void APawProjectileBase::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	// Bind hit delegate now that reflection data is available
+	CollisionComp->OnComponentHit.AddDynamic(this, &APawProjectileBase::OnHit);
 }
 
 void APawProjectileBase::Tick(float DeltaTime)
