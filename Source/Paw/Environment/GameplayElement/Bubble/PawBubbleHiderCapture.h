@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "PawBubbleObjectCapture.h"
+#include "Engine/Engine.h"
 #include "PawBubbleHiderCapture.generated.h"
 
 class APawPlayerHider;
@@ -33,10 +34,23 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastSetHiderFloatingEnable(APawPlayerHider* Hider, bool bEnable);
 
+protected:
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastAttachHiderToBubble(APawPlayerHider* Hider);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastDetachHiderFromBubble(APawPlayerHider* Hider);
+
 private:
 
 	UFUNCTION()
 	void OnCapturedHiderDestroy(AActor* DestroyedActor);
 	
+	UPROPERTY(Replicated)
 	TWeakObjectPtr<APawPlayerHider> CapturedHider;
+	
+	// Store original movement mode to restore later
+	TEnumAsByte<EMovementMode> OriginalMovementMode;
 };

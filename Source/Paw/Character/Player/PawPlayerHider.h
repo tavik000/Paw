@@ -111,6 +111,9 @@ public: // Blueprint Callable API
 	UFUNCTION(BlueprintCallable, Category = "Multiplayer")
 	bool IsLocalPlayer() const { return bIsLocalPlayer; }
 
+	UFUNCTION(Server, Reliable, Category = "Capture")
+	void ServerSetCaptured(bool NewIsCaptured);
+
 public: // C++ Public Helper
 	float GetDefaultGravityScale() const { return DefaultGravityScale; }
 
@@ -254,9 +257,6 @@ protected: // Networking (RPCs & RepNotifies)
 
 	UFUNCTION(Server, Reliable, Category = "Health")
 	void ServerTakeHealthDamage(float DamageAmount);
-
-	UFUNCTION(Server, Reliable, Category = "Capture")
-	void ServerSetCaptured(bool NewIsCaptured);
 
 	UFUNCTION(Server, Reliable, Category = "Multiplayer")
 	void ServerConvertToSeeker();
