@@ -41,6 +41,7 @@ protected:
 	void Deactivate();
 
 	virtual void Break_Implementation() override;
+	virtual bool CanBeBreakByHider_Implementation() const override;
 
 	void OnBreakEffectLoaded();
 	void LoadBreakEffect();

@@ -55,6 +55,11 @@ void APawBubbleBase::Break_Implementation()
 	MulticastSpawnBreakEffect();
 }
 
+bool APawBubbleBase::CanBeBreakByHider_Implementation() const
+{
+	return true;
+}
+
 
 void APawBubbleBase::LoadBreakEffect()
 {

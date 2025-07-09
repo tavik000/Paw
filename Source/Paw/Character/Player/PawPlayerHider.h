@@ -108,6 +108,9 @@ public: // Blueprint Callable API
 	UFUNCTION(BlueprintCallable, Category = "Capture")
 	bool IsCaptured() const { return bIsCaptured; }
 
+	UFUNCTION(BlueprintCallable, Category = "Collision")
+	void BreakCollidedObject(AActor* HitActor);
+
 	UFUNCTION(BlueprintCallable, Category = "Multiplayer")
 	bool IsLocalPlayer() const { return bIsLocalPlayer; }
 
@@ -320,6 +323,10 @@ private: // Internal Helper Functions
 	void PlayJumpSound();
 	void PlayLandSound(float Volume);
 	void PlayLandForceFeedback();
+
+	// === Collision System ===
+	UFUNCTION()
+	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
 private: // Internal State & Cached Data
 	// === Health System ===

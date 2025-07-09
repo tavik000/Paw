@@ -50,6 +50,11 @@ void APawProjectile_Bubble::Break_Implementation()
 	BubbleMesh->SetVisibility(false);
 }
 
+bool APawProjectile_Bubble::CanBeBreakByHider_Implementation() const
+{
+	return false;
+}
+
 void APawProjectile_Bubble::SelfBreak()
 {
 	if (IPawCollideBreakableInterface* CollideBreakableInterface = Cast<IPawCollideBreakableInterface>(this))

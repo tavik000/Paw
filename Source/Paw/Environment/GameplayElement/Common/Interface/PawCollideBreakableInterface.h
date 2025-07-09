@@ -25,5 +25,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
 	void Break();
-	
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	bool CanBeBreakByHider() const;
 };

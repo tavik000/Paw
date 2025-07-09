@@ -14,6 +14,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "PawPlayerSeeker_Ghost.h"
+#include "../../Environment/GameplayElement/Common/Interface/PawCollideBreakableInterface.h"
+#include "Components/CapsuleComponent.h"
 
 // ================================================================
 // Constructor & Core Engine Overrides
@@ -158,6 +160,12 @@ void APawPlayerHider::BeginPlay()
 
 	// Start async loading of jump assets
 	LoadJumpAssetsAsync();
+
+	// Bind collision event for breaking objects
+	if (IsValid(GetCapsuleComponent()))
+	{
+		GetCapsuleComponent()->OnComponentHit.AddDynamic(this, &APawPlayerHider::OnHit);
+	}
 
 	// Start lit damage timer immediately (always running)
 	if (HasAuthority())
@@ -1034,4 +1042,43 @@ void APawPlayerHider::PlayLandForceFeedback()
 		FForceFeedbackParameters Params;
 		PC->ClientPlayForceFeedback(LandForceFeedback, Params);
 	}
+}
+
+// ================================================================
+// Collision Breaking
+// ================================================================
+
+void APawPlayerHider::BreakCollidedObject(AActor* HitActor)
+{
+	if (!IsValid(HitActor))
+	{
+		return;
+	}
+
+	IPawCollideBreakableInterface* BreakableInterface = Cast<IPawCollideBreakableInterface>(HitActor);
+	if (!BreakableInterface)
+	{
+		return;
+	}
+
+	// Check if this object can be broken by hiders
+	if (!BreakableInterface->Execute_CanBeBreakByHider(HitActor))
+	{
+		return;
+	}
+
+	// Break the object
+	BreakableInterface->Execute_Break(HitActor);
+}
+
+void APawPlayerHider::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+{
+	// Only process on server
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	// Automatically try to break the hit object
+	BreakCollidedObject(OtherActor);
 }

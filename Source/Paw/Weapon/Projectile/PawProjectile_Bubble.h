@@ -28,6 +28,7 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void Break_Implementation() override;
+	virtual bool CanBeBreakByHider_Implementation() const override;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)

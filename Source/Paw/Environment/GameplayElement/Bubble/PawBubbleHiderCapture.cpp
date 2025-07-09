@@ -18,7 +18,7 @@ APawBubbleHiderCapture::APawBubbleHiderCapture()
 void APawBubbleHiderCapture::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	
+
 	DOREPLIFETIME(APawBubbleHiderCapture, CapturedHider);
 }
 
@@ -29,6 +29,14 @@ void APawBubbleHiderCapture::BeginPlay()
 
 void APawBubbleHiderCapture::Break_Implementation()
 {
+	if (!CapturedHider.IsValid())
+	{
+		return;
+	}
+	if (!CapturedHider->IsAlive())
+	{
+		return;
+	}
 	Super::Break_Implementation();
 	if (HasAuthority())
 	{
@@ -49,28 +57,31 @@ void APawBubbleHiderCapture::MulticastSetHiderFloatingEnable_Implementation(APaw
 		UE_LOG(LogTemp, Warning, TEXT("APawBubbleHiderCapture::MulticastSetHiderFloatingEnable - Invalid Hider"));
 		return;
 	}
-	
+
 	UCharacterMovementComponent* MovementComp = Hider->GetCharacterMovement();
 	if (!IsValid(MovementComp))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("APawBubbleHiderCapture::MulticastSetHiderFloatingEnable - Invalid Movement Component"));
+		UE_LOG(LogTemp, Warning,
+		       TEXT("APawBubbleHiderCapture::MulticastSetHiderFloatingEnable - Invalid Movement Component"));
 		return;
 	}
-	
+
 	if (bEnable)
 	{
 		// Capturing: Disable all movement physics
-		UE_LOG(LogTemp, Log, TEXT("APawBubbleHiderCapture::MulticastSetHiderFloatingEnable - Disabling movement for %s"), *Hider->GetName());
-		
+		UE_LOG(LogTemp, Log,
+		       TEXT("APawBubbleHiderCapture::MulticastSetHiderFloatingEnable - Disabling movement for %s"),
+		       *Hider->GetName());
+
 		// Store original movement mode
 		OriginalMovementMode = MovementComp->MovementMode;
-		
+
 		// Disable collision
 		Hider->SetActorEnableCollision(false);
-		
+
 		// Clear any existing velocity
 		MovementComp->Velocity = FVector::ZeroVector;
-		
+
 		// Disable all movement physics
 		MovementComp->SetMovementMode(MOVE_None);
 		MovementComp->GravityScale = 0.0f;
@@ -78,17 +89,19 @@ void APawBubbleHiderCapture::MulticastSetHiderFloatingEnable_Implementation(APaw
 	else
 	{
 		// Releasing: Restore normal movement physics
-		UE_LOG(LogTemp, Log, TEXT("APawBubbleHiderCapture::MulticastSetHiderFloatingEnable - Restoring movement for %s"), *Hider->GetName());
-		
+		UE_LOG(LogTemp, Log,
+		       TEXT("APawBubbleHiderCapture::MulticastSetHiderFloatingEnable - Restoring movement for %s"),
+		       *Hider->GetName());
+
 		// Restore collision
 		Hider->SetActorEnableCollision(true);
-		
+
 		// Restore gravity
 		MovementComp->GravityScale = Hider->GetDefaultGravityScale();
-		
+
 		// Restore original movement mode
 		MovementComp->SetMovementMode(OriginalMovementMode);
-		
+
 		// Clear velocity to prevent sudden movements
 		MovementComp->Velocity = FVector::ZeroVector;
 	}
@@ -98,7 +111,8 @@ void APawBubbleHiderCapture::MulticastAttachHiderToBubble_Implementation(APawPla
 {
 	if (!IsValid(Hider) || !IsValid(BubbleMesh))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("APawBubbleHiderCapture::MulticastAttachHiderToBubble - Invalid Hider or BubbleMesh"));
+		UE_LOG(LogTemp, Warning,
+		       TEXT("APawBubbleHiderCapture::MulticastAttachHiderToBubble - Invalid Hider or BubbleMesh"));
 		return;
 	}
 
@@ -111,7 +125,7 @@ void APawBubbleHiderCapture::MulticastAttachHiderToBubble_Implementation(APawPla
 		BubbleMesh,
 		FAttachmentTransformRules(
 			EAttachmentRule::KeepWorld,
-			EAttachmentRule::KeepWorld, 
+			EAttachmentRule::KeepWorld,
 			EAttachmentRule::KeepWorld,
 			true
 		)
@@ -119,21 +133,26 @@ void APawBubbleHiderCapture::MulticastAttachHiderToBubble_Implementation(APawPla
 
 	if (!bAttachmentSuccessful)
 	{
-		UE_LOG(LogTemp, Error, TEXT("APawBubbleHiderCapture::MulticastAttachHiderToBubble - Attachment failed for %s"), *Hider->GetName());
+		UE_LOG(LogTemp, Error, TEXT("APawBubbleHiderCapture::MulticastAttachHiderToBubble - Attachment failed for %s"),
+		       *Hider->GetName());
 		return;
 	}
 
 	// Verify attachment succeeded
 	if (Hider->GetRootComponent()->GetAttachParent() != BubbleMesh)
 	{
-		UE_LOG(LogTemp, Error, TEXT("APawBubbleHiderCapture::MulticastAttachHiderToBubble - Attachment verification failed for %s"), *Hider->GetName());
+		UE_LOG(LogTemp, Error,
+		       TEXT("APawBubbleHiderCapture::MulticastAttachHiderToBubble - Attachment verification failed for %s"),
+		       *Hider->GetName());
 		return;
 	}
 
 	// Now set the relative position to center the hider in the bubble
 	Hider->SetActorRelativeLocation(FVector::ZeroVector);
-	
-	UE_LOG(LogTemp, Log, TEXT("APawBubbleHiderCapture::MulticastAttachHiderToBubble - Successfully attached %s to bubble"), *Hider->GetName());
+
+	UE_LOG(LogTemp, Log,
+	       TEXT("APawBubbleHiderCapture::MulticastAttachHiderToBubble - Successfully attached %s to bubble"),
+	       *Hider->GetName());
 }
 
 void APawBubbleHiderCapture::MulticastDetachHiderFromBubble_Implementation(APawPlayerHider* Hider)
@@ -158,14 +177,15 @@ void APawBubbleHiderCapture::ServerCaptureHider_Implementation(APawPlayerHider* 
 	{
 		return;
 	}
-	
-	UE_LOG(LogTemp, Log, TEXT("APawBubbleHiderCapture::ServerCaptureHider - Starting capture for %s"), *Hider->GetName());
-	
+
+	UE_LOG(LogTemp, Log, TEXT("APawBubbleHiderCapture::ServerCaptureHider - Starting capture for %s"),
+	       *Hider->GetName());
+
 	CapturedHider = Hider;
-	
+
 	// First, disable physics and collision on all clients
 	MulticastSetHiderFloatingEnable(Hider, true);
-	
+
 	// Single frame delay to ensure physics changes are processed before attachment
 	GetWorld()->GetTimerManager().SetTimerForNextTick([this, Hider]()
 	{
@@ -173,12 +193,13 @@ void APawBubbleHiderCapture::ServerCaptureHider_Implementation(APawPlayerHider* 
 		{
 			// Then attach to bubble
 			MulticastAttachHiderToBubble(Hider);
-			
+
 			// Set captured state
 			Hider->ServerSetCaptured(true);
 			Hider->OnDestroyed.AddDynamic(this, &APawBubbleHiderCapture::OnCapturedHiderDestroy);
-			
-			UE_LOG(LogTemp, Log, TEXT("APawBubbleHiderCapture::ServerCaptureHider - Capture complete for %s"), *Hider->GetName());
+
+			UE_LOG(LogTemp, Log, TEXT("APawBubbleHiderCapture::ServerCaptureHider - Capture complete for %s"),
+			       *Hider->GetName());
 		}
 	});
 }
@@ -189,17 +210,13 @@ void APawBubbleHiderCapture::ServerReleaseHider_Implementation()
 	{
 		return;
 	}
-	if (!CapturedHider.IsValid())
-	{
-		return;
-	}
 
 	APawPlayerHider* HiderToRelease = CapturedHider.Get();
-	
+
 	MulticastDetachHiderFromBubble(HiderToRelease);
 	MulticastSetHiderFloatingEnable(HiderToRelease, false);
 	HiderToRelease->ServerSetCaptured(false);
-	
+
 	CapturedHider.Reset();
 }
 
