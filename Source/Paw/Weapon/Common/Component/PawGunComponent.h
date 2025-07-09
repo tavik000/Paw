@@ -15,31 +15,26 @@ class PAW_API UPawGunComponent : public UPawWeaponComponent
 {
 	GENERATED_BODY()
 
-	UPawGunComponent();
-
 public:
+	UPawGunComponent();
 	virtual bool AttachWeapon(APawBattleCharacter* TargetCharacter) override;
 
-	/** Make the weapon Fire a Projectile */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
 	void Fire();
 
-	UFUNCTION(Server, Reliable)
-	void ServerSpawnProjectile(FVector SpawnLocation, FRotator SpawnRotation);
+protected:
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	/** Projectile class to spawn */
+protected:
 	UPROPERTY(EditDefaultsOnly, Category=Projectile)
 	TSubclassOf<class APawProjectileBase> ProjectileClass;
 
-	/** Sound to play each time we fire */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
 	USoundBase* FireSound;
 
-	/** AnimMontage to play each time we fire */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
 	UAnimMontage* FireAnimation;
 
-	/** Gun muzzle's offset from the characters location */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
 	FVector MuzzleOffset;
 
@@ -52,17 +47,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
 	float TooCloseAdjustOffset = -20.0f;
 
-	/** MappingContext */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
 	class UInputMappingContext* FireMappingContext;
 
-	/** Fire Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
 	class UInputAction* FireAction;
-
-protected:
-	UFUNCTION()
-	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	UPROPERTY(BlueprintReadOnly)
 	APawFPSPlayer* FPSPlayer;
@@ -70,10 +59,14 @@ protected:
 	UPROPERTY(EditAnywhere)
 	float FireCoolDown = 3.0f;
 
+protected:
+	UFUNCTION(Server, Reliable)
+	void ServerSpawnProjectile(FVector SpawnLocation, FRotator SpawnRotation);
+
+private:
+	void ResetCoolDown();
+
 private:
 	bool IsCoolDown = false;
-
 	FTimerHandle FireCoolDownTimerHandle;
-
-	void ResetCoolDown();
 };

@@ -18,23 +18,18 @@ class PAW_API APawProjectile_Bubble : public APawProjectileBase, public IPawColl
 
 public:
 	APawProjectile_Bubble();
-
-protected:
-	virtual void BeginPlay() override;
-
-	virtual void Break_Implementation() override;
-
-	UFUNCTION(NetMulticast, Reliable)
-	void MulticastSpawnBreakEffect();
-
-	void SelfBreak();
-
-	void OnBreakEffectLoaded();
-	void LoadBreakEffect();
+	virtual void Tick(float DeltaTime) override;
+	virtual void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	                   FVector NormalImpulse, const FHitResult& Hit) override;
 
 	UFUNCTION(BlueprintNativeEvent)
 	void SpawnMasterField(FVector SpawnLocation, FRotator SpawnRotation);
 
+protected:
+	virtual void BeginPlay() override;
+	virtual void Break_Implementation() override;
+
+protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<UStaticMeshComponent> BubbleMesh;
 
@@ -50,16 +45,8 @@ protected:
 	UPROPERTY(EditDefaultsOnly)
 	float BubbleLifeTime = 5.0f;
 
-	FTimerHandle LifeCycleTimerHandle;
-
 	UPROPERTY(EditAnywhere)
 	USoundBase* BreakSound;
-
-public:
-	virtual void Tick(float DeltaTime) override;
-
-	virtual void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
-	                   FVector NormalImpulse, const FHitResult& Hit) override;
 
 	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<APawBubbleHiderCapture> BubbleHiderCaptureClass;
@@ -70,7 +57,18 @@ public:
 	UPROPERTY(EditDefaultsOnly)
 	float PushForce = 30.0f;
 
+protected:
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastSpawnBreakEffect();
+
 private:
+	void SelfBreak();
+	void OnBreakEffectLoaded();
+	void LoadBreakEffect();
+
 	UFUNCTION()
 	void SelfDestroy();
+
+private:
+	FTimerHandle LifeCycleTimerHandle;
 };

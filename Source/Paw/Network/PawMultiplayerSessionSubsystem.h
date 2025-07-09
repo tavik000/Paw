@@ -23,33 +23,36 @@ class PAW_API UPawMultiplayerSessionSubsystem : public UGameInstanceSubsystem
 
 public:
 	UPawMultiplayerSessionSubsystem();
-
 	void Initialize(FSubsystemCollectionBase& Collection) override;
 	void Deinitialize() override;
-
-	IOnlineSessionPtr SessionInterface;
 
 	UFUNCTION(BlueprintCallable)
 	void CreateServer(FString ServerName);
 	UFUNCTION(BlueprintCallable)
 	void FindServer(FString ServerName);
 
-	void OnCreateSessionComplete(FName ToCreateSessionName, bool WasSuccessful);
-	void OnDestroySessionComplete(FName ToDestroySessionName, bool WasSuccessful);
-	void OnFindSessionsComplete(bool WasSuccessful);
-	void OnJoinSessionComplete(FName ToJoinSessionName, EOnJoinSessionCompleteResult::Type Result);
+	IOnlineSessionPtr SessionInterface;
 
-	bool ShouldCreateServerAfterDestroy = false;
-	FString DestroyServerName;
-	FString ServerNameToFind;
-	FName MySessionName;
-	TSharedPtr<FOnlineSessionSearch> SessionSearch;
-
+public:
 	UPROPERTY(BlueprintAssignable)
 	FServerCreateDelegate ServerCreateDel;
 	UPROPERTY(BlueprintAssignable)
 	FServerJoinDelegate ServerJoinDel;
 
+protected:
 	UPROPERTY(BlueprintReadWrite)
 	FString GameMapPath;
+
+private:
+	void OnCreateSessionComplete(FName ToCreateSessionName, bool WasSuccessful);
+	void OnDestroySessionComplete(FName ToDestroySessionName, bool WasSuccessful);
+	void OnFindSessionsComplete(bool WasSuccessful);
+	void OnJoinSessionComplete(FName ToJoinSessionName, EOnJoinSessionCompleteResult::Type Result);
+
+private:
+	bool ShouldCreateServerAfterDestroy = false;
+	FString DestroyServerName;
+	FString ServerNameToFind;
+	FName MySessionName;
+	TSharedPtr<FOnlineSessionSearch> SessionSearch;
 };

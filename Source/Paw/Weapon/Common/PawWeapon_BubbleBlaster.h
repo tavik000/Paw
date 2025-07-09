@@ -15,15 +15,13 @@ class PAW_API APawWeapon_BubbleBlaster : public APawWeaponBase
 
 public:
 	APawWeapon_BubbleBlaster();
+	virtual void Tick(float DeltaTime) override;
+	virtual void EquipToOwner() override;
 
 protected:
 	virtual void BeginPlay() override;
 
-public:
-	virtual void Tick(float DeltaTime) override;
-
-	virtual void EquipToOwner() override;
-
+protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<UPawGunComponent> GunComponent;
 };

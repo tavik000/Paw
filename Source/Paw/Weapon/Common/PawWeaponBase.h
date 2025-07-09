@@ -17,15 +17,13 @@ class PAW_API APawWeaponBase : public AActor
 
 public:
 	APawWeaponBase();
+	virtual void Tick(float DeltaTime) override;
+	virtual void EquipToOwner();
 
 protected:
 	virtual void BeginPlay() override;
 
 public:
-	virtual void Tick(float DeltaTime) override;
-
-	virtual void EquipToOwner();
-
 	UPROPERTY(BlueprintAssignable)
 	FOnEquipMulticastDelegate OnEquip;
 };
