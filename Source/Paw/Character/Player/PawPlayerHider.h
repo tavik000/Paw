@@ -11,7 +11,8 @@
 #include "GameFramework/ForceFeedbackEffect.h"
 #include "PawPlayerHider.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathStartedDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathFinishedDelegate);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHpChangedDelegate, float, HpPercentage);
 
@@ -38,9 +39,6 @@ public: // Blueprint Callable API
 
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	void Die();
-
-	UFUNCTION(BlueprintCallable, Category = "Health")
-	void Respawn();
 
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	bool IsAlive() const { return !bIsDead && Health > 0; }
@@ -81,6 +79,18 @@ public: // Blueprint Callable API
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void TriggerHpChangedManually();
 
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void DeleteHpBar();
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void ShowYouDieText();
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void HideYouDieText();
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void SetCrosshairVisibility(bool bVisible);
+
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	float GetHealth() const { return Health; }
 
@@ -104,7 +114,10 @@ public: // C++ Public Helper
 
 public: // Blueprint Events & Delegates
 	UPROPERTY(BlueprintAssignable, Category = "Health")
-	FOnDeathDelegate OnDeath;
+	FOnDeathStartedDelegate OnDeathStarted;
+
+	UPROPERTY(BlueprintAssignable, Category = "Health")
+	FOnDeathFinishedDelegate OnDeathFinished;
 
 	UPROPERTY(BlueprintAssignable, Category = "Health")
 	FOnHpChangedDelegate OnHpChanged;
@@ -146,6 +159,9 @@ protected: // Properties (State & Configuration)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
 	float HealthEffectInterval;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+	float DieTimer;
 
 	// === Light Detection System ===
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Light Detection")
@@ -236,6 +252,9 @@ protected: // Networking (RPCs & RepNotifies)
 	UFUNCTION(Server, Reliable, Category = "Capture")
 	void ServerSetCaptured(bool NewIsCaptured);
 
+	UFUNCTION(Server, Reliable, Category = "Multiplayer")
+	void ServerConvertToSeeker();
+
 	UFUNCTION(Server, Reliable, Category = "Movement")
 	void ServerRequestCancelHorizontalVelocity();
 
@@ -250,6 +269,12 @@ protected: // Networking (RPCs & RepNotifies)
 
 	UFUNCTION(Client, Reliable, Category = "UI")
 	void Client_CreateHUD();
+
+	UFUNCTION(Client, Reliable, Category = "UI")
+	void Client_HandleOnDeathStartedUI();
+	
+	UFUNCTION(Client, Reliable, Category = "UI")
+	void Client_HandleConvertSeekerUI();
 
 	UFUNCTION(NetMulticast, Reliable, Category = "Jump System")
 	void MulticastPlayJumpEffects();
@@ -268,8 +293,8 @@ private: // Internal Helper Functions
 	// === Internal System Functions ===
 	void InitializeMaterials();
 	void StartHealthEffectTimer();
-	void StopHealthEffects();
-	void OnHealthEffectTick();
+	void StopHealthEffectTimer();
+	void OnHealthEffectTimerTick();
 
 	// === Stealth Helper Functions ===
 	bool IsViewerOnSeekerTeam() const;
@@ -293,6 +318,7 @@ private: // Internal Helper Functions
 private: // Internal State & Cached Data
 	// === Health System ===
 	FTimerHandle HealthEffectTimerHandle;
+	FTimerHandle DieTimerHandle;
 
 	// === Stealth System ===
 	TArray<TObjectPtr<UMaterialInterface>> CachedBaseMaterials;

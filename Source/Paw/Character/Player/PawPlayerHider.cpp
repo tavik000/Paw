@@ -34,6 +34,7 @@ APawPlayerHider::APawPlayerHider()
 	ShadowHealAmount = 0.25f;
 	CaptureDamageAmount = 0.25f;
 	HealthEffectInterval = 0.03f;
+	DieTimer = 5.0f;
 
 	// Light Detection System
 	bIsInLight = false;
@@ -230,20 +231,30 @@ void APawPlayerHider::Die()
 	{
 		bIsDead = true;
 		Health = 0.0f;
-		OnDeath.Broadcast();
-		MulticastOnDeath();
-	}
-}
 
-void APawPlayerHider::Respawn()
-{
-	if (HasAuthority())
-	{
-		bIsDead = false;
-		Health = MaxHealth;
-		OnHealthChanged(Health, MaxHealth);
-		OnHpChanged.Broadcast(GetHealthPercentage());
+		// Stop health effects timer
+		StopHealthEffectTimer();
+
+		// Broadcast death started
+		OnDeathStarted.Broadcast();
+
+		// Disable input for this player
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			PC->GetPawn()->DisableInput(PC);
+		}
+
+		// Start die timer
+		GetWorldTimerManager().SetTimer(DieTimerHandle, [this]()
+		{
+			OnDeathFinished.Broadcast();
+			Client_HandleConvertSeekerUI();
+			ServerConvertToSeeker();
+		}, DieTimer, false);
 	}
+
+	// Handle UI changes on client
+	Client_HandleOnDeathStartedUI();
 }
 
 // ================================================================
@@ -434,6 +445,22 @@ void APawPlayerHider::ServerSetCaptured_Implementation(bool NewIsCaptured)
 	bIsCaptured = NewIsCaptured;
 }
 
+void APawPlayerHider::ServerConvertToSeeker_Implementation()
+{
+	if (HasAuthority())
+	{
+
+		// TODO: Implement role conversion logic
+		// This would typically involve:
+		// 1. Spawning a new seeker character
+		// 2. Transferring player controller possession
+		// 3. Destroying this hider character
+
+		UE_LOG(LogTemp, Log, TEXT("ServerConvertToSeeker called for %s - Role conversion not yet implemented"),
+		       *GetName());
+	}
+}
+
 void APawPlayerHider::ServerRequestCancelHorizontalVelocity_Implementation()
 {
 	if (GetCharacterMovement())
@@ -453,7 +480,7 @@ void APawPlayerHider::MulticastUpdateStealthVisuals_Implementation()
 
 void APawPlayerHider::MulticastOnDeath_Implementation()
 {
-	OnDeath.Broadcast();
+	OnDeathStarted.Broadcast();
 }
 
 void APawPlayerHider::ClientUpdateHealth_Implementation(float NewHealth)
@@ -483,6 +510,18 @@ void APawPlayerHider::Client_CreateHUD_Implementation()
 	SetupHUDWidget(PC);
 }
 
+void APawPlayerHider::Client_HandleOnDeathStartedUI_Implementation()
+{
+	DeleteHpBar();
+	ShowYouDieText();
+}
+
+void APawPlayerHider::Client_HandleConvertSeekerUI_Implementation()
+{
+	HideYouDieText();
+	SetCrosshairVisibility(true);
+}
+
 void APawPlayerHider::MulticastPlayJumpEffects_Implementation()
 {
 	PlayJumpSound();
@@ -501,6 +540,7 @@ void APawPlayerHider::MulticastPlayLandEffects_Implementation()
 // ================================================================
 // Networking - RepNotify Functions
 // ================================================================
+
 
 void APawPlayerHider::OnRep_Health()
 {
@@ -560,12 +600,12 @@ void APawPlayerHider::StartHealthEffectTimer()
 	if (HasAuthority() && IsAlive() && HealthEffectInterval > 0)
 	{
 		// Start repeating timer for health effects (damage and healing)
-		GetWorldTimerManager().SetTimer(HealthEffectTimerHandle, this, &APawPlayerHider::OnHealthEffectTick,
+		GetWorldTimerManager().SetTimer(HealthEffectTimerHandle, this, &APawPlayerHider::OnHealthEffectTimerTick,
 		                                HealthEffectInterval, true, 0.0f);
 	}
 }
 
-void APawPlayerHider::StopHealthEffects()
+void APawPlayerHider::StopHealthEffectTimer()
 {
 	if (HasAuthority())
 	{
@@ -573,7 +613,7 @@ void APawPlayerHider::StopHealthEffects()
 	}
 }
 
-void APawPlayerHider::OnHealthEffectTick()
+void APawPlayerHider::OnHealthEffectTimerTick()
 {
 	if (!HasAuthority() || !IsAlive())
 	{
@@ -764,6 +804,65 @@ void APawPlayerHider::ConfigureHealthBar()
 	FSetTargetPawnParams Params;
 	Params.TargetPawn = this;
 	HealthBarWidget->ProcessEvent(SetTargetPawnEvent, &Params);
+}
+
+void APawPlayerHider::DeleteHpBar()
+{
+	if (!IsValid(HUD))
+	{
+		return;
+	}
+
+	UWidget* HealthBarWidget = HUD->GetWidgetFromName(TEXT("WBP_HealthBar"));
+	if (IsValid(HealthBarWidget))
+	{
+		HealthBarWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void APawPlayerHider::ShowYouDieText()
+{
+	if (!IsValid(HUD))
+	{
+		return;
+	}
+
+	// Call Blueprint event to show death text
+	UFunction* ShowDeathTextEvent = HUD->GetClass()->FindFunctionByName(TEXT("ShowYouDieText"));
+	if (IsValid(ShowDeathTextEvent))
+	{
+		HUD->ProcessEvent(ShowDeathTextEvent, nullptr);
+	}
+}
+
+void APawPlayerHider::HideYouDieText()
+{
+	if (!IsValid(HUD))
+	{
+		return;
+	}
+
+	// Hide death text
+	UFunction* ShowDeathTextEvent = HUD->GetClass()->FindFunctionByName(TEXT("HideYouDieText"));
+	if (IsValid(ShowDeathTextEvent))
+	{
+		HUD->ProcessEvent(ShowDeathTextEvent, nullptr);
+	}
+}
+
+void APawPlayerHider::SetCrosshairVisibility(bool bVisible)
+{
+	if (!IsValid(HUD))
+	{
+		return;
+	}
+
+	UWidget* CrosshairWidget = HUD->GetWidgetFromName(TEXT("IMG_Crosshair"));
+	if (IsValid(CrosshairWidget))
+	{
+		ESlateVisibility NewVisibility = bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+		CrosshairWidget->SetVisibility(NewVisibility);
+	}
 }
 
 // ================================================================
