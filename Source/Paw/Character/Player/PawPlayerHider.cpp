@@ -13,6 +13,7 @@
 #include "NiagaraSystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "PawPlayerSeeker_Ghost.h"
 
 // ================================================================
 // Constructor & Core Engine Overrides
@@ -54,6 +55,9 @@ APawPlayerHider::APawPlayerHider()
 
 	// UI System
 	HUD = nullptr;
+
+	// Role Conversion System
+	SeekerGhostClass = APawPlayerSeeker_Ghost::StaticClass();
 
 	// Jump System Defaults
 	HangTimeGravityScale = 1.4f;
@@ -447,18 +451,56 @@ void APawPlayerHider::ServerSetCaptured_Implementation(bool NewIsCaptured)
 
 void APawPlayerHider::ServerConvertToSeeker_Implementation()
 {
-	if (HasAuthority())
+	if (!HasAuthority())
 	{
-
-		// TODO: Implement role conversion logic
-		// This would typically involve:
-		// 1. Spawning a new seeker character
-		// 2. Transferring player controller possession
-		// 3. Destroying this hider character
-
-		UE_LOG(LogTemp, Log, TEXT("ServerConvertToSeeker called for %s - Role conversion not yet implemented"),
-		       *GetName());
+		return;
 	}
+
+	// Get the player controller before conversion
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!IsValid(PC))
+	{
+		UE_LOG(LogTemp, Error, TEXT("ServerConvertToSeeker: No valid PlayerController found for %s"), *GetName());
+		return;
+	}
+
+	// Validate seeker class is configured
+	if (!IsValid(SeekerGhostClass))
+	{
+		UE_LOG(LogTemp, Error, TEXT("ServerConvertToSeeker: No SeekerGhostClass configured for %s"), *GetName());
+		return;
+	}
+
+	// Get current transform for spawning the seeker
+	FTransform CurrentTransform = GetActorTransform();
+	
+	// Spawn the new seeker ghost at the current location
+	APawPlayerSeeker_Ghost* NewSeeker = GetWorld()->SpawnActor<APawPlayerSeeker_Ghost>(
+		SeekerGhostClass,
+		CurrentTransform.GetLocation(),
+		CurrentTransform.GetRotation().Rotator()
+	);
+
+	if (!IsValid(NewSeeker))
+	{
+		UE_LOG(LogTemp, Error, TEXT("ServerConvertToSeeker: Failed to spawn seeker ghost for %s"), *GetName());
+		return;
+	}
+
+	// Configure networking for the new seeker
+	NewSeeker->SetReplicates(true);
+	NewSeeker->SetReplicateMovement(true);
+	
+	// Transfer ownership and possession
+	NewSeeker->SetOwner(PC);
+	PC->Possess(NewSeeker);
+	
+	NewSeeker->SetTeamId(ETeamId::Seeker);
+	
+	UE_LOG(LogTemp, Log, TEXT("ServerConvertToSeeker: Successfully converted %s to seeker ghost"), *GetActorLabel());
+	
+	// Destroy the hider character
+	Destroy();
 }
 
 void APawPlayerHider::ServerRequestCancelHorizontalVelocity_Implementation()

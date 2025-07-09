@@ -11,6 +11,8 @@
 #include "GameFramework/ForceFeedbackEffect.h"
 #include "PawPlayerHider.generated.h"
 
+class APawPlayerSeeker_Ghost;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathStartedDelegate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathFinishedDelegate);
 
@@ -197,6 +199,10 @@ protected: // Properties (State & Configuration)
 	// === UI System ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TSubclassOf<UUserWidget> HUDWidgetClass;
+
+	// === Role Conversion System ===
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Role Conversion")
+	TSubclassOf<APawPlayerSeeker_Ghost> SeekerGhostClass;
 
 	// === Jump System ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")
