@@ -141,6 +141,7 @@ public: // Blueprint Events & Delegates
 
 protected: // Engine Overrides
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual bool CanMove() override;
 	virtual bool CanJump() override;

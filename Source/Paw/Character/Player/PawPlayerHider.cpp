@@ -180,6 +180,49 @@ void APawPlayerHider::BeginPlay()
 	}
 }
 
+void APawPlayerHider::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	// Clear all timer handles to prevent memory leaks
+	if (UWorld* World = GetWorld(); IsValid(World))
+	{
+		FTimerManager& TimerManager = World->GetTimerManager();
+		
+		// Clear health effect timer
+		if (HealthEffectTimerHandle.IsValid())
+		{
+			TimerManager.ClearTimer(HealthEffectTimerHandle);
+		}
+		
+		// Clear light detection timer
+		if (LightDetectionTimerHandle.IsValid())
+		{
+			TimerManager.ClearTimer(LightDetectionTimerHandle);
+		}
+		
+		// Clear die timer
+		if (DieTimerHandle.IsValid())
+		{
+			TimerManager.ClearTimer(DieTimerHandle);
+		}
+	}
+	
+	// Release streamable asset handle
+	if (JumpAssetsHandle.IsValid())
+	{
+		JumpAssetsHandle->ReleaseHandle();
+		JumpAssetsHandle.Reset();
+	}
+	
+	// Clear HUD widget reference
+	if (IsValid(HUD))
+	{
+		HUD->RemoveFromParent();
+		HUD = nullptr;
+	}
+	
+	Super::EndPlay(EndPlayReason);
+}
+
 void APawPlayerHider::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -260,6 +303,12 @@ void APawPlayerHider::Die()
 		// Start die timer
 		GetWorldTimerManager().SetTimer(DieTimerHandle, [this]()
 		{
+			// Safety check: ensure object is still valid
+			if (!IsValid(this) || !HasAuthority())
+			{
+				return;
+			}
+			
 			OnDeathFinished.Broadcast();
 			Client_HandleConvertSeekerUI();
 			ServerConvertToSeeker();
@@ -508,6 +557,27 @@ void APawPlayerHider::ServerConvertToSeeker_Implementation()
 
 	UE_LOG(LogTemp, Log, TEXT("ServerConvertToSeeker: Successfully converted %s to seeker ghost"), *GetActorLabel());
 
+	// Clean up all timers before destroying to prevent memory leaks
+	if (UWorld* World = GetWorld(); IsValid(World))
+	{
+		FTimerManager& TimerManager = World->GetTimerManager();
+		
+		if (HealthEffectTimerHandle.IsValid())
+		{
+			TimerManager.ClearTimer(HealthEffectTimerHandle);
+		}
+		
+		if (LightDetectionTimerHandle.IsValid())
+		{
+			TimerManager.ClearTimer(LightDetectionTimerHandle);
+		}
+		
+		if (DieTimerHandle.IsValid())
+		{
+			TimerManager.ClearTimer(DieTimerHandle);
+		}
+	}
+
 	// Destroy the hider character
 	Destroy();
 }
@@ -673,7 +743,8 @@ void APawPlayerHider::StopHealthEffectTimer()
 
 void APawPlayerHider::OnHealthEffectTimerTick()
 {
-	if (!HasAuthority() || !IsAlive())
+	// Safety check: ensure object is still valid
+	if (!IsValid(this) || !HasAuthority() || !IsAlive())
 	{
 		return;
 	}
@@ -1023,6 +1094,12 @@ void APawPlayerHider::LoadJumpAssetsAsync()
 
 void APawPlayerHider::OnJumpAssetsLoaded()
 {
+	// Safety check: ensure object is still valid
+	if (!IsValid(this))
+	{
+		return;
+	}
+	
 	JumpSound = JumpSoundAsset.Get();
 	if (!JumpSound && !JumpSoundAsset.IsNull())
 	{
@@ -1196,7 +1273,8 @@ void APawPlayerHider::StopLightDetectionTimer()
 
 void APawPlayerHider::OnLightDetectionTimerTick()
 {
-	if (!HasAuthority() || !IsAlive())
+	// Safety check: ensure object is still valid
+	if (!IsValid(this) || !HasAuthority() || !IsAlive())
 	{
 		return;
 	}
