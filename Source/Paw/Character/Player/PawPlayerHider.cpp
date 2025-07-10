@@ -481,7 +481,7 @@ void APawPlayerHider::ServerConvertToSeeker_Implementation()
 
 	// Get current transform for spawning the seeker
 	FTransform CurrentTransform = GetActorTransform();
-	
+
 	// Spawn the new seeker ghost at the current location
 	APawPlayerSeeker_Ghost* NewSeeker = GetWorld()->SpawnActor<APawPlayerSeeker_Ghost>(
 		SeekerGhostClass,
@@ -498,15 +498,15 @@ void APawPlayerHider::ServerConvertToSeeker_Implementation()
 	// Configure networking for the new seeker
 	NewSeeker->SetReplicates(true);
 	NewSeeker->SetReplicateMovement(true);
-	
+
 	// Transfer ownership and possession
 	NewSeeker->SetOwner(PC);
 	PC->Possess(NewSeeker);
-	
+
 	NewSeeker->SetTeamId(ETeamId::Seeker);
-	
+
 	UE_LOG(LogTemp, Log, TEXT("ServerConvertToSeeker: Successfully converted %s to seeker ghost"), *GetActorLabel());
-	
+
 	// Destroy the hider character
 	Destroy();
 }
@@ -734,6 +734,16 @@ void APawPlayerHider::ApplyInvisibilityMaterials()
 {
 	if (!IsValid(InvisibleMaterial))
 	{
+		return;
+	}
+	if (!IsValid(GetMesh()) || !GetMesh()->IsValidLowLevel())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Invalid mesh, skipping material restore for %s"), *GetName());
+		return;
+	}
+	if (GetMesh()->GetBodyInstance() && !GetMesh()->GetBodyInstance()->IsValidBodyInstance())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Invalid physics body, skipping material restore"));
 		return;
 	}
 
@@ -1071,7 +1081,8 @@ void APawPlayerHider::BreakCollidedObject(AActor* HitActor)
 	BreakableInterface->Execute_Break(HitActor);
 }
 
-void APawPlayerHider::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+void APawPlayerHider::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+                            FVector NormalImpulse, const FHitResult& Hit)
 {
 	// Only process on server
 	if (!HasAuthority())
