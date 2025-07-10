@@ -178,6 +178,13 @@ protected: // Properties (State & Configuration)
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Light Detection")
 	bool bIsSpotLighted;
 
+	// === Light Detection Performance ===
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Detection Performance")
+	float LightDetectionTickRate;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Detection Performance")
+	float StaggerOffsetMultiplier;
+
 	// === Stealth System ===
 	UPROPERTY(BlueprintReadWrite, ReplicatedUsing = OnRep_IsInvisible, Category = "Stealth")
 	bool bIsInvisible;
@@ -305,6 +312,12 @@ private: // Internal Helper Functions
 	void StopHealthEffectTimer();
 	void OnHealthEffectTimerTick();
 
+	// === Light Detection Helper Functions ===
+	void StartLightDetectionTimer();
+	void StopLightDetectionTimer();
+	void OnLightDetectionTimerTick();
+	float CalculateStaggeredDelay() const;
+
 	// === Stealth Helper Functions ===
 	bool IsViewerOnSeekerTeam() const;
 	void ApplyInvisibilityMaterials();
@@ -332,6 +345,9 @@ private: // Internal State & Cached Data
 	// === Health System ===
 	FTimerHandle HealthEffectTimerHandle;
 	FTimerHandle DieTimerHandle;
+
+	// === Light Detection System ===
+	FTimerHandle LightDetectionTimerHandle;
 
 	// === Stealth System ===
 	TArray<TObjectPtr<UMaterialInterface>> CachedBaseMaterials;
