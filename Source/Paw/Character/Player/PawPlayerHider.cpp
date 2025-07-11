@@ -16,6 +16,7 @@
 #include "PawPlayerSeeker_Ghost.h"
 #include "../../Environment/GameplayElement/Common/Interface/PawCollideBreakableInterface.h"
 #include "Components/CapsuleComponent.h"
+#include "GameFramework/GameStateBase.h"
 
 // ================================================================
 // Constructor & Core Engine Overrides
@@ -186,40 +187,40 @@ void APawPlayerHider::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	if (UWorld* World = GetWorld(); IsValid(World))
 	{
 		FTimerManager& TimerManager = World->GetTimerManager();
-		
+
 		// Clear health effect timer
 		if (HealthEffectTimerHandle.IsValid())
 		{
 			TimerManager.ClearTimer(HealthEffectTimerHandle);
 		}
-		
+
 		// Clear light detection timer
 		if (LightDetectionTimerHandle.IsValid())
 		{
 			TimerManager.ClearTimer(LightDetectionTimerHandle);
 		}
-		
+
 		// Clear die timer
 		if (DieTimerHandle.IsValid())
 		{
 			TimerManager.ClearTimer(DieTimerHandle);
 		}
 	}
-	
+
 	// Release streamable asset handle
 	if (JumpAssetsHandle.IsValid())
 	{
 		JumpAssetsHandle->ReleaseHandle();
 		JumpAssetsHandle.Reset();
 	}
-	
+
 	// Clear HUD widget reference
 	if (IsValid(HUD))
 	{
 		HUD->RemoveFromParent();
 		HUD = nullptr;
 	}
-	
+
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -308,7 +309,7 @@ void APawPlayerHider::Die()
 			{
 				return;
 			}
-			
+
 			OnDeathFinished.Broadcast();
 			Client_HandleConvertSeekerUI();
 			ServerConvertToSeeker();
@@ -557,24 +558,28 @@ void APawPlayerHider::ServerConvertToSeeker_Implementation()
 	PC->Possess(NewSeeker);
 
 	NewSeeker->SetTeamId(ETeamId::Seeker);
+	SetTeamId(ETeamId::Seeker);
 
 	UE_LOG(LogTemp, Log, TEXT("ServerConvertToSeeker: Successfully converted %s to seeker ghost"), *GetActorLabel());
+
+	// Note: Hider visual updates are now handled by the new seeker's BeginPlay()
+	// This eliminates timing issues with network replication
 
 	// Clean up all timers before destroying to prevent memory leaks
 	if (UWorld* World = GetWorld(); IsValid(World))
 	{
 		FTimerManager& TimerManager = World->GetTimerManager();
-		
+
 		if (HealthEffectTimerHandle.IsValid())
 		{
 			TimerManager.ClearTimer(HealthEffectTimerHandle);
 		}
-		
+
 		if (LightDetectionTimerHandle.IsValid())
 		{
 			TimerManager.ClearTimer(LightDetectionTimerHandle);
 		}
-		
+
 		if (DieTimerHandle.IsValid())
 		{
 			TimerManager.ClearTimer(DieTimerHandle);
@@ -602,7 +607,8 @@ void APawPlayerHider::MulticastUpdateStealthVisuals_Implementation()
 	// Network safety checks before updating visuals
 	if (!IsValid(this) || IsActorBeingDestroyed())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("MulticastUpdateStealthVisuals: Actor is invalid or being destroyed for %s"), IsValid(this) ? *GetName() : TEXT("Invalid Actor"));
+		UE_LOG(LogTemp, Warning, TEXT("MulticastUpdateStealthVisuals: Actor is invalid or being destroyed for %s"),
+		       IsValid(this) ? *GetName() : TEXT("Invalid Actor"));
 		return;
 	}
 
@@ -610,7 +616,8 @@ void APawPlayerHider::MulticastUpdateStealthVisuals_Implementation()
 	UWorld* World = GetWorld();
 	if (!IsValid(World) || World->bIsTearingDown)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("MulticastUpdateStealthVisuals: World is invalid or tearing down for %s"), *GetName());
+		UE_LOG(LogTemp, Warning, TEXT("MulticastUpdateStealthVisuals: World is invalid or tearing down for %s"),
+		       *GetName());
 		return;
 	}
 
@@ -620,7 +627,8 @@ void APawPlayerHider::MulticastUpdateStealthVisuals_Implementation()
 		// Ensure mesh component is in a valid state for material changes
 		if (!MeshComp->IsValidLowLevel())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("MulticastUpdateStealthVisuals: MeshComponent is invalid for %s"), *GetName());
+			UE_LOG(LogTemp, Warning, TEXT("MulticastUpdateStealthVisuals: MeshComponent is invalid for %s"),
+			       *GetName());
 			return;
 		}
 	}
@@ -826,6 +834,8 @@ bool APawPlayerHider::IsViewerOnSeekerTeam() const
 			continue;
 		}
 
+		UE_LOG(LogTemp, Warning, TEXT("GetLabel for LocalPawn: %s"), *LocalPawn->GetActorLabel());
+		
 		if (!LocalPawn->GetClass()->ImplementsInterface(UTeamableInterface::StaticClass()))
 		{
 			continue;
@@ -846,7 +856,7 @@ void APawPlayerHider::ApplyInvisibilityMaterials()
 	}
 	// Cache mesh component pointer to avoid repeated GetMesh() calls
 	USkeletalMeshComponent* MeshComp = GetMesh();
-	
+
 	if (!IsValid(MeshComp) || !MeshComp->IsValidLowLevel())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Invalid mesh, skipping material restore for %s"), *GetName());
@@ -860,26 +870,30 @@ void APawPlayerHider::ApplyInvisibilityMaterials()
 
 	const int32 MaterialCount = MeshComp->GetNumMaterials();
 	const bool bViewerIsSeeker = IsViewerOnSeekerTeam();
+	UE_LOG(LogTemp, Warning, TEXT(" ApplyInvisibilityMaterials: %s, Viewer is Seeker: %s"),
+	       *GetName(), bViewerIsSeeker ? TEXT("Yes") : TEXT("No"));
 
 	for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; ++MaterialIndex)
 	{
 		// Re-validate mesh component before each SetMaterial call
 		if (!IsValid(MeshComp) || !MeshComp->IsValidLowLevel())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("ApplyInvisibilityMaterials: Mesh became invalid during loop for %s"), *GetName());
+			UE_LOG(LogTemp, Warning, TEXT("ApplyInvisibilityMaterials: Mesh became invalid during loop for %s"),
+			       *GetName());
 			break;
 		}
 
 		// Check if the body instance is still valid before material change
 		if (MeshComp->GetBodyInstance() && !MeshComp->GetBodyInstance()->IsValidBodyInstance())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("ApplyInvisibilityMaterials: Body instance became invalid during loop for %s"), *GetName());
+			UE_LOG(LogTemp, Warning,
+			       TEXT("ApplyInvisibilityMaterials: Body instance became invalid during loop for %s"), *GetName());
 			break;
 		}
 
 		// Apply materials with UE-specific error checking
 		UMaterialInterface* MaterialToApply = nullptr;
-		
+
 		if (MaterialIndex == 0)
 		{
 			// Slot 0 (body): Always use invisible material when invisible
@@ -914,7 +928,8 @@ void APawPlayerHider::ApplyInvisibilityMaterials()
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("ApplyInvisibilityMaterials: Invalid material to apply at index %d for %s"), MaterialIndex, *GetName());
+			UE_LOG(LogTemp, Error, TEXT("ApplyInvisibilityMaterials: Invalid material to apply at index %d for %s"),
+			       MaterialIndex, *GetName());
 			// Use default material as fallback
 			if (UMaterial* DefaultMaterial = UMaterial::GetDefaultMaterial(MD_Surface))
 			{
@@ -928,7 +943,7 @@ void APawPlayerHider::RestoreOriginalMaterials()
 {
 	// Cache mesh component pointer to avoid repeated GetMesh() calls
 	USkeletalMeshComponent* MeshComp = GetMesh();
-	
+
 	// Validate mesh before accessing it
 	if (!IsValid(MeshComp) || !MeshComp->IsValidLowLevel())
 	{
@@ -951,37 +966,44 @@ void APawPlayerHider::RestoreOriginalMaterials()
 		// Re-validate mesh component before each SetMaterial call
 		if (!IsValid(MeshComp) || !MeshComp->IsValidLowLevel())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("RestoreOriginalMaterials: Mesh became invalid during loop for %s"), *GetName());
+			UE_LOG(LogTemp, Warning, TEXT("RestoreOriginalMaterials: Mesh became invalid during loop for %s"),
+			       *GetName());
 			break;
 		}
 
 		// Check if the body instance is still valid before material change
 		if (MeshComp->GetBodyInstance() && !MeshComp->GetBodyInstance()->IsValidBodyInstance())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("RestoreOriginalMaterials: Body instance became invalid during loop for %s"), *GetName());
+			UE_LOG(LogTemp, Warning, TEXT("RestoreOriginalMaterials: Body instance became invalid during loop for %s"),
+			       *GetName());
 			break;
 		}
 
 		// Double-check array bounds before accessing
 		if (MaterialIndex >= CachedBaseMaterials.Num())
 		{
-			UE_LOG(LogTemp, Error, TEXT("RestoreOriginalMaterials: MaterialIndex %d out of bounds (array size: %d) for %s"), MaterialIndex, CachedBaseMaterials.Num(), *GetName());
+			UE_LOG(LogTemp, Error,
+			       TEXT("RestoreOriginalMaterials: MaterialIndex %d out of bounds (array size: %d) for %s"),
+			       MaterialIndex, CachedBaseMaterials.Num(), *GetName());
 			break;
 		}
 
 		UMaterialInterface* CachedMaterial = CachedBaseMaterials[MaterialIndex];
-		
+
 		// Validate material before accessing its properties
 		if (!IsValid(CachedMaterial))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("RestoreOriginalMaterials: Cached material at index %d is invalid for %s"), MaterialIndex, *GetName());
+			UE_LOG(LogTemp, Warning, TEXT("RestoreOriginalMaterials: Cached material at index %d is invalid for %s"),
+			       MaterialIndex, *GetName());
 			continue;
 		}
 
 		// Check if material name is valid before calling GetName()
 		if (!CachedMaterial->IsValidLowLevel())
 		{
-			UE_LOG(LogTemp, Error, TEXT("RestoreOriginalMaterials: Cached material at index %d has invalid low level for %s"), MaterialIndex, *GetName());
+			UE_LOG(LogTemp, Error,
+			       TEXT("RestoreOriginalMaterials: Cached material at index %d has invalid low level for %s"),
+			       MaterialIndex, *GetName());
 			continue;
 		}
 
@@ -993,13 +1015,17 @@ void APawPlayerHider::RestoreOriginalMaterials()
 			// Check for None material
 			if (MaterialName == TEXT("None") || MaterialName.IsEmpty())
 			{
-				UE_LOG(LogTemp, Error, TEXT("RestoreOriginalMaterials: Cached material at index %d is None or empty for %s"), MaterialIndex, *GetName());
+				UE_LOG(LogTemp, Error,
+				       TEXT("RestoreOriginalMaterials: Cached material at index %d is None or empty for %s"),
+				       MaterialIndex, *GetName());
 				continue;
 			}
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("RestoreOriginalMaterials: Cached material at index %d has invalid FName for %s"), MaterialIndex, *GetName());
+			UE_LOG(LogTemp, Error,
+			       TEXT("RestoreOriginalMaterials: Cached material at index %d has invalid FName for %s"),
+			       MaterialIndex, *GetName());
 			continue;
 		}
 
@@ -1024,8 +1050,9 @@ void APawPlayerHider::ValidateAndRefreshMaterials()
 	// Check if material count has changed
 	if (CurrentMaterialCount != CachedBaseMaterials.Num())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("ValidateAndRefreshMaterials: Material count mismatch (current: %d, cached: %d) for %s"), 
-			CurrentMaterialCount, CachedBaseMaterials.Num(), *GetName());
+		UE_LOG(LogTemp, Warning,
+		       TEXT("ValidateAndRefreshMaterials: Material count mismatch (current: %d, cached: %d) for %s"),
+		       CurrentMaterialCount, CachedBaseMaterials.Num(), *GetName());
 		bNeedRefreshMaterial = true;
 	}
 
@@ -1037,8 +1064,9 @@ void APawPlayerHider::ValidateAndRefreshMaterials()
 			UMaterialInterface* CachedMaterial = CachedBaseMaterials[MaterialIndex];
 			if (!IsValid(CachedMaterial) || !CachedMaterial->IsValidLowLevel())
 			{
-				UE_LOG(LogTemp, Warning, TEXT("ValidateAndRefreshMaterials: Cached material at index %d is invalid for %s"), 
-					MaterialIndex, *GetName());
+				UE_LOG(LogTemp, Warning,
+				       TEXT("ValidateAndRefreshMaterials: Cached material at index %d is invalid for %s"),
+				       MaterialIndex, *GetName());
 				bNeedRefreshMaterial = true;
 				break;
 			}
@@ -1049,8 +1077,9 @@ void APawPlayerHider::ValidateAndRefreshMaterials()
 				FString MaterialName = CachedMaterial->GetName();
 				if (MaterialName == TEXT("None") || MaterialName.IsEmpty())
 				{
-					UE_LOG(LogTemp, Warning, TEXT("ValidateAndRefreshMaterials: Cached material at index %d has invalid name for %s"), 
-						MaterialIndex, *GetName());
+					UE_LOG(LogTemp, Warning,
+					       TEXT("ValidateAndRefreshMaterials: Cached material at index %d has invalid name for %s"),
+					       MaterialIndex, *GetName());
 					bNeedRefreshMaterial = true;
 					break;
 				}
@@ -1231,7 +1260,7 @@ void APawPlayerHider::OnJumpAssetsLoaded()
 	{
 		return;
 	}
-	
+
 	JumpSound = JumpSoundAsset.Get();
 	if (!JumpSound && !JumpSoundAsset.IsNull())
 	{
@@ -1389,7 +1418,7 @@ void APawPlayerHider::StartLightDetectionTimer()
 
 	// Calculate staggered delay to distribute light checks across frames
 	float StaggeredDelay = CalculateStaggeredDelay();
-	
+
 	// Start repeating timer with staggered initial delay
 	GetWorldTimerManager().SetTimer(LightDetectionTimerHandle, this, &APawPlayerHider::OnLightDetectionTimerTick,
 	                                LightDetectionTickRate, true, StaggeredDelay);
@@ -1430,10 +1459,9 @@ float APawPlayerHider::CalculateStaggeredDelay() const
 {
 	// Use player index or hash of actor name to create staggered delays
 	int32 StaggerIndex = PlayerIndex >= 0 ? PlayerIndex : GetUniqueID();
-	
+
 	// Create offset based on player index (0-4 players = 0.0-0.2s offset)
 	float StaggerOffset = (StaggerIndex % 5) * StaggerOffsetMultiplier;
-	
+
 	return StaggerOffset;
 }
-
