@@ -421,6 +421,9 @@ void APawPlayerHider::UpdateStealthVisuals()
 		return;
 	}
 
+	// Validate cached materials before proceeding with visual updates
+	ValidateAndRefreshMaterials();
+
 	// Handle visible state
 	if (!bIsInvisible)
 	{
@@ -596,6 +599,32 @@ void APawPlayerHider::ServerRequestCancelHorizontalVelocity_Implementation()
 
 void APawPlayerHider::MulticastUpdateStealthVisuals_Implementation()
 {
+	// Network safety checks before updating visuals
+	if (!IsValid(this) || IsActorBeingDestroyed())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("MulticastUpdateStealthVisuals: Actor is invalid or being destroyed for %s"), IsValid(this) ? *GetName() : TEXT("Invalid Actor"));
+		return;
+	}
+
+	// Ensure we have a valid world and are not in invalid network state
+	UWorld* World = GetWorld();
+	if (!IsValid(World) || World->bIsTearingDown)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("MulticastUpdateStealthVisuals: World is invalid or tearing down for %s"), *GetName());
+		return;
+	}
+
+	// Check if materials are currently being modified by another system
+	if (USkeletalMeshComponent* MeshComp = GetMesh(); IsValid(MeshComp))
+	{
+		// Ensure mesh component is in a valid state for material changes
+		if (!MeshComp->IsValidLowLevel())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("MulticastUpdateStealthVisuals: MeshComponent is invalid for %s"), *GetName());
+			return;
+		}
+	}
+
 	UpdateStealthVisuals();
 }
 
@@ -848,39 +877,49 @@ void APawPlayerHider::ApplyInvisibilityMaterials()
 			break;
 		}
 
-		try
+		// Apply materials with UE-specific error checking
+		UMaterialInterface* MaterialToApply = nullptr;
+		
+		if (MaterialIndex == 0)
 		{
-			if (MaterialIndex == 0)
+			// Slot 0 (body): Always use invisible material when invisible
+			MaterialToApply = InvisibleMaterial;
+		}
+		else if (MaterialIndex == 1)
+		{
+			// Slot 1 (facial): Only invisible for Seekers, visible for Hiders
+			if (bViewerIsSeeker)
 			{
-				// Slot 0 (body): Always use invisible material when invisible
-				MeshComp->SetMaterial(MaterialIndex, InvisibleMaterial);
-			}
-			else if (MaterialIndex == 1)
-			{
-				// Slot 1 (facial): Only invisible for Seekers, visible for Hiders
-				if (bViewerIsSeeker)
-				{
-					MeshComp->SetMaterial(MaterialIndex, InvisibleMaterial);
-				}
-				else
-				{
-					// Keep original facial material for Hiders
-					if (MaterialIndex < CachedBaseMaterials.Num() && IsValid(CachedBaseMaterials[MaterialIndex]))
-					{
-						MeshComp->SetMaterial(MaterialIndex, CachedBaseMaterials[MaterialIndex]);
-					}
-				}
+				MaterialToApply = InvisibleMaterial;
 			}
 			else
 			{
-				// Other slots: Use invisible material
-				MeshComp->SetMaterial(MaterialIndex, InvisibleMaterial);
+				// Keep original facial material for Hiders
+				if (MaterialIndex < CachedBaseMaterials.Num() && IsValid(CachedBaseMaterials[MaterialIndex]))
+				{
+					MaterialToApply = CachedBaseMaterials[MaterialIndex];
+				}
 			}
 		}
-		catch (...)
+		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("ApplyInvisibilityMaterials: Exception caught during SetMaterial for %s at index %d"), *GetName(), MaterialIndex);
-			break;
+			// Other slots: Use invisible material
+			MaterialToApply = InvisibleMaterial;
+		}
+
+		// Validate material before applying
+		if (IsValid(MaterialToApply) && MaterialToApply->IsValidLowLevel())
+		{
+			MeshComp->SetMaterial(MaterialIndex, MaterialToApply);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("ApplyInvisibilityMaterials: Invalid material to apply at index %d for %s"), MaterialIndex, *GetName());
+			// Use default material as fallback
+			if (UMaterial* DefaultMaterial = UMaterial::GetDefaultMaterial(MD_Surface))
+			{
+				MeshComp->SetMaterial(MaterialIndex, DefaultMaterial);
+			}
 		}
 	}
 }
@@ -923,19 +962,112 @@ void APawPlayerHider::RestoreOriginalMaterials()
 			break;
 		}
 
-		if (IsValid(CachedBaseMaterials[MaterialIndex]))
+		// Double-check array bounds before accessing
+		if (MaterialIndex >= CachedBaseMaterials.Num())
 		{
-			// Use exception handling as last resort protection
-			try
+			UE_LOG(LogTemp, Error, TEXT("RestoreOriginalMaterials: MaterialIndex %d out of bounds (array size: %d) for %s"), MaterialIndex, CachedBaseMaterials.Num(), *GetName());
+			break;
+		}
+
+		UMaterialInterface* CachedMaterial = CachedBaseMaterials[MaterialIndex];
+		
+		// Validate material before accessing its properties
+		if (!IsValid(CachedMaterial))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("RestoreOriginalMaterials: Cached material at index %d is invalid for %s"), MaterialIndex, *GetName());
+			continue;
+		}
+
+		// Check if material name is valid before calling GetName()
+		if (!CachedMaterial->IsValidLowLevel())
+		{
+			UE_LOG(LogTemp, Error, TEXT("RestoreOriginalMaterials: Cached material at index %d has invalid low level for %s"), MaterialIndex, *GetName());
+			continue;
+		}
+
+		// Safely get material name with additional validation
+		FString MaterialName;
+		if (CachedMaterial->GetFName().IsValid())
+		{
+			MaterialName = CachedMaterial->GetName();
+			// Check for None material
+			if (MaterialName == TEXT("None") || MaterialName.IsEmpty())
 			{
-				MeshComp->SetMaterial(MaterialIndex, CachedBaseMaterials[MaterialIndex]);
+				UE_LOG(LogTemp, Error, TEXT("RestoreOriginalMaterials: Cached material at index %d is None or empty for %s"), MaterialIndex, *GetName());
+				continue;
 			}
-			catch (...)
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("RestoreOriginalMaterials: Cached material at index %d has invalid FName for %s"), MaterialIndex, *GetName());
+			continue;
+		}
+
+		// Apply material with safer approach
+		MeshComp->SetMaterial(MaterialIndex, CachedMaterial);
+	}
+}
+
+void APawPlayerHider::ValidateAndRefreshMaterials()
+{
+	// Validate mesh component first
+	USkeletalMeshComponent* MeshComp = GetMesh();
+	if (!IsValid(MeshComp))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ValidateAndRefreshMaterials: Invalid mesh component for %s"), *GetName());
+		return;
+	}
+
+	const int32 CurrentMaterialCount = MeshComp->GetNumMaterials();
+	bool bNeedRefreshMaterial = false;
+
+	// Check if material count has changed
+	if (CurrentMaterialCount != CachedBaseMaterials.Num())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ValidateAndRefreshMaterials: Material count mismatch (current: %d, cached: %d) for %s"), 
+			CurrentMaterialCount, CachedBaseMaterials.Num(), *GetName());
+		bNeedRefreshMaterial = true;
+	}
+
+	// Check if any cached materials have become invalid
+	if (!bNeedRefreshMaterial)
+	{
+		for (int32 MaterialIndex = 0; MaterialIndex < CachedBaseMaterials.Num(); ++MaterialIndex)
+		{
+			UMaterialInterface* CachedMaterial = CachedBaseMaterials[MaterialIndex];
+			if (!IsValid(CachedMaterial) || !CachedMaterial->IsValidLowLevel())
 			{
-				UE_LOG(LogTemp, Error, TEXT("RestoreOriginalMaterials: Exception caught during SetMaterial for %s at index %d"), *GetName(), MaterialIndex);
+				UE_LOG(LogTemp, Warning, TEXT("ValidateAndRefreshMaterials: Cached material at index %d is invalid for %s"), 
+					MaterialIndex, *GetName());
+				bNeedRefreshMaterial = true;
+				break;
+			}
+
+			// Check if the material name suggests it's been garbage collected
+			if (CachedMaterial->GetFName().IsValid())
+			{
+				FString MaterialName = CachedMaterial->GetName();
+				if (MaterialName == TEXT("None") || MaterialName.IsEmpty())
+				{
+					UE_LOG(LogTemp, Warning, TEXT("ValidateAndRefreshMaterials: Cached material at index %d has invalid name for %s"), 
+						MaterialIndex, *GetName());
+					bNeedRefreshMaterial = true;
+					break;
+				}
+			}
+			else
+			{
+				bNeedRefreshMaterial = true;
 				break;
 			}
 		}
+	}
+
+	// Re-cache materials if needed
+	if (bNeedRefreshMaterial)
+	{
+		UE_LOG(LogTemp, Log, TEXT("ValidateAndRefreshMaterials: Re-caching materials for %s"), *GetName());
+		InitializeMaterials();
 	}
 }
 

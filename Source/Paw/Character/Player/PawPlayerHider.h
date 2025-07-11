@@ -323,6 +323,7 @@ private: // Internal Helper Functions
 	bool IsViewerOnSeekerTeam() const;
 	void ApplyInvisibilityMaterials();
 	void RestoreOriginalMaterials();
+	void ValidateAndRefreshMaterials();
 
 	// === UI Helper Functions ===
 	void SetupHUDWidget(APlayerController* PC);
