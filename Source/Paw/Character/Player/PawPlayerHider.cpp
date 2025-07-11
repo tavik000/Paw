@@ -179,6 +179,20 @@ void APawPlayerHider::BeginPlay()
 	{
 		Client_CreateHUD();
 	}
+
+	// Bind to possession change events to update visuals when players convert to seekers
+	if (UWorld* World = GetWorld())
+	{
+		// Bind to all PlayerController possession events to detect team changes
+		for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+		{
+			if (APlayerController* PC = Iterator->Get(); IsValid(PC))
+			{
+				PC->OnPossessedPawnChanged.AddDynamic(this, &APawPlayerHider::HandlePossessionChanged);
+				UE_LOG(LogTemp, Log, TEXT("PawPlayerHider: Bound to OnPossessedPawnChanged for PlayerController %s"), *PC->GetName());
+			}
+		}
+	}
 }
 
 void APawPlayerHider::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -219,6 +233,19 @@ void APawPlayerHider::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	{
 		HUD->RemoveFromParent();
 		HUD = nullptr;
+	}
+
+	// Unbind from possession change events
+	if (UWorld* World = GetWorld())
+	{
+		// Unbind from all PlayerController possession events
+		for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+		{
+			if (APlayerController* PC = Iterator->Get(); IsValid(PC))
+			{
+				PC->OnPossessedPawnChanged.RemoveDynamic(this, &APawPlayerHider::HandlePossessionChanged);
+			}
+		}
 	}
 
 	Super::EndPlay(EndPlayReason);
@@ -834,8 +861,6 @@ bool APawPlayerHider::IsViewerOnSeekerTeam() const
 			continue;
 		}
 
-		UE_LOG(LogTemp, Warning, TEXT("GetLabel for LocalPawn: %s"), *LocalPawn->GetActorLabel());
-		
 		if (!LocalPawn->GetClass()->ImplementsInterface(UTeamableInterface::StaticClass()))
 		{
 			continue;
@@ -870,8 +895,6 @@ void APawPlayerHider::ApplyInvisibilityMaterials()
 
 	const int32 MaterialCount = MeshComp->GetNumMaterials();
 	const bool bViewerIsSeeker = IsViewerOnSeekerTeam();
-	UE_LOG(LogTemp, Warning, TEXT(" ApplyInvisibilityMaterials: %s, Viewer is Seeker: %s"),
-	       *GetName(), bViewerIsSeeker ? TEXT("Yes") : TEXT("No"));
 
 	for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; ++MaterialIndex)
 	{
@@ -1098,6 +1121,28 @@ void APawPlayerHider::ValidateAndRefreshMaterials()
 		UE_LOG(LogTemp, Log, TEXT("ValidateAndRefreshMaterials: Re-caching materials for %s"), *GetName());
 		InitializeMaterials();
 	}
+}
+
+void APawPlayerHider::HandlePossessionChanged(APawn* OldPawn, APawn* NewPawn)
+{
+	// Only respond to valid possession changes
+	if (!IsValid(NewPawn))
+	{
+		return;
+	}
+
+	// Check if a new seeker joined the game
+	if (Cast<APawPlayerSeeker>(NewPawn) || Cast<APawPlayerSeeker_Ghost>(NewPawn))
+	{
+		UE_LOG(LogTemp, Log, TEXT("HandlePossessionChanged: Seeker joined (%s) - updating hider visuals for %s"), 
+			*NewPawn->GetName(), *GetName());
+		
+		// Update stealth visuals now that team composition has changed
+		UpdateStealthVisuals();
+	}
+	
+	// Optional: Handle seeker leaving (if OldPawn was seeker but NewPawn is not)
+	// This could be useful for future game modes where seekers can become hiders
 }
 
 // ================================================================

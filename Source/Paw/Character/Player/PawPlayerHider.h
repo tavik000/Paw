@@ -324,6 +324,9 @@ private: // Internal Helper Functions
 	void ApplyInvisibilityMaterials();
 	void RestoreOriginalMaterials();
 	void ValidateAndRefreshMaterials();
+	
+	UFUNCTION()
+	void HandlePossessionChanged(APawn* OldPawn, APawn* NewPawn);
 
 	// === UI Helper Functions ===
 	void SetupHUDWidget(APlayerController* PC);

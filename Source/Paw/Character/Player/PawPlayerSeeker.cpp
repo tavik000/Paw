@@ -28,23 +28,6 @@ void APawPlayerSeeker::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
 	
-	// Notify all hiders about the new seeker after possession is complete
-	if (HasAuthority())
-	{
-		if (AGameStateBase* GameState = GetWorld()->GetGameState(); IsValid(GameState))
-		{
-			UFunction* MulticastFunc = GameState->FindFunction(FName("Multicast_NotifyPlayerConvertedToSeeker"));
-			if (MulticastFunc)
-			{
-				GameState->ProcessEvent(MulticastFunc, nullptr);
-				UE_LOG(LogTemp, Log, TEXT("PawPlayerSeeker: Notified all hiders via Game State in PossessedBy"));
-			}
-			else
-			{
-				UE_LOG(LogTemp, Warning, TEXT("PawPlayerSeeker: Multicast function not found in Game State"));
-			}
-		}
-	}
 }
 
 void APawPlayerSeeker::Tick(float DeltaTime)
