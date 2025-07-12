@@ -344,44 +344,6 @@ void APawPlayerHider::Die()
 // Blueprint Callable API - Light Detection System
 // ================================================================
 
-void APawPlayerHider::CheckLightExposure()
-{
-	if (!HasAuthority())
-	{
-		return;
-	}
-
-	bool bWasInLight = bIsInLight;
-	bool bWasSpotLighted = bIsSpotLighted;
-
-	// Query the Light Detection Subsystem for current light exposure
-	if (UPawLightDetectionSubsystem* LightDetectionSubsystem = GetWorld()->GetSubsystem<UPawLightDetectionSubsystem>();
-		IsValid(LightDetectionSubsystem))
-	{
-		FLightExposureResult LightResult = LightDetectionSubsystem->GetLightExposureState(GetActorLocation(), this);
-		bIsInLight = LightResult.bIsInLight;
-		// Note: bIsSpotLighted is controlled by Seeker players, not environment lights
-		// LightResult.bIsSpotLighted is always false from subsystem
-	}
-	else
-	{
-		// Fallback: reset light states if subsystem not available
-		bIsInLight = false;
-		// bIsSpotLighted is not modified here - controlled by Seeker players
-		UE_LOG(LogTemp, Error, TEXT("PawLightDetectionSubsystem not available for %s"), *GetName());
-	}
-
-
-	// Update invisibility state based on new light exposure
-	UpdateInvisibilityState();
-
-	// Notify if light state changed
-	if (bWasInLight != bIsInLight || bWasSpotLighted != bIsSpotLighted)
-	{
-		bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
-		OnLightExposureChanged(bCurrentlyLit);
-	}
-}
 
 void APawPlayerHider::SetInLight(bool bInLight)
 {

@@ -50,9 +50,6 @@ public: // Blueprint Callable API
 
 	// Light Detection
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void CheckLightExposure();
-
-	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	void SetInLight(bool bInLight);
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
