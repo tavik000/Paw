@@ -121,7 +121,7 @@ void UPawMultiplayerSessionSubsystem::FindServer(FString ServerName)
 	bool IsLAN = Online::GetSubsystem(GetWorld())->GetSubsystemName() == "NULL";
 	SessionSearch->bIsLanQuery = IsLAN;
 	SessionSearch->MaxSearchResults = 9999;
-	SessionSearch->QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals);
+	SessionSearch->QuerySettings.Set(SEARCH_LOBBIES, true, EOnlineComparisonOp::Equals);
 
 	ServerNameToFind = ServerName;
 	SessionInterface->FindSessions(0, SessionSearch.ToSharedRef());
