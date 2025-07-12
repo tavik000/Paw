@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "PawLightDetectionSubsystem.generated.h"
 
+class APawPlayerHider;
 class UPointLightComponent;
 class USpotLightComponent;
 class AActor;
@@ -82,6 +83,13 @@ protected:
 	UPROPERTY()
 	TMap<TObjectPtr<AActor>, TObjectPtr<USpotLightComponent>> RegisteredSeekers;
 
+	// === Spotlight Detection Configuration ===
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spotlight Detection")
+	float SpotlightDetectionFactor = 0.714f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spotlight Detection")
+	float SpotlightConeAngleMultiplier = 1.2f;
+
 private:
 	void FindAndCacheSunLight() const;
 	bool CheckBubbleLightExposure(const FVector& Location, AActor* IgnoreActor) const;
@@ -89,7 +97,9 @@ private:
 	void StartSpotlightDetectionTimer();
 	void StopSpotlightDetectionTimer();
 	void OnSpotlightDetectionTick();
-	bool IsHiderInSpotlightCone(const FVector& HiderLocation, AActor* SeekerActor, USpotLightComponent* SpotLight) const;
+	bool IsHiderCapsuleInSpotlightCone(APawPlayerHider* Hider, AActor* SeekerActor, USpotLightComponent* SpotLight) const;
+	bool IsPointInSpotlightCone(const FVector& Point, AActor* SeekerActor, USpotLightComponent* SpotLight) const;
+	bool IsObstructedForHiderDetection(const FVector& Start, const FVector& End, AActor* SeekerActor) const;
 
 private:
 	mutable ESunLightState SunLightState = ESunLightState::NotSearched;

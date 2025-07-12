@@ -3,6 +3,7 @@
 #include "PawLightDetectionSubsystem.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SpotLightComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Engine/DirectionalLight.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
@@ -271,8 +272,8 @@ void UPawLightDetectionSubsystem::OnSpotlightDetectionTick()
 				continue;
 			}
 
-			// Check if hider is in this seeker's spotlight cone
-			if (IsHiderInSpotlightCone(Hider->GetActorLocation(), SeekerActor, SpotLight))
+			// Check if hider capsule is in this seeker's spotlight cone
+			if (IsHiderCapsuleInSpotlightCone(Hider, SeekerActor, SpotLight))
 			{
 				bIsSpotLighted = true;
 				break; // Found at least one spotlight, no need to check others
@@ -287,7 +288,7 @@ void UPawLightDetectionSubsystem::OnSpotlightDetectionTick()
 	}
 }
 
-bool UPawLightDetectionSubsystem::IsHiderInSpotlightCone(const FVector& HiderLocation, AActor* SeekerActor, USpotLightComponent* SpotLight) const
+bool UPawLightDetectionSubsystem::IsPointInSpotlightCone(const FVector& Point, AActor* SeekerActor, USpotLightComponent* SpotLight) const
 {
 	if (!IsValid(SeekerActor) || !IsValid(SpotLight))
 	{
@@ -297,54 +298,103 @@ bool UPawLightDetectionSubsystem::IsHiderInSpotlightCone(const FVector& HiderLoc
 	// Get spotlight properties
 	FVector SpotLightLocation = SpotLight->GetComponentLocation();
 	FVector SpotLightDirection = SpotLight->GetForwardVector();
-	float AttenuationRadius = SpotLight->AttenuationRadius;
-	float InnerConeAngle = SpotLight->InnerConeAngle;
 	float OuterConeAngle = SpotLight->OuterConeAngle;
+	float AttenuationRadius = SpotLight->AttenuationRadius;
 
-	// Calculate distance to hider
-	FVector ToHider = HiderLocation - SpotLightLocation;
-	float Distance = ToHider.Size();
+	// Calculate distance to point
+	FVector ToPoint = Point - SpotLightLocation;
+	float Distance = ToPoint.Size();
 
-	// Check if within attenuation radius
-	if (Distance > AttenuationRadius)
+	// Calculate effective detection range based on spotlight attenuation radius
+	float EffectiveDetectionRange = AttenuationRadius * SpotlightDetectionFactor;
+	if (Distance > EffectiveDetectionRange)
 	{
 		return false;
 	}
 
-	// Check if within cone angle (use outer cone angle for detection)
-	ToHider.Normalize();
-	float DotProduct = FVector::DotProduct(SpotLightDirection, ToHider);
-	float AngleToHider = FMath::RadiansToDegrees(FMath::Acos(DotProduct));
+	// Check if within cone angle (use multiplier for more forgiving detection)
+	ToPoint.Normalize();
+	float DotProduct = FVector::DotProduct(SpotLightDirection, ToPoint);
+	float AngleToPoint = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(DotProduct, -1.0f, 1.0f)));
 
-	if (AngleToHider > OuterConeAngle)
+	float EffectiveConeAngle = OuterConeAngle * SpotlightConeAngleMultiplier;
+	if (AngleToPoint > EffectiveConeAngle)
 	{
 		return false;
 	}
 
-	// Perform line trace to check for obstruction
+	// Check for obstruction (pass the hider as well to allow hitting them)
+	return !IsObstructedForHiderDetection(SpotLightLocation, Point, SeekerActor);
+}
+
+bool UPawLightDetectionSubsystem::IsHiderCapsuleInSpotlightCone(APawPlayerHider* Hider, AActor* SeekerActor, USpotLightComponent* SpotLight) const
+{
+	if (!IsValid(Hider))
+	{
+		return false;
+	}
+
+	// Get hider's capsule component for bounds
+	if (UCapsuleComponent* CapsuleComp = Hider->GetCapsuleComponent())
+	{
+		FVector CapsuleLocation = CapsuleComp->GetComponentLocation();
+		float CapsuleHalfHeight = CapsuleComp->GetScaledCapsuleHalfHeight();
+		float CapsuleRadius = CapsuleComp->GetScaledCapsuleRadius();
+
+		// Check multiple points on the capsule (top, center, bottom, left, right)
+		TArray<FVector> TestPoints;
+		TestPoints.Add(CapsuleLocation + FVector(0, 0, CapsuleHalfHeight * 0.8f)); // Near top
+		TestPoints.Add(CapsuleLocation); // Center
+		TestPoints.Add(CapsuleLocation - FVector(0, 0, CapsuleHalfHeight * 0.8f)); // Near bottom
+		TestPoints.Add(CapsuleLocation + FVector(CapsuleRadius * 0.8f, 0, 0)); // Right side
+		TestPoints.Add(CapsuleLocation + FVector(-CapsuleRadius * 0.8f, 0, 0)); // Left side
+
+		// If any point is detected, the hider is spotlighted
+		for (const FVector& TestPoint : TestPoints)
+		{
+			if (IsPointInSpotlightCone(TestPoint, SeekerActor, SpotLight))
+			{
+				return true;
+			}
+		}
+	}
+	else
+	{
+		// Fallback to actor location if no capsule component
+		return IsPointInSpotlightCone(Hider->GetActorLocation(), SeekerActor, SpotLight);
+	}
+
+	return false;
+}
+
+bool UPawLightDetectionSubsystem::IsObstructedForHiderDetection(const FVector& Start, const FVector& End, AActor* SeekerActor) const
+{
 	if (UWorld* World = GetWorld(); IsValid(World))
 	{
-		FVector Start = SpotLightLocation;
-		FVector End = HiderLocation;
-
 		FHitResult HitResult;
 		FCollisionQueryParams QueryParams;
 		QueryParams.AddIgnoredActor(SeekerActor); // Ignore the seeker
 		
-		// Line trace to check if path to hider is clear
+		// Line trace to check if path is clear
 		bool bHit = World->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams);
 
-		// If we hit something, check if it's the hider or something else
+		// If we hit something, check if it's a real obstruction
 		if (bHit)
 		{
-			// If we hit the hider, they're visible
-			if (HitResult.GetActor() == nullptr || HitResult.GetActor()->GetRootComponent()->GetOwner() != SeekerActor)
+			AActor* HitActor = HitResult.GetActor();
+			if (IsValid(HitActor))
 			{
-				// Hit something else (obstruction), hider is not visible
-				return false;
+				// If we hit a hider player, it's not an obstruction (we want to detect them)
+				if (Cast<APawPlayerHider>(HitActor))
+				{
+					return false; // Not obstructed, we hit our target
+				}
+				
+				// If we hit something else (walls, objects, etc.), it's an obstruction
+				return true;
 			}
 		}
 	}
 
-	return true;
+	return false; // No obstruction found
 }
