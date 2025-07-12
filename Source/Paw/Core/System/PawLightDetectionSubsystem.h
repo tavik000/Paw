@@ -80,7 +80,7 @@ protected:
 
 	// === Spotlight Detection Configuration ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spotlight Detection")
-	float SpotlightDetectionFactor = 0.714f;
+	float SpotlightDetectionFactor = 0.6785f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spotlight Detection")
 	float SpotlightConeAngleMultiplier = 1.2f;
