@@ -22,6 +22,9 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void PossessedBy(AController* NewController) override;
+	
+	UFUNCTION(Client, Reliable, Category = "UI")
+	void Client_CreateHUD();
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -29,4 +32,17 @@ protected:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<USpotLightComponent> SpotLightComponent;
+	
+	// === UI System ===
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<UUserWidget> HUDWidgetClass;
+
+private:
+	// === UI Helper Functions ===
+	void SetupHUDWidget(APlayerController* PC);
+	
+	void ConfigureHealthBar();
+	
+	// === UI System ===
+	TObjectPtr<UUserWidget> HUD;
 };
