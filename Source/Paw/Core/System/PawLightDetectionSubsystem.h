@@ -73,6 +73,27 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	int32 GetRegisteredBubbleLightCount() const { return RegisteredBubbleLights.Num(); }
 
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	void SetLightDetectionTickRate(float NewTickRate);
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	float GetLightDetectionTickRate() const { return LightDetectionTickRate; }
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	void SetSpotlightDetectionFactor(float NewFactor);
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	float GetSpotlightDetectionFactor() const { return SpotlightDetectionFactor; }
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	void SetSpotlightConeAngleMultiplier(float NewMultiplier);
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	float GetSpotlightConeAngleMultiplier() const { return SpotlightConeAngleMultiplier; }
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	int32 GetRegisteredSeekerCount() const { return RegisteredSeekers.Num(); }
+
 protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Light Detection")
 	mutable TObjectPtr<AActor> CachedSunLightActor;
@@ -82,6 +103,10 @@ protected:
 
 	UPROPERTY()
 	TMap<TObjectPtr<AActor>, TObjectPtr<USpotLightComponent>> RegisteredSeekers;
+
+	// === Light Detection Configuration ===
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Detection", meta = (ClampMin = "0.05", ClampMax = "1.0"))
+	float LightDetectionTickRate = 0.1f;
 
 	// === Spotlight Detection Configuration ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spotlight Detection")
@@ -94,14 +119,17 @@ private:
 	void FindAndCacheSunLight() const;
 	bool CheckBubbleLightExposure(const FVector& Location, AActor* IgnoreActor) const;
 	bool CheckDirectionalLightExposure(const FVector& Location, AActor* IgnoreActor) const;
-	void StartSpotlightDetectionTimer();
-	void StopSpotlightDetectionTimer();
-	void OnSpotlightDetectionTick();
+	void StartUnifiedLightDetectionTimer();
+	void StopUnifiedLightDetectionTimer();
+	void OnUnifiedLightDetectionTick();
+	bool CheckDirectionalLightsForHider(APawPlayerHider* Hider);
+	bool CheckBubbleLightsForHider(APawPlayerHider* Hider);
+	void CheckSpotlightsForHider(APawPlayerHider* Hider);
 	bool IsHiderCapsuleInSpotlightCone(APawPlayerHider* Hider, AActor* SeekerActor, USpotLightComponent* SpotLight) const;
 	bool IsPointInSpotlightCone(const FVector& Point, AActor* SeekerActor, USpotLightComponent* SpotLight) const;
 	bool IsObstructedForHiderDetection(const FVector& Start, const FVector& End, AActor* SeekerActor) const;
 
 private:
 	mutable ESunLightState SunLightState = ESunLightState::NotSearched;
-	FTimerHandle SpotlightDetectionTimerHandle;
+	FTimerHandle UnifiedLightDetectionTimerHandle;
 };

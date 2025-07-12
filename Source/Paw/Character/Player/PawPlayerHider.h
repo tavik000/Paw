@@ -320,9 +320,6 @@ private: // Internal Helper Functions
 	void OnHealthEffectTimerTick();
 
 	// === Light Detection Helper Functions ===
-	void StartLightDetectionTimer();
-	void StopLightDetectionTimer();
-	void OnLightDetectionTimerTick();
 	float CalculateStaggeredDelay() const;
 
 	// === Stealth Helper Functions ===
@@ -330,6 +327,7 @@ private: // Internal Helper Functions
 	void ApplyInvisibilityMaterials();
 	void RestoreOriginalMaterials();
 	void ValidateAndRefreshMaterials();
+	void UpdateInvisibilityState();
 	
 	UFUNCTION()
 	void HandlePossessionChanged(APawn* OldPawn, APawn* NewPawn);
@@ -357,8 +355,6 @@ private: // Internal State & Cached Data
 	FTimerHandle HealthEffectTimerHandle;
 	FTimerHandle DieTimerHandle;
 
-	// === Light Detection System ===
-	FTimerHandle LightDetectionTimerHandle;
 
 	// === Stealth System ===
 	TArray<TObjectPtr<UMaterialInterface>> CachedBaseMaterials;

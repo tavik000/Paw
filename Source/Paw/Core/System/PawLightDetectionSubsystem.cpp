@@ -24,8 +24,8 @@ void UPawLightDetectionSubsystem::Initialize(FSubsystemCollectionBase& Collectio
 
 void UPawLightDetectionSubsystem::Deinitialize()
 {
-	// Stop spotlight detection timer
-	StopSpotlightDetectionTimer();
+	// Stop unified light detection timer
+	StopUnifiedLightDetectionTimer();
 
 	// Clear all registered lights and seekers
 	RegisteredBubbleLights.Empty();
@@ -69,10 +69,10 @@ void UPawLightDetectionSubsystem::RegisterSeeker(AActor* SeekerActor, USpotLight
 		RegisteredSeekers.Add(SeekerActor, SpotLightComponent);
 		UE_LOG(LogTemp, Log, TEXT("Registered seeker: %s"), *SeekerActor->GetName());
 
-		// Start spotlight detection timer if this is the first seeker
+		// Start unified light detection timer if this is the first seeker
 		if (RegisteredSeekers.Num() == 1)
 		{
-			StartSpotlightDetectionTimer();
+			StartUnifiedLightDetectionTimer();
 		}
 	}
 	else
@@ -89,10 +89,10 @@ void UPawLightDetectionSubsystem::UnregisterSeeker(AActor* SeekerActor)
 		{
 			UE_LOG(LogTemp, Log, TEXT("Unregistered seeker: %s"), *SeekerActor->GetName());
 
-			// Stop spotlight detection timer if no more seekers
+			// Stop unified light detection timer if no more seekers
 			if (RegisteredSeekers.Num() == 0)
 			{
-				StopSpotlightDetectionTimer();
+				StopUnifiedLightDetectionTimer();
 			}
 		}
 	}
@@ -218,27 +218,27 @@ bool UPawLightDetectionSubsystem::CheckDirectionalLightExposure(const FVector& L
 	return false;
 }
 
-void UPawLightDetectionSubsystem::StartSpotlightDetectionTimer()
+void UPawLightDetectionSubsystem::StartUnifiedLightDetectionTimer()
 {
 	if (UWorld* World = GetWorld(); IsValid(World))
 	{
-		// 0.1s tick rate same as hider light checking
-		World->GetTimerManager().SetTimer(SpotlightDetectionTimerHandle, this, 
-			&UPawLightDetectionSubsystem::OnSpotlightDetectionTick, 0.1f, true);
-		UE_LOG(LogTemp, Log, TEXT("Started spotlight detection timer"));
+		// Use configurable tick rate for light detection
+		World->GetTimerManager().SetTimer(UnifiedLightDetectionTimerHandle, this, 
+			&UPawLightDetectionSubsystem::OnUnifiedLightDetectionTick, LightDetectionTickRate, true);
+		UE_LOG(LogTemp, Log, TEXT("Started unified light detection timer with rate: %f"), LightDetectionTickRate);
 	}
 }
 
-void UPawLightDetectionSubsystem::StopSpotlightDetectionTimer()
+void UPawLightDetectionSubsystem::StopUnifiedLightDetectionTimer()
 {
 	if (UWorld* World = GetWorld(); IsValid(World))
 	{
-		World->GetTimerManager().ClearTimer(SpotlightDetectionTimerHandle);
-		UE_LOG(LogTemp, Log, TEXT("Stopped spotlight detection timer"));
+		World->GetTimerManager().ClearTimer(UnifiedLightDetectionTimerHandle);
+		UE_LOG(LogTemp, Log, TEXT("Stopped unified light detection timer"));
 	}
 }
 
-void UPawLightDetectionSubsystem::OnSpotlightDetectionTick()
+void UPawLightDetectionSubsystem::OnUnifiedLightDetectionTick()
 {
 	if (UWorld* World = GetWorld(); !IsValid(World))
 	{
@@ -249,7 +249,7 @@ void UPawLightDetectionSubsystem::OnSpotlightDetectionTick()
 	TArray<AActor*> AllHiders;
 	UGameplayStatics::GetAllActorsOfClass(this, APawPlayerHider::StaticClass(), AllHiders);
 
-	// For each hider, check if they're in any seeker's spotlight
+	// For each hider, check all light types
 	for (AActor* HiderActor : AllHiders)
 	{
 		APawPlayerHider* Hider = Cast<APawPlayerHider>(HiderActor);
@@ -258,33 +258,77 @@ void UPawLightDetectionSubsystem::OnSpotlightDetectionTick()
 			continue;
 		}
 
-		bool bWasSpotLighted = Hider->IsSpotLighted();
-		bool bIsSpotLighted = false;
-
-		// Check against all registered seekers
-		for (const auto& SeekerPair : RegisteredSeekers)
+		// Check all light types separately for modularity
+		bool bDirectionalLit = CheckDirectionalLightsForHider(Hider);
+		bool bBubbleLit = CheckBubbleLightsForHider(Hider);
+		
+		// Combine directional and bubble light results
+		bool bNewIsInLight = bDirectionalLit || bBubbleLit;
+		if (bNewIsInLight != Hider->IsInLight())
 		{
-			AActor* SeekerActor = SeekerPair.Key;
-			USpotLightComponent* SpotLight = SeekerPair.Value;
+			Hider->SetInLight(bNewIsInLight);
+		}
+		
+		// Check spotlights separately
+		CheckSpotlightsForHider(Hider);
+	}
+}
 
-			if (!IsValid(SeekerActor) || !IsValid(SpotLight))
-			{
-				continue;
-			}
+bool UPawLightDetectionSubsystem::CheckDirectionalLightsForHider(APawPlayerHider* Hider)
+{
+	if (!IsValid(Hider))
+	{
+		return false;
+	}
 
-			// Check if hider capsule is in this seeker's spotlight cone
-			if (IsHiderCapsuleInSpotlightCone(Hider, SeekerActor, SpotLight))
-			{
-				bIsSpotLighted = true;
-				break; // Found at least one spotlight, no need to check others
-			}
+	// Check directional light exposure only and return result
+	return CheckDirectionalLightExposure(Hider->GetActorLocation(), Hider);
+}
+
+bool UPawLightDetectionSubsystem::CheckBubbleLightsForHider(APawPlayerHider* Hider)
+{
+	if (!IsValid(Hider))
+	{
+		return false;
+	}
+
+	// Check bubble light exposure only and return result
+	return CheckBubbleLightExposure(Hider->GetActorLocation(), Hider);
+}
+
+void UPawLightDetectionSubsystem::CheckSpotlightsForHider(APawPlayerHider* Hider)
+{
+	if (!IsValid(Hider) || RegisteredSeekers.Num() == 0)
+	{
+		return;
+	}
+
+	bool bWasSpotLighted = Hider->IsSpotLighted();
+	bool bIsSpotLighted = false;
+
+	// Check against all registered seekers
+	for (const auto& SeekerPair : RegisteredSeekers)
+	{
+		AActor* SeekerActor = SeekerPair.Key;
+		USpotLightComponent* SpotLight = SeekerPair.Value;
+
+		if (!IsValid(SeekerActor) || !IsValid(SpotLight))
+		{
+			continue;
 		}
 
-		// Update hider's spotlight state if changed
-		if (bIsSpotLighted != bWasSpotLighted)
+		// Check if hider capsule is in this seeker's spotlight cone
+		if (IsHiderCapsuleInSpotlightCone(Hider, SeekerActor, SpotLight))
 		{
-			Hider->SetSpotLighted(bIsSpotLighted);
+			bIsSpotLighted = true;
+			break; // Found at least one spotlight, no need to check others
 		}
+	}
+
+	// Update hider's spotlight state if changed
+	if (bIsSpotLighted != bWasSpotLighted)
+	{
+		Hider->SetSpotLighted(bIsSpotLighted);
 	}
 }
 
@@ -397,4 +441,54 @@ bool UPawLightDetectionSubsystem::IsObstructedForHiderDetection(const FVector& S
 	}
 
 	return false; // No obstruction found
+}
+
+void UPawLightDetectionSubsystem::SetLightDetectionTickRate(float NewTickRate)
+{
+	// Validate tick rate range (0.05f to 1.0f)
+	NewTickRate = FMath::Clamp(NewTickRate, 0.05f, 1.0f);
+	
+	if (FMath::IsNearlyEqual(LightDetectionTickRate, NewTickRate))
+	{
+		return; // No change needed
+	}
+	
+	LightDetectionTickRate = NewTickRate;
+	UE_LOG(LogTemp, Log, TEXT("Light detection tick rate changed to: %f"), LightDetectionTickRate);
+	
+	// Restart timer with new rate if it's currently running
+	if (UnifiedLightDetectionTimerHandle.IsValid() && RegisteredSeekers.Num() > 0)
+	{
+		StopUnifiedLightDetectionTimer();
+		StartUnifiedLightDetectionTimer();
+		UE_LOG(LogTemp, Log, TEXT("Restarted light detection timer with new tick rate"));
+	}
+}
+
+void UPawLightDetectionSubsystem::SetSpotlightDetectionFactor(float NewFactor)
+{
+	// Validate factor range (0.1f to 2.0f - reasonable range for detection vs attenuation)
+	NewFactor = FMath::Clamp(NewFactor, 0.1f, 2.0f);
+	
+	if (FMath::IsNearlyEqual(SpotlightDetectionFactor, NewFactor))
+	{
+		return; // No change needed
+	}
+	
+	SpotlightDetectionFactor = NewFactor;
+	UE_LOG(LogTemp, Log, TEXT("Spotlight detection factor changed to: %f"), SpotlightDetectionFactor);
+}
+
+void UPawLightDetectionSubsystem::SetSpotlightConeAngleMultiplier(float NewMultiplier)
+{
+	// Validate multiplier range (0.5f to 3.0f - reasonable range for cone angle adjustment)
+	NewMultiplier = FMath::Clamp(NewMultiplier, 0.5f, 3.0f);
+	
+	if (FMath::IsNearlyEqual(SpotlightConeAngleMultiplier, NewMultiplier))
+	{
+		return; // No change needed
+	}
+	
+	SpotlightConeAngleMultiplier = NewMultiplier;
+	UE_LOG(LogTemp, Log, TEXT("Spotlight cone angle multiplier changed to: %f"), SpotlightConeAngleMultiplier);
 }

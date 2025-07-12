@@ -171,7 +171,6 @@ void APawPlayerHider::BeginPlay()
 	if (HasAuthority())
 	{
 		StartHealthEffectTimer();
-		StartLightDetectionTimer();
 	}
 
 	// Create HUD for player-controlled pawns
@@ -208,11 +207,6 @@ void APawPlayerHider::EndPlay(const EEndPlayReason::Type EndPlayReason)
 			TimerManager.ClearTimer(HealthEffectTimerHandle);
 		}
 
-		// Clear light detection timer
-		if (LightDetectionTimerHandle.IsValid())
-		{
-			TimerManager.ClearTimer(LightDetectionTimerHandle);
-		}
 
 		// Clear die timer
 		if (DieTimerHandle.IsValid())
@@ -317,7 +311,6 @@ void APawPlayerHider::Die()
 
 		// Stop health effects timer
 		StopHealthEffectTimer();
-		StopLightDetectionTimer();
 
 		// Broadcast death started
 		OnDeathStarted.Broadcast();
@@ -379,24 +372,13 @@ void APawPlayerHider::CheckLightExposure()
 	}
 
 
-	// Handle invisibility 
-	bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
-	bool bCanBecomeInvisible = !bCurrentlyLit && !bIsCaptured;
-
-	// Automatically become invisible if in shadows and not captured
-	if (bCanBecomeInvisible && !bIsInvisible)
-	{
-		ActivateInvisibility();
-	}
-	// Become visible if lit or captured
-	else if (bIsInvisible && (bCurrentlyLit || bIsCaptured))
-	{
-		DeactivateInvisibility();
-	}
+	// Update invisibility state based on new light exposure
+	UpdateInvisibilityState();
 
 	// Notify if light state changed
 	if (bWasInLight != bIsInLight || bWasSpotLighted != bIsSpotLighted)
 	{
+		bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
 		OnLightExposureChanged(bCurrentlyLit);
 	}
 }
@@ -408,10 +390,8 @@ void APawPlayerHider::SetInLight(bool bInLight)
 		bIsInLight = bInLight;
 		OnLightExposureChanged(bInLight);
 
-		if (bInLight && bIsInvisible)
-		{
-			DeactivateInvisibility();
-		}
+		// Update invisibility state based on combined light exposure
+		UpdateInvisibilityState();
 	}
 }
 
@@ -423,10 +403,8 @@ void APawPlayerHider::SetSpotLighted(bool bSpotLighted)
 		bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
 		OnLightExposureChanged(bCurrentlyLit);
 
-		if (bSpotLighted && bIsInvisible)
-		{
-			DeactivateInvisibility();
-		}
+		// Update invisibility state based on combined light exposure
+		UpdateInvisibilityState();
 	}
 }
 
@@ -452,6 +430,29 @@ void APawPlayerHider::DeactivateInvisibility()
 		bIsInvisible = false;
 		MulticastUpdateStealthVisuals();
 		OnInvisibilityChanged(false);
+	}
+}
+
+void APawPlayerHider::UpdateInvisibilityState()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	// Check combined light state (environment lights + spotlights)
+	bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
+	bool bCanBecomeInvisible = !bCurrentlyLit && !bIsCaptured;
+
+	// Automatically become invisible if in shadows and not captured
+	if (bCanBecomeInvisible && !bIsInvisible)
+	{
+		ActivateInvisibility();
+	}
+	// Become visible if lit or captured
+	else if (bIsInvisible && (bCurrentlyLit || bIsCaptured))
+	{
+		DeactivateInvisibility();
 	}
 }
 
@@ -617,10 +618,6 @@ void APawPlayerHider::ServerConvertToSeeker_Implementation()
 			TimerManager.ClearTimer(HealthEffectTimerHandle);
 		}
 
-		if (LightDetectionTimerHandle.IsValid())
-		{
-			TimerManager.ClearTimer(LightDetectionTimerHandle);
-		}
 
 		if (DieTimerHandle.IsValid())
 		{
@@ -1469,51 +1466,6 @@ void APawPlayerHider::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UP
 // Private Helper Functions - Light Detection Optimization
 // ================================================================
 
-void APawPlayerHider::StartLightDetectionTimer()
-{
-	if (!HasAuthority() || LightDetectionTickRate <= 0)
-	{
-		return;
-	}
-
-	// Calculate staggered delay to distribute light checks across frames
-	float StaggeredDelay = CalculateStaggeredDelay();
-
-	// Start repeating timer with staggered initial delay
-	GetWorldTimerManager().SetTimer(LightDetectionTimerHandle, this, &APawPlayerHider::OnLightDetectionTimerTick,
-	                                LightDetectionTickRate, true, StaggeredDelay);
-}
-
-void APawPlayerHider::StopLightDetectionTimer()
-{
-	if (HasAuthority())
-	{
-		GetWorldTimerManager().ClearTimer(LightDetectionTimerHandle);
-	}
-}
-
-void APawPlayerHider::OnLightDetectionTimerTick()
-{
-	// Safety check: ensure object is still valid
-	if (!IsValid(this) || !HasAuthority() || !IsAlive())
-	{
-		return;
-	}
-
-	// Skip expensive light detection for captured players
-	if (bIsCaptured)
-	{
-		// Captured players are always visible - force it if needed
-		if (bIsInvisible)
-		{
-			DeactivateInvisibility();
-		}
-		return;
-	}
-
-	// Perform full light detection for active hiders
-	CheckLightExposure();
-}
 
 float APawPlayerHider::CalculateStaggeredDelay() const
 {
