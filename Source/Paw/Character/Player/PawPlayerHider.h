@@ -55,6 +55,9 @@ public: // Blueprint Callable API
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	void SetInLight(bool bInLight);
 
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	void SetSpotLighted(bool bSpotLighted);
+
 	// Stealth
 	UFUNCTION(BlueprintCallable, Category = "Stealth")
 	void ActivateInvisibility();
@@ -101,6 +104,9 @@ public: // Blueprint Callable API
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	bool IsInLight() const { return bIsInLight; }
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	bool IsSpotLighted() const { return bIsSpotLighted; }
 
 	UFUNCTION(BlueprintCallable, Category = "Stealth")
 	bool IsInvisible() const { return bIsInvisible; }

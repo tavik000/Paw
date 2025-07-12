@@ -8,6 +8,8 @@
 #include "GameFramework/GameStateBase.h"
 #include "Paw/Character/Common/Component/PawFlashLightComponent.h"
 #include "Paw/Core/Enum/ETeamId.h"
+#include "Paw/Core/System/PawLightDetectionSubsystem.h"
+#include "Engine/World.h"
 
 
 APawPlayerSeeker::APawPlayerSeeker()
@@ -24,11 +26,22 @@ void APawPlayerSeeker::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	// Register with light detection subsystem for spotlight detection
+	RegisterWithLightDetectionSubsystem();
+	
 	// Create HUD for player-controlled pawns
 	if (IsLocallyControlled())
 	{
 		Client_CreateHUD();
 	}
+}
+
+void APawPlayerSeeker::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	// Unregister from light detection subsystem
+	UnregisterFromLightDetectionSubsystem();
+	
+	Super::EndPlay(EndPlayReason);
 }
 
 void APawPlayerSeeker::PossessedBy(AController* NewController)
@@ -99,4 +112,29 @@ void APawPlayerSeeker::Tick(float DeltaTime)
 void APawPlayerSeeker::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+}
+
+void APawPlayerSeeker::RegisterWithLightDetectionSubsystem()
+{
+	if (UWorld* World = GetWorld(); IsValid(World))
+	{
+		LightDetectionSubsystem = World->GetSubsystem<UPawLightDetectionSubsystem>();
+		if (IsValid(LightDetectionSubsystem) && IsValid(SpotLightComponent))
+		{
+			LightDetectionSubsystem->RegisterSeeker(this, SpotLightComponent);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Failed to register seeker - subsystem or spotlight component not valid"));
+		}
+	}
+}
+
+void APawPlayerSeeker::UnregisterFromLightDetectionSubsystem()
+{
+	if (IsValid(LightDetectionSubsystem))
+	{
+		LightDetectionSubsystem->UnregisterSeeker(this);
+		LightDetectionSubsystem = nullptr;
+	}
 }

@@ -8,6 +8,7 @@
 #include "PawLightDetectionSubsystem.generated.h"
 
 class UPointLightComponent;
+class USpotLightComponent;
 class AActor;
 
 UENUM()
@@ -57,6 +58,12 @@ public:
 	void UnregisterBubbleLight(AActor* LightActor);
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	void RegisterSeeker(AActor* SeekerActor, USpotLightComponent* SpotLightComponent);
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	void UnregisterSeeker(AActor* SeekerActor);
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	FLightExposureResult GetLightExposureState(const FVector& Location, AActor* IgnoreActor = nullptr) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
@@ -72,11 +79,19 @@ protected:
 	UPROPERTY()
 	TMap<TObjectPtr<AActor>, TObjectPtr<UPointLightComponent>> RegisteredBubbleLights;
 
+	UPROPERTY()
+	TMap<TObjectPtr<AActor>, TObjectPtr<USpotLightComponent>> RegisteredSeekers;
+
 private:
 	void FindAndCacheSunLight() const;
 	bool CheckBubbleLightExposure(const FVector& Location, AActor* IgnoreActor) const;
 	bool CheckDirectionalLightExposure(const FVector& Location, AActor* IgnoreActor) const;
+	void StartSpotlightDetectionTimer();
+	void StopSpotlightDetectionTimer();
+	void OnSpotlightDetectionTick();
+	bool IsHiderInSpotlightCone(const FVector& HiderLocation, AActor* SeekerActor, USpotLightComponent* SpotLight) const;
 
 private:
 	mutable ESunLightState SunLightState = ESunLightState::NotSearched;
+	FTimerHandle SpotlightDetectionTimerHandle;
 };

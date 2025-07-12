@@ -8,6 +8,7 @@
 
 class USpotLightComponent;
 class UPawFlashLightComponent;
+class UPawLightDetectionSubsystem;
 
 UCLASS()
 class PAW_API APawPlayerSeeker : public APawFPSPlayer
@@ -21,6 +22,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void PossessedBy(AController* NewController) override;
 	
 	UFUNCTION(Client, Reliable, Category = "UI")
@@ -42,7 +44,14 @@ private:
 	void SetupHUDWidget(APlayerController* PC);
 	
 	void ConfigureHealthBar();
+
+	// === Spotlight Detection ===
+	void RegisterWithLightDetectionSubsystem();
+	void UnregisterFromLightDetectionSubsystem();
 	
 	// === UI System ===
 	TObjectPtr<UUserWidget> HUD;
+
+	// === Spotlight Detection ===
+	TObjectPtr<UPawLightDetectionSubsystem> LightDetectionSubsystem;
 };

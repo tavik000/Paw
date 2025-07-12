@@ -2,11 +2,14 @@
 
 #include "PawLightDetectionSubsystem.h"
 #include "Components/PointLightComponent.h"
+#include "Components/SpotLightComponent.h"
 #include "Engine/DirectionalLight.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "CollisionQueryParams.h"
 #include "Engine/Engine.h"
+#include "Paw/Character/Player/PawPlayerHider.h"
+#include "TimerManager.h"
 
 void UPawLightDetectionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -20,8 +23,12 @@ void UPawLightDetectionSubsystem::Initialize(FSubsystemCollectionBase& Collectio
 
 void UPawLightDetectionSubsystem::Deinitialize()
 {
-	// Clear all registered lights
+	// Stop spotlight detection timer
+	StopSpotlightDetectionTimer();
+
+	// Clear all registered lights and seekers
 	RegisteredBubbleLights.Empty();
+	RegisteredSeekers.Empty();
 	CachedSunLightActor = nullptr;
 	SunLightState = ESunLightState::NotSearched;
 
@@ -50,6 +57,42 @@ void UPawLightDetectionSubsystem::UnregisterBubbleLight(AActor* LightActor)
 		if (RegisteredBubbleLights.Remove(LightActor) > 0)
 		{
 			UE_LOG(LogTemp, Log, TEXT("Unregistered bubble light: %s"), *LightActor->GetName());
+		}
+	}
+}
+
+void UPawLightDetectionSubsystem::RegisterSeeker(AActor* SeekerActor, USpotLightComponent* SpotLightComponent)
+{
+	if (IsValid(SeekerActor) && IsValid(SpotLightComponent))
+	{
+		RegisteredSeekers.Add(SeekerActor, SpotLightComponent);
+		UE_LOG(LogTemp, Log, TEXT("Registered seeker: %s"), *SeekerActor->GetName());
+
+		// Start spotlight detection timer if this is the first seeker
+		if (RegisteredSeekers.Num() == 1)
+		{
+			StartSpotlightDetectionTimer();
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to register seeker - invalid actor or spotlight component"));
+	}
+}
+
+void UPawLightDetectionSubsystem::UnregisterSeeker(AActor* SeekerActor)
+{
+	if (IsValid(SeekerActor))
+	{
+		if (RegisteredSeekers.Remove(SeekerActor) > 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Unregistered seeker: %s"), *SeekerActor->GetName());
+
+			// Stop spotlight detection timer if no more seekers
+			if (RegisteredSeekers.Num() == 0)
+			{
+				StopSpotlightDetectionTimer();
+			}
 		}
 	}
 }
@@ -172,4 +215,136 @@ bool UPawLightDetectionSubsystem::CheckDirectionalLightExposure(const FVector& L
 
 	// No directional light exposure if not found or doesn't exist
 	return false;
+}
+
+void UPawLightDetectionSubsystem::StartSpotlightDetectionTimer()
+{
+	if (UWorld* World = GetWorld(); IsValid(World))
+	{
+		// 0.1s tick rate same as hider light checking
+		World->GetTimerManager().SetTimer(SpotlightDetectionTimerHandle, this, 
+			&UPawLightDetectionSubsystem::OnSpotlightDetectionTick, 0.1f, true);
+		UE_LOG(LogTemp, Log, TEXT("Started spotlight detection timer"));
+	}
+}
+
+void UPawLightDetectionSubsystem::StopSpotlightDetectionTimer()
+{
+	if (UWorld* World = GetWorld(); IsValid(World))
+	{
+		World->GetTimerManager().ClearTimer(SpotlightDetectionTimerHandle);
+		UE_LOG(LogTemp, Log, TEXT("Stopped spotlight detection timer"));
+	}
+}
+
+void UPawLightDetectionSubsystem::OnSpotlightDetectionTick()
+{
+	if (UWorld* World = GetWorld(); !IsValid(World))
+	{
+		return;
+	}
+
+	// Get all hider players in the world
+	TArray<AActor*> AllHiders;
+	UGameplayStatics::GetAllActorsOfClass(this, APawPlayerHider::StaticClass(), AllHiders);
+
+	// For each hider, check if they're in any seeker's spotlight
+	for (AActor* HiderActor : AllHiders)
+	{
+		APawPlayerHider* Hider = Cast<APawPlayerHider>(HiderActor);
+		if (!IsValid(Hider))
+		{
+			continue;
+		}
+
+		bool bWasSpotLighted = Hider->IsSpotLighted();
+		bool bIsSpotLighted = false;
+
+		// Check against all registered seekers
+		for (const auto& SeekerPair : RegisteredSeekers)
+		{
+			AActor* SeekerActor = SeekerPair.Key;
+			USpotLightComponent* SpotLight = SeekerPair.Value;
+
+			if (!IsValid(SeekerActor) || !IsValid(SpotLight))
+			{
+				continue;
+			}
+
+			// Check if hider is in this seeker's spotlight cone
+			if (IsHiderInSpotlightCone(Hider->GetActorLocation(), SeekerActor, SpotLight))
+			{
+				bIsSpotLighted = true;
+				break; // Found at least one spotlight, no need to check others
+			}
+		}
+
+		// Update hider's spotlight state if changed
+		if (bIsSpotLighted != bWasSpotLighted)
+		{
+			Hider->SetSpotLighted(bIsSpotLighted);
+		}
+	}
+}
+
+bool UPawLightDetectionSubsystem::IsHiderInSpotlightCone(const FVector& HiderLocation, AActor* SeekerActor, USpotLightComponent* SpotLight) const
+{
+	if (!IsValid(SeekerActor) || !IsValid(SpotLight))
+	{
+		return false;
+	}
+
+	// Get spotlight properties
+	FVector SpotLightLocation = SpotLight->GetComponentLocation();
+	FVector SpotLightDirection = SpotLight->GetForwardVector();
+	float AttenuationRadius = SpotLight->AttenuationRadius;
+	float InnerConeAngle = SpotLight->InnerConeAngle;
+	float OuterConeAngle = SpotLight->OuterConeAngle;
+
+	// Calculate distance to hider
+	FVector ToHider = HiderLocation - SpotLightLocation;
+	float Distance = ToHider.Size();
+
+	// Check if within attenuation radius
+	if (Distance > AttenuationRadius)
+	{
+		return false;
+	}
+
+	// Check if within cone angle (use outer cone angle for detection)
+	ToHider.Normalize();
+	float DotProduct = FVector::DotProduct(SpotLightDirection, ToHider);
+	float AngleToHider = FMath::RadiansToDegrees(FMath::Acos(DotProduct));
+
+	if (AngleToHider > OuterConeAngle)
+	{
+		return false;
+	}
+
+	// Perform line trace to check for obstruction
+	if (UWorld* World = GetWorld(); IsValid(World))
+	{
+		FVector Start = SpotLightLocation;
+		FVector End = HiderLocation;
+
+		FHitResult HitResult;
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActor(SeekerActor); // Ignore the seeker
+		
+		// Line trace to check if path to hider is clear
+		bool bHit = World->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams);
+
+		// If we hit something, check if it's the hider or something else
+		if (bHit)
+		{
+			// If we hit the hider, they're visible
+			if (HitResult.GetActor() == nullptr || HitResult.GetActor()->GetRootComponent()->GetOwner() != SeekerActor)
+			{
+				// Hit something else (obstruction), hider is not visible
+				return false;
+			}
+		}
+	}
+
+	return true;
 }
