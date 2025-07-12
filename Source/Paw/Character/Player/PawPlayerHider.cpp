@@ -41,7 +41,7 @@ APawPlayerHider::APawPlayerHider()
 	DieTimer = 5.0f;
 
 	// Light Detection System
-	bIsInLight = false;
+	bIsInLight = true;
 	bIsSpotLighted = false;
 
 	// Light Detection Performance
@@ -171,7 +171,21 @@ void APawPlayerHider::BeginPlay()
 	if (HasAuthority())
 	{
 		StartHealthEffectTimer();
+		// Register with light detection subsystem
+		if (UWorld* World = GetWorld(); IsValid(World))
+		{
+			if (UPawLightDetectionSubsystem* LightSubsystem = World->GetSubsystem<UPawLightDetectionSubsystem>())
+			{
+				LightSubsystem->RegisterHider(this);
+				UE_LOG(LogTemp, Log, TEXT("PawPlayerHider: Registered with light detection subsystem"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("PawPlayerHider: Failed to get light detection subsystem"));
+			}
+		}
 	}
+
 
 	// Create HUD for player-controlled pawns
 	if (IsLocallyControlled())
@@ -188,7 +202,8 @@ void APawPlayerHider::BeginPlay()
 			if (APlayerController* PC = Iterator->Get(); IsValid(PC))
 			{
 				PC->OnPossessedPawnChanged.AddDynamic(this, &APawPlayerHider::HandlePossessionChanged);
-				UE_LOG(LogTemp, Log, TEXT("PawPlayerHider: Bound to OnPossessedPawnChanged for PlayerController %s"), *PC->GetName());
+				UE_LOG(LogTemp, Log, TEXT("PawPlayerHider: Bound to OnPossessedPawnChanged for PlayerController %s"),
+				       *PC->GetName());
 			}
 		}
 	}
@@ -196,6 +211,18 @@ void APawPlayerHider::BeginPlay()
 
 void APawPlayerHider::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// Unregister from light detection subsystem
+	if (HasAuthority())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UPawLightDetectionSubsystem* LightSubsystem = World->GetSubsystem<UPawLightDetectionSubsystem>())
+			{
+				LightSubsystem->UnregisterHider(this);
+			}
+		}
+	}
+
 	// Clear all timer handles to prevent memory leaks
 	if (UWorld* World = GetWorld(); IsValid(World))
 	{
@@ -345,12 +372,12 @@ void APawPlayerHider::Die()
 // ================================================================
 
 
-void APawPlayerHider::SetInLight(bool bInLight)
+void APawPlayerHider::SetInLight(bool bNewInLight)
 {
-	if (HasAuthority() && bIsInLight != bInLight)
+	if (HasAuthority() && bIsInLight != bNewInLight)
 	{
-		bIsInLight = bInLight;
-		OnLightExposureChanged(bInLight);
+		bIsInLight = bNewInLight;
+		OnLightExposureChanged(bNewInLight);
 
 		// Update invisibility state based on combined light exposure
 		UpdateInvisibilityState();
@@ -362,11 +389,6 @@ void APawPlayerHider::SetSpotLighted(bool bSpotLighted)
 	if (HasAuthority() && bIsSpotLighted != bSpotLighted)
 	{
 		bIsSpotLighted = bSpotLighted;
-		bool bCurrentlyLit = bIsInLight || bIsSpotLighted;
-		OnLightExposureChanged(bCurrentlyLit);
-
-		// Update invisibility state based on combined light exposure
-		UpdateInvisibilityState();
 	}
 }
 
@@ -1108,13 +1130,13 @@ void APawPlayerHider::HandlePossessionChanged(APawn* OldPawn, APawn* NewPawn)
 	// Check if a new seeker joined the game
 	if (Cast<APawPlayerSeeker>(NewPawn) || Cast<APawPlayerSeeker_Ghost>(NewPawn))
 	{
-		UE_LOG(LogTemp, Log, TEXT("HandlePossessionChanged: Seeker joined (%s) - updating hider visuals for %s"), 
-			*NewPawn->GetName(), *GetName());
-		
+		UE_LOG(LogTemp, Log, TEXT("HandlePossessionChanged: Seeker joined (%s) - updating hider visuals for %s"),
+		       *NewPawn->GetName(), *GetName());
+
 		// Update stealth visuals now that team composition has changed
 		UpdateStealthVisuals();
 	}
-	
+
 	// Optional: Handle seeker leaving (if OldPawn was seeker but NewPawn is not)
 	// This could be useful for future game modes where seekers can become hiders
 }

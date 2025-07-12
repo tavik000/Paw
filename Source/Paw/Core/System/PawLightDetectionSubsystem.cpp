@@ -19,6 +19,12 @@ void UPawLightDetectionSubsystem::Initialize(FSubsystemCollectionBase& Collectio
 	// SunLight will be found lazily when first needed (handles timing issues)
 	SunLightState = ESunLightState::NotSearched;
 
+	// Pre-allocate memory for performance optimization
+	CachedTestPoints.Reserve(5); // 5 test points for capsule detection
+	CachedHiders.Reserve(8); // Expect up to 8 hiders in typical gameplay
+
+	StartUnifiedLightDetectionTimer();
+
 	UE_LOG(LogTemp, Log, TEXT("PawLightDetectionSubsystem initialized"));
 }
 
@@ -27,15 +33,36 @@ void UPawLightDetectionSubsystem::Deinitialize()
 	// Stop unified light detection timer
 	StopUnifiedLightDetectionTimer();
 
-	// Clear all registered lights and seekers
+	// Clear all registered lights, seekers, and hiders
 	RegisteredBubbleLights.Empty();
 	RegisteredSeekers.Empty();
+	RegisteredHiders.Empty();
 	CachedSunLightActor = nullptr;
 	SunLightState = ESunLightState::NotSearched;
+
+	// Clear performance optimization caches
+	CachedHiders.Empty();
+	CachedTestPoints.Empty();
 
 	UE_LOG(LogTemp, Log, TEXT("PawLightDetectionSubsystem deinitialized"));
 
 	Super::Deinitialize();
+}
+
+bool UPawLightDetectionSubsystem::ShouldCreateSubsystem(UObject* Outer) const
+{
+	if (!Super::ShouldCreateSubsystem(Outer))
+	{
+		return false;
+	}
+
+	UWorld* World = Cast<UWorld>(Outer);
+	TEnumAsByte<EWorldType::Type> type = World->WorldType;
+	if (type != EWorldType::Editor && type != EWorldType::EditorPreview && type != EWorldType::None)
+	{
+		return World-> GetNetMode() < NM_Client;
+	}
+	return false;
 }
 
 void UPawLightDetectionSubsystem::RegisterBubbleLight(AActor* LightActor, UPointLightComponent* LightComponent)
@@ -68,12 +95,6 @@ void UPawLightDetectionSubsystem::RegisterSeeker(AActor* SeekerActor, USpotLight
 	{
 		RegisteredSeekers.Add(SeekerActor, SpotLightComponent);
 		UE_LOG(LogTemp, Log, TEXT("Registered seeker: %s"), *SeekerActor->GetName());
-
-		// Start unified light detection timer if this is the first seeker
-		if (RegisteredSeekers.Num() == 1)
-		{
-			StartUnifiedLightDetectionTimer();
-		}
 	}
 	else
 	{
@@ -89,8 +110,8 @@ void UPawLightDetectionSubsystem::UnregisterSeeker(AActor* SeekerActor)
 		{
 			UE_LOG(LogTemp, Log, TEXT("Unregistered seeker: %s"), *SeekerActor->GetName());
 
-			// Stop unified light detection timer if no more seekers
-			if (RegisteredSeekers.Num() == 0)
+			// Stop unified light detection timer if no more seekers or hiders
+			if (RegisteredSeekers.Num() == 0 && RegisteredHiders.Num() == 0)
 			{
 				StopUnifiedLightDetectionTimer();
 			}
@@ -98,19 +119,34 @@ void UPawLightDetectionSubsystem::UnregisterSeeker(AActor* SeekerActor)
 	}
 }
 
-FLightExposureResult UPawLightDetectionSubsystem::GetLightExposureState(
-	const FVector& Location, AActor* IgnoreActor) const
+void UPawLightDetectionSubsystem::RegisterHider(AActor* HiderActor)
 {
-	bool bBubbleLightLit = CheckBubbleLightExposure(Location, IgnoreActor);
-	bool bDirectionalLightLit = CheckDirectionalLightExposure(Location, IgnoreActor);
+	if (IsValid(HiderActor))
+	{
+		RegisteredHiders.Add(HiderActor);
+		UE_LOG(LogTemp, Log, TEXT("Registered hider: %s"), *HiderActor->GetName());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to register hider - invalid actor"));
+	}
+}
 
-	// Combine bubble lights and directional light for bIsInLight
-	bool bIsInLight = bBubbleLightLit || bDirectionalLightLit;
+void UPawLightDetectionSubsystem::UnregisterHider(AActor* HiderActor)
+{
+	if (IsValid(HiderActor))
+	{
+		if (RegisteredHiders.Remove(HiderActor) > 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Unregistered hider: %s"), *HiderActor->GetName());
 
-	// bIsSpotLighted is controlled by Seeker players, not environment lights
-	bool bIsSpotLighted = false;
-
-	return FLightExposureResult(bIsInLight, bIsSpotLighted);
+			// Stop unified light detection timer if no more hiders
+			if (RegisteredHiders.Num() == 0)
+			{
+				StopUnifiedLightDetectionTimer();
+			}
+		}
+	}
 }
 
 void UPawLightDetectionSubsystem::FindAndCacheSunLight() const
@@ -139,43 +175,53 @@ void UPawLightDetectionSubsystem::FindAndCacheSunLight() const
 
 bool UPawLightDetectionSubsystem::CheckBubbleLightExposure(const FVector& Location, AActor* IgnoreActor) const
 {
+	// Early exit if no bubble lights registered
+	if (RegisteredBubbleLights.Num() == 0)
+	{
+		return false;
+	}
+
+	UWorld* World = GetWorld();
+	if (!IsValid(World))
+	{
+		return false;
+	}
+
 	// Check each registered bubble light
 	for (const auto& LightPair : RegisteredBubbleLights)
 	{
 		AActor* LightActor = LightPair.Key;
 		UPointLightComponent* LightComponent = LightPair.Value;
 
-		if (!IsValid(LightActor) || !IsValid(LightComponent))
+		// Lightweight validation
+		if (!LightActor || !LightComponent)
 		{
 			continue;
 		}
 
-		// Calculate distance to light
-		float Distance = FVector::Dist(Location, LightActor->GetActorLocation());
+		// Use squared distance for cheaper comparison
+		FVector LightLocation = LightActor->GetActorLocation();
+		float DistanceSquared = FVector::DistSquared(Location, LightLocation);
 		float AttenuationRadius = LightComponent->AttenuationRadius;
+		float AttenuationRadiusSquared = AttenuationRadius * AttenuationRadius;
 
-		// Check if within light radius
-		if (Distance <= AttenuationRadius)
+		// Check if within light radius (squared comparison)
+		if (DistanceSquared <= AttenuationRadiusSquared)
 		{
-			// Perform line trace to check for occlusion
-			if (UWorld* World = GetWorld(); IsValid(World))
+			// Create fresh collision params for this trace (avoids API issues)
+			FCollisionQueryParams QueryParams;
+			QueryParams.AddIgnoredActor(IgnoreActor);
+			QueryParams.AddIgnoredActor(LightActor); // Ignore the light itself
+
+			FHitResult HitResult;
+			// Line trace to check if path to light is clear
+			bool bHit = World->
+				LineTraceSingleByChannel(HitResult, Location, LightLocation, ECC_Visibility, QueryParams);
+
+			// If no obstruction, we're lit by this bubble light
+			if (!bHit)
 			{
-				FVector Start = Location;
-				FVector End = LightActor->GetActorLocation();
-
-				FHitResult HitResult;
-				FCollisionQueryParams QueryParams;
-				QueryParams.AddIgnoredActor(IgnoreActor);
-				QueryParams.AddIgnoredActor(LightActor); // Ignore the light itself
-
-				// Line trace to check if path to light is clear
-				bool bHit = World->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams);
-
-				// If no obstruction, we're lit by this bubble light
-				if (!bHit)
-				{
-					return true;
-				}
+				return true;
 			}
 		}
 	}
@@ -220,11 +266,17 @@ bool UPawLightDetectionSubsystem::CheckDirectionalLightExposure(const FVector& L
 
 void UPawLightDetectionSubsystem::StartUnifiedLightDetectionTimer()
 {
+	if (UnifiedLightDetectionTimerHandle.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Unified light detection timer already running"));
+		return;
+	}
 	if (UWorld* World = GetWorld(); IsValid(World))
 	{
 		// Use configurable tick rate for light detection
-		World->GetTimerManager().SetTimer(UnifiedLightDetectionTimerHandle, this, 
-			&UPawLightDetectionSubsystem::OnUnifiedLightDetectionTick, LightDetectionTickRate, true);
+		World->GetTimerManager().SetTimer(UnifiedLightDetectionTimerHandle, this,
+		                                  &UPawLightDetectionSubsystem::OnUnifiedLightDetectionTick,
+		                                  LightDetectionTickRate, true);
 		UE_LOG(LogTemp, Log, TEXT("Started unified light detection timer with rate: %f"), LightDetectionTickRate);
 	}
 }
@@ -245,32 +297,46 @@ void UPawLightDetectionSubsystem::OnUnifiedLightDetectionTick()
 		return;
 	}
 
-	// Get all hider players in the world
-	TArray<AActor*> AllHiders;
-	UGameplayStatics::GetAllActorsOfClass(this, APawPlayerHider::StaticClass(), AllHiders);
+	// Refresh hider cache if needed (much cheaper than GetAllActorsOfClass every tick)
+	RefreshHiderCache();
 
-	// For each hider, check all light types
-	for (AActor* HiderActor : AllHiders)
+	// For each cached hider, check all light types
+	for (int32 i = CachedHiders.Num() - 1; i >= 0; --i)
 	{
-		APawPlayerHider* Hider = Cast<APawPlayerHider>(HiderActor);
-		if (!IsValid(Hider))
+		APawPlayerHider* Hider = CachedHiders[i].Get();
+		if (!Hider)
 		{
+			// Remove stale weak pointer
+			CachedHiders.RemoveAtSwap(i);
+			continue;
+		}
+
+		// Early exit for dead or captured hiders (no light processing needed)
+		if (!Hider->IsAlive() || Hider->IsCaptured())
+		{
+			Hider->SetInLight(true);
 			continue;
 		}
 
 		// Check all light types separately for modularity
 		bool bDirectionalLit = CheckDirectionalLightsForHider(Hider);
 		bool bBubbleLit = CheckBubbleLightsForHider(Hider);
-		
+		bool bSpotlightLit = false;
+
+		// Check spotlights separately (only if seekers exist)
+		if (RegisteredSeekers.Num() > 0)
+		{
+			bSpotlightLit = CheckSpotlightsForHider(Hider);
+		}
+
 		// Combine directional and bubble light results
-		bool bNewIsInLight = bDirectionalLit || bBubbleLit;
+		bool bNewIsInLight = bDirectionalLit || bBubbleLit || bSpotlightLit;
+
+
 		if (bNewIsInLight != Hider->IsInLight())
 		{
 			Hider->SetInLight(bNewIsInLight);
 		}
-		
-		// Check spotlights separately
-		CheckSpotlightsForHider(Hider);
 	}
 }
 
@@ -296,14 +362,14 @@ bool UPawLightDetectionSubsystem::CheckBubbleLightsForHider(APawPlayerHider* Hid
 	return CheckBubbleLightExposure(Hider->GetActorLocation(), Hider);
 }
 
-void UPawLightDetectionSubsystem::CheckSpotlightsForHider(APawPlayerHider* Hider)
+bool UPawLightDetectionSubsystem::CheckSpotlightsForHider(APawPlayerHider* Hider)
 {
 	if (!IsValid(Hider) || RegisteredSeekers.Num() == 0)
 	{
-		return;
+		return false;
 	}
 
-	bool bWasSpotLighted = Hider->IsSpotLighted();
+	const bool bWasSpotLighted = Hider->IsSpotLighted();
 	bool bIsSpotLighted = false;
 
 	// Check against all registered seekers
@@ -330,11 +396,13 @@ void UPawLightDetectionSubsystem::CheckSpotlightsForHider(APawPlayerHider* Hider
 	{
 		Hider->SetSpotLighted(bIsSpotLighted);
 	}
+	return bIsSpotLighted;
 }
 
-bool UPawLightDetectionSubsystem::IsPointInSpotlightCone(const FVector& Point, AActor* SeekerActor, USpotLightComponent* SpotLight) const
+bool UPawLightDetectionSubsystem::IsPointInSpotlightCone(const FVector& Point, AActor* SeekerActor,
+                                                         USpotLightComponent* SpotLight) const
 {
-	if (!IsValid(SeekerActor) || !IsValid(SpotLight))
+	if (!SeekerActor || !SpotLight)
 	{
 		return false;
 	}
@@ -345,24 +413,30 @@ bool UPawLightDetectionSubsystem::IsPointInSpotlightCone(const FVector& Point, A
 	float OuterConeAngle = SpotLight->OuterConeAngle;
 	float AttenuationRadius = SpotLight->AttenuationRadius;
 
-	// Calculate distance to point
+	// Calculate squared distance to point (cheaper than Distance)
 	FVector ToPoint = Point - SpotLightLocation;
-	float Distance = ToPoint.Size();
+	float DistanceSquared = ToPoint.SizeSquared();
 
 	// Calculate effective detection range based on spotlight attenuation radius
 	float EffectiveDetectionRange = AttenuationRadius * SpotlightDetectionFactor;
-	if (Distance > EffectiveDetectionRange)
+	float EffectiveDetectionRangeSquared = EffectiveDetectionRange * EffectiveDetectionRange;
+
+	if (DistanceSquared > EffectiveDetectionRangeSquared)
 	{
 		return false;
 	}
 
-	// Check if within cone angle (use multiplier for more forgiving detection)
+	// Normalize only after distance check passes (avoid unnecessary sqrt)
 	ToPoint.Normalize();
-	float DotProduct = FVector::DotProduct(SpotLightDirection, ToPoint);
-	float AngleToPoint = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(DotProduct, -1.0f, 1.0f)));
 
+	// Check if within cone angle (use multiplier for more forgiving detection)
+	float DotProduct = FVector::DotProduct(SpotLightDirection, ToPoint);
+
+	// Use cosine comparison instead of angle calculation (cheaper)
 	float EffectiveConeAngle = OuterConeAngle * SpotlightConeAngleMultiplier;
-	if (AngleToPoint > EffectiveConeAngle)
+	float CosConeAngle = FMath::Cos(FMath::DegreesToRadians(EffectiveConeAngle));
+
+	if (DotProduct < CosConeAngle)
 	{
 		return false;
 	}
@@ -371,54 +445,61 @@ bool UPawLightDetectionSubsystem::IsPointInSpotlightCone(const FVector& Point, A
 	return !IsObstructedForHiderDetection(SpotLightLocation, Point, SeekerActor);
 }
 
-bool UPawLightDetectionSubsystem::IsHiderCapsuleInSpotlightCone(APawPlayerHider* Hider, AActor* SeekerActor, USpotLightComponent* SpotLight) const
+bool UPawLightDetectionSubsystem::IsHiderCapsuleInSpotlightCone(APawPlayerHider* Hider, AActor* SeekerActor,
+                                                                USpotLightComponent* SpotLight) const
 {
-	if (!IsValid(Hider))
+	if (!Hider)
 	{
 		return false;
 	}
 
 	// Get hider's capsule component for bounds
-	if (UCapsuleComponent* CapsuleComp = Hider->GetCapsuleComponent())
-	{
-		FVector CapsuleLocation = CapsuleComp->GetComponentLocation();
-		float CapsuleHalfHeight = CapsuleComp->GetScaledCapsuleHalfHeight();
-		float CapsuleRadius = CapsuleComp->GetScaledCapsuleRadius();
-
-		// Check multiple points on the capsule (top, center, bottom, left, right)
-		TArray<FVector> TestPoints;
-		TestPoints.Add(CapsuleLocation + FVector(0, 0, CapsuleHalfHeight * 0.8f)); // Near top
-		TestPoints.Add(CapsuleLocation); // Center
-		TestPoints.Add(CapsuleLocation - FVector(0, 0, CapsuleHalfHeight * 0.8f)); // Near bottom
-		TestPoints.Add(CapsuleLocation + FVector(CapsuleRadius * 0.8f, 0, 0)); // Right side
-		TestPoints.Add(CapsuleLocation + FVector(-CapsuleRadius * 0.8f, 0, 0)); // Left side
-
-		// If any point is detected, the hider is spotlighted
-		for (const FVector& TestPoint : TestPoints)
-		{
-			if (IsPointInSpotlightCone(TestPoint, SeekerActor, SpotLight))
-			{
-				return true;
-			}
-		}
-	}
-	else
+	UCapsuleComponent* CapsuleComp = Hider->GetCapsuleComponent();
+	if (!CapsuleComp)
 	{
 		// Fallback to actor location if no capsule component
 		return IsPointInSpotlightCone(Hider->GetActorLocation(), SeekerActor, SpotLight);
 	}
 
+	FVector CapsuleLocation = CapsuleComp->GetComponentLocation();
+	float CapsuleHalfHeight = CapsuleComp->GetScaledCapsuleHalfHeight();
+	float CapsuleRadius = CapsuleComp->GetScaledCapsuleRadius();
+
+	// Use cached test points array to avoid memory allocation
+	CachedTestPoints.Reset(5);
+
+	// Pre-calculate offsets
+	float HeightOffset = CapsuleHalfHeight * 0.8f;
+	float RadiusOffset = CapsuleRadius * 0.8f;
+
+	// Build test points (top, center, bottom, left, right)
+	CachedTestPoints.Add(CapsuleLocation + FVector(0, 0, HeightOffset)); // Near top
+	CachedTestPoints.Add(CapsuleLocation); // Center
+	CachedTestPoints.Add(CapsuleLocation - FVector(0, 0, HeightOffset)); // Near bottom
+	CachedTestPoints.Add(CapsuleLocation + FVector(RadiusOffset, 0, 0)); // Right side
+	CachedTestPoints.Add(CapsuleLocation + FVector(-RadiusOffset, 0, 0)); // Left side
+
+	// If any point is detected, the hider is spotlighted
+	for (const FVector& TestPoint : CachedTestPoints)
+	{
+		if (IsPointInSpotlightCone(TestPoint, SeekerActor, SpotLight))
+		{
+			return true;
+		}
+	}
+
 	return false;
 }
 
-bool UPawLightDetectionSubsystem::IsObstructedForHiderDetection(const FVector& Start, const FVector& End, AActor* SeekerActor) const
+bool UPawLightDetectionSubsystem::IsObstructedForHiderDetection(const FVector& Start, const FVector& End,
+                                                                AActor* SeekerActor) const
 {
 	if (UWorld* World = GetWorld(); IsValid(World))
 	{
 		FHitResult HitResult;
 		FCollisionQueryParams QueryParams;
 		QueryParams.AddIgnoredActor(SeekerActor); // Ignore the seeker
-		
+
 		// Line trace to check if path is clear
 		bool bHit = World->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams);
 
@@ -433,7 +514,7 @@ bool UPawLightDetectionSubsystem::IsObstructedForHiderDetection(const FVector& S
 				{
 					return false; // Not obstructed, we hit our target
 				}
-				
+
 				// If we hit something else (walls, objects, etc.), it's an obstruction
 				return true;
 			}
@@ -443,52 +524,54 @@ bool UPawLightDetectionSubsystem::IsObstructedForHiderDetection(const FVector& S
 	return false; // No obstruction found
 }
 
-void UPawLightDetectionSubsystem::SetLightDetectionTickRate(float NewTickRate)
+void UPawLightDetectionSubsystem::RefreshHiderCache()
 {
-	// Validate tick rate range (0.05f to 1.0f)
-	NewTickRate = FMath::Clamp(NewTickRate, 0.05f, 1.0f);
-	
-	if (FMath::IsNearlyEqual(LightDetectionTickRate, NewTickRate))
+	// Only refresh cache periodically or when needed (not every tick)
+	static int32 CacheRefreshCounter = 0;
+	const int32 CacheRefreshInterval = 50; // Refresh every ~5 seconds at 0.1s tick rate
+
+	if (++CacheRefreshCounter >= CacheRefreshInterval)
 	{
-		return; // No change needed
+		CacheRefreshCounter = 0;
+
+		// Get current hiders in world
+		TArray<AActor*> AllHiders;
+		UGameplayStatics::GetAllActorsOfClass(this, APawPlayerHider::StaticClass(), AllHiders);
+
+		// Clear and rebuild cache
+		CachedHiders.Empty(AllHiders.Num());
+
+		for (AActor* HiderActor : AllHiders)
+		{
+			if (APawPlayerHider* Hider = Cast<APawPlayerHider>(HiderActor))
+			{
+				CachedHiders.Add(Hider);
+			}
+		}
 	}
-	
-	LightDetectionTickRate = NewTickRate;
-	UE_LOG(LogTemp, Log, TEXT("Light detection tick rate changed to: %f"), LightDetectionTickRate);
-	
-	// Restart timer with new rate if it's currently running
-	if (UnifiedLightDetectionTimerHandle.IsValid() && RegisteredSeekers.Num() > 0)
+
+	// Always clean up stale weak pointers (lightweight operation)
+	for (int32 i = CachedHiders.Num() - 1; i >= 0; --i)
 	{
-		StopUnifiedLightDetectionTimer();
-		StartUnifiedLightDetectionTimer();
-		UE_LOG(LogTemp, Log, TEXT("Restarted light detection timer with new tick rate"));
+		if (!CachedHiders[i].IsValid())
+		{
+			CachedHiders.RemoveAtSwap(i);
+		}
 	}
 }
 
-void UPawLightDetectionSubsystem::SetSpotlightDetectionFactor(float NewFactor)
+void UPawLightDetectionSubsystem::AddHiderToCache(APawPlayerHider* Hider)
 {
-	// Validate factor range (0.1f to 2.0f - reasonable range for detection vs attenuation)
-	NewFactor = FMath::Clamp(NewFactor, 0.1f, 2.0f);
-	
-	if (FMath::IsNearlyEqual(SpotlightDetectionFactor, NewFactor))
+	if (Hider && !CachedHiders.Contains(Hider))
 	{
-		return; // No change needed
+		CachedHiders.Add(Hider);
 	}
-	
-	SpotlightDetectionFactor = NewFactor;
-	UE_LOG(LogTemp, Log, TEXT("Spotlight detection factor changed to: %f"), SpotlightDetectionFactor);
 }
 
-void UPawLightDetectionSubsystem::SetSpotlightConeAngleMultiplier(float NewMultiplier)
+void UPawLightDetectionSubsystem::RemoveHiderFromCache(APawPlayerHider* Hider)
 {
-	// Validate multiplier range (0.5f to 3.0f - reasonable range for cone angle adjustment)
-	NewMultiplier = FMath::Clamp(NewMultiplier, 0.5f, 3.0f);
-	
-	if (FMath::IsNearlyEqual(SpotlightConeAngleMultiplier, NewMultiplier))
+	if (Hider)
 	{
-		return; // No change needed
+		CachedHiders.RemoveSingle(Hider);
 	}
-	
-	SpotlightConeAngleMultiplier = NewMultiplier;
-	UE_LOG(LogTemp, Log, TEXT("Spotlight cone angle multiplier changed to: %f"), SpotlightConeAngleMultiplier);
 }

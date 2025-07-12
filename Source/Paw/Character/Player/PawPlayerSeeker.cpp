@@ -116,6 +116,10 @@ void APawPlayerSeeker::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 void APawPlayerSeeker::RegisterWithLightDetectionSubsystem()
 {
+	if (!HasAuthority())
+	{
+		return;
+	}
 	if (UWorld* World = GetWorld(); IsValid(World))
 	{
 		LightDetectionSubsystem = World->GetSubsystem<UPawLightDetectionSubsystem>();

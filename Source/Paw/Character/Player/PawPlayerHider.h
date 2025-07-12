@@ -50,7 +50,7 @@ public: // Blueprint Callable API
 
 	// Light Detection
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void SetInLight(bool bInLight);
+	void SetInLight(bool bNewInLight);
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	void SetSpotLighted(bool bSpotLighted);

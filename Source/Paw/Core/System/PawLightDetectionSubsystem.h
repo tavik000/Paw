@@ -20,29 +20,6 @@ enum class ESunLightState : uint8
 	NotExists // Searched but doesn't exist in this level
 };
 
-USTRUCT(BlueprintType)
-struct PAW_API FLightExposureResult
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadOnly, Category = "Light Detection")
-	bool bIsInLight = false;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Light Detection")
-	bool bIsSpotLighted = false;
-
-	FLightExposureResult()
-	{
-		bIsInLight = false;
-		bIsSpotLighted = false;
-	}
-
-	FLightExposureResult(bool InLight, bool SpotLighted)
-		: bIsInLight(InLight), bIsSpotLighted(SpotLighted)
-	{
-	}
-};
-
 UCLASS()
 class PAW_API UPawLightDetectionSubsystem : public UWorldSubsystem
 {
@@ -51,6 +28,7 @@ class PAW_API UPawLightDetectionSubsystem : public UWorldSubsystem
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
+	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	void RegisterBubbleLight(AActor* LightActor, UPointLightComponent* LightComponent);
@@ -65,34 +43,19 @@ public:
 	void UnregisterSeeker(AActor* SeekerActor);
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	FLightExposureResult GetLightExposureState(const FVector& Location, AActor* IgnoreActor = nullptr) const;
+	void RegisterHider(AActor* HiderActor);
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	void UnregisterHider(AActor* HiderActor);
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	AActor* GetSunLightActor() const { return CachedSunLightActor; }
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	int32 GetRegisteredBubbleLightCount() const { return RegisteredBubbleLights.Num(); }
-
-	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void SetLightDetectionTickRate(float NewTickRate);
-
-	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	float GetLightDetectionTickRate() const { return LightDetectionTickRate; }
-
-	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void SetSpotlightDetectionFactor(float NewFactor);
-
-	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	float GetSpotlightDetectionFactor() const { return SpotlightDetectionFactor; }
-
-	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void SetSpotlightConeAngleMultiplier(float NewMultiplier);
-
-	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	float GetSpotlightConeAngleMultiplier() const { return SpotlightConeAngleMultiplier; }
-
-	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	int32 GetRegisteredSeekerCount() const { return RegisteredSeekers.Num(); }
+
+	UFUNCTION(BlueprintCallable, Category = "Light Detection")
+	int32 GetRegisteredHiderCount() const { return RegisteredHiders.Num(); }
 
 protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Light Detection")
@@ -103,6 +66,13 @@ protected:
 
 	UPROPERTY()
 	TMap<TObjectPtr<AActor>, TObjectPtr<USpotLightComponent>> RegisteredSeekers;
+
+	UPROPERTY()
+	TSet<TObjectPtr<AActor>> RegisteredHiders;
+
+	// === Performance Optimization Cache ===
+	UPROPERTY()
+	TArray<TWeakObjectPtr<APawPlayerHider>> CachedHiders;
 
 	// === Light Detection Configuration ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Detection", meta = (ClampMin = "0.05", ClampMax = "1.0"))
@@ -124,12 +94,18 @@ private:
 	void OnUnifiedLightDetectionTick();
 	bool CheckDirectionalLightsForHider(APawPlayerHider* Hider);
 	bool CheckBubbleLightsForHider(APawPlayerHider* Hider);
-	void CheckSpotlightsForHider(APawPlayerHider* Hider);
+	bool CheckSpotlightsForHider(APawPlayerHider* Hider);
 	bool IsHiderCapsuleInSpotlightCone(APawPlayerHider* Hider, AActor* SeekerActor, USpotLightComponent* SpotLight) const;
 	bool IsPointInSpotlightCone(const FVector& Point, AActor* SeekerActor, USpotLightComponent* SpotLight) const;
 	bool IsObstructedForHiderDetection(const FVector& Start, const FVector& End, AActor* SeekerActor) const;
+	void RefreshHiderCache();
+	void AddHiderToCache(APawPlayerHider* Hider);
+	void RemoveHiderFromCache(APawPlayerHider* Hider);
 
 private:
 	mutable ESunLightState SunLightState = ESunLightState::NotSearched;
 	FTimerHandle UnifiedLightDetectionTimerHandle;
+	
+	// === Performance Optimization Members ===
+	mutable TArray<FVector> CachedTestPoints;
 };
