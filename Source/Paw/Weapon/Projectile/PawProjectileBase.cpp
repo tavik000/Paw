@@ -51,6 +51,12 @@ void APawProjectileBase::BeginPlay()
 	
 	// Bind hit delegate now that reflection data is available
 	CollisionComp->OnComponentHit.AddDynamic(this, &APawProjectileBase::OnHit);
+
+	// Disable movement on clients
+	if (!HasAuthority())
+	{
+		ProjectileMovement->Deactivate();
+	}
 }
 
 void APawProjectileBase::Tick(float DeltaTime)
