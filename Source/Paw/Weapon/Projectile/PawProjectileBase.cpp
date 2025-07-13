@@ -33,6 +33,10 @@ APawProjectileBase::APawProjectileBase()
 	ProjectileMovement->bRotationFollowsVelocity = true;
 	ProjectileMovement->bShouldBounce = true;
 	ProjectileMovement->SetIsReplicated(true);
+	
+	// Network interpolation settings for smooth multiplayer movement
+	ProjectileMovement->bInterpMovement = true;
+	ProjectileMovement->bInterpRotation = true;
 
 	// Die after 3 seconds by default
 	InitialLifeSpan = 3.0f;
