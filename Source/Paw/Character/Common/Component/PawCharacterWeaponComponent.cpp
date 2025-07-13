@@ -3,8 +3,6 @@
 
 #include "PawCharacterWeaponComponent.h"
 
-#include "GameFramework/Character.h"
-#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 #include "Paw/Character/Common/PawBattleCharacter.h"
 #include "Paw/Weapon/Common/PawWeaponBase.h"
@@ -20,7 +18,21 @@ UPawCharacterWeaponComponent::UPawCharacterWeaponComponent()
 void UPawCharacterWeaponComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	ServerCreateDefaultWeapon();
+	
+	// Only call ServerCreateDefaultWeapon if we have authority or own this character
+	if (GetOwnerRole() == ROLE_Authority)
+	{
+		// Server can create weapons for all characters
+		ServerCreateDefaultWeapon();
+	}
+	else if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+	{
+		// Client can only create weapons for locally controlled pawns
+		if (OwnerPawn->IsLocallyControlled())
+		{
+			ServerCreateDefaultWeapon();
+		}
+	}
 }
 
 
