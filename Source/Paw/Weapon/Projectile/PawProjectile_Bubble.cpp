@@ -43,11 +43,7 @@ void APawProjectile_Bubble::Break_Implementation()
 	IPawCollideBreakableInterface::Break_Implementation();
 	MulticastSpawnBreakEffect();
 
-	// Wait 5 sec and destroy
-	FTimerHandle TimerHandle;
-	GetWorld()->GetTimerManager().SetTimer(TimerHandle, this, &APawProjectile_Bubble::SelfDestroy, 5.0f, false);
-	CollisionComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	BubbleMesh->SetVisibility(false);
+	SelfDestroy();
 }
 
 bool APawProjectile_Bubble::CanBeBreakByHider_Implementation() const
