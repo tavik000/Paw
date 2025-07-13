@@ -20,6 +20,15 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+public: // Blueprint Callable API
+
+	// UI
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	UUserWidget* GetHUDSafe() const;
+	
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	bool HasValidHUD() const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

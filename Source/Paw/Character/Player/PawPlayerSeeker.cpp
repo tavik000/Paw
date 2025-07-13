@@ -114,6 +114,21 @@ void APawPlayerSeeker::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
 
+UUserWidget* APawPlayerSeeker::GetHUDSafe() const
+{
+	if (IsLocallyControlled() && IsValid(HUD))
+	{
+		return HUD;
+	}
+	return nullptr;
+}
+
+bool APawPlayerSeeker::HasValidHUD() const
+{
+	// Only check HUD on locally controlled clients
+	return IsLocallyControlled() && IsValid(HUD);
+}
+
 void APawPlayerSeeker::RegisterWithLightDetectionSubsystem()
 {
 	if (!HasAuthority())
