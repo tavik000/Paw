@@ -108,7 +108,7 @@ public: // Blueprint Callable API
 	UFUNCTION(BlueprintCallable, Category = "Stealth")
 	bool IsInvisible() const { return bIsInvisible; }
 
-	UFUNCTION(BlueprintCallable, Category = "Capture")
+	UFUNCTION(BlueprintCallable, Category = "Capture", meta = (ScriptName = "get_is_captured"))
 	bool IsCaptured() const { return bIsCaptured; }
 
 	UFUNCTION(BlueprintCallable, Category = "Collision")
@@ -203,7 +203,7 @@ protected: // Properties (State & Configuration)
 	FName OpacityParameterName;
 
 	// === Capture System ===
-	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Capture")
+	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Capture", meta = (ScriptName = "is_captured_state"))
 	bool bIsCaptured;
 
 	// === Multiplayer Properties ===
