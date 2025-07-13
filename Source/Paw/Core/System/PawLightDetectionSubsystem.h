@@ -83,7 +83,7 @@ protected:
 	float SpotlightDetectionFactor = 0.6785f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spotlight Detection")
-	float SpotlightConeAngleMultiplier = 1.2f;
+	float SpotlightConeAngleMultiplier = 1.1f;
 
 private:
 	void FindAndCacheSunLight() const;
