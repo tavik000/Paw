@@ -2,12 +2,12 @@
 
 #include "PawProjectileTestHelper.h"
 #include "PawProjectileBase.h"
-#include "PawProjectileMovementComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "GameFramework/ProjectileMovementComponent.h"
 
 APawProjectileTestHelper::APawProjectileTestHelper()
 {
@@ -98,7 +98,7 @@ void APawProjectileTestHelper::EnableAllProjectileLogging(bool bEnable)
 	{
 		if (IsValid(Projectile))
 		{
-			Projectile->EnableBounceLogging(bEnable);
+			// Projectile->EnableBounceLogging(bEnable);
 		}
 	}
 
@@ -164,7 +164,7 @@ void APawProjectileTestHelper::FireSingleProjectile()
 		if (auto* MovementComp = NewProjectile->GetProjectileMovement())
 		{
 			MovementComp->Velocity = FireDirection * ProjectileSpeed;
-			NewProjectile->EnableBounceLogging(true);
+			// NewProjectile->EnableBounceLogging(true);
 		}
 
 		ActiveProjectiles.Add(NewProjectile);
