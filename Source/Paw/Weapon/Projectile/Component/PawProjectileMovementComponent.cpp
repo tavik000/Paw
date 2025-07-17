@@ -352,20 +352,21 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, const FV
 
 	if (bIsSliding)
 	{
+		// Disable multihit testing for now. but it might cause issues with sliding along corners.
 		// for angle < 80 degrees, slide along wall. Cos 80 degrees = 0.173648f
 		if (bMultiHit && (PreviousHitNormal | Normal) < 0.173648f)
 		{
 			//90 degree or less corner, so use cross product for direction
-			FVector NewDir = (Normal ^ PreviousHitNormal);
-			NewDir = NewDir.GetSafeNormal();
-			Velocity = Velocity.ProjectOnToNormal(NewDir);
-			if ((OldVelocity | Velocity) < 0.f)
-			{
-				Velocity *= -1.f;
-			}
-			Velocity = ConstrainDirectionToPlane(Velocity);
+			// FVector NewDir = (Normal ^ PreviousHitNormal);
+			// NewDir = NewDir.GetSafeNormal();
+			// Velocity = Velocity.ProjectOnToNormal(NewDir);
+			// if ((OldVelocity | Velocity) < 0.f)
+			// {
+			// 	Velocity *= -1.f;
+			// }
+			// Velocity = ConstrainDirectionToPlane(Velocity);
 			// UE_LOG(LogTemp, Warning, TEXT("PreviousHitNormal %s, Normal %s, MultiHit %d, Dot %f"),
-			// 	*PreviousHitNormal.ToString(), *Normal.ToString(), bMultiHit, (PreviousHitNormal | Normal));
+				// *PreviousHitNormal.ToString(), *Normal.ToString(), bMultiHit, (PreviousHitNormal | Normal));
 			// UE_LOG(LogTemp, Warning, TEXT("MultiHit Projectile %s: (Role: %d) Sliding along corner, new velocity: %s"),
 			// 	*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
 		}
