@@ -7,7 +7,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
-#include "GameFramework/ProjectileMovementComponent.h"
+#include "Component/PawProjectileMovementComponent.h"
 
 APawProjectileTestHelper::APawProjectileTestHelper()
 {

@@ -3,8 +3,8 @@
 
 #include "PawProjectileBase.h"
 
+#include "Component/PawProjectileMovementComponent.h"
 #include "Components/SphereComponent.h"
-#include "GameFramework/ProjectileMovementComponent.h"
 
 
 APawProjectileBase::APawProjectileBase()
@@ -26,14 +26,14 @@ APawProjectileBase::APawProjectileBase()
 	RootComponent = CollisionComp;
 
 	// Use a ProjectileMovementComponent to govern this projectile's movement
-	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovementComp"));
+	ProjectileMovement = CreateDefaultSubobject<UPawProjectileMovementComponent>(TEXT("ProjectileMovementComp"));
 	ProjectileMovement->UpdatedComponent = CollisionComp;
 	ProjectileMovement->InitialSpeed = 3000.f;
 	ProjectileMovement->MaxSpeed = 3000.f;
 	ProjectileMovement->bRotationFollowsVelocity = true;
 	ProjectileMovement->bShouldBounce = true;
 	ProjectileMovement->SetIsReplicated(true);
-	
+
 	// Network interpolation settings for smooth multiplayer movement
 	ProjectileMovement->bInterpMovement = true;
 	ProjectileMovement->bInterpRotation = true;
@@ -48,7 +48,7 @@ APawProjectileBase::APawProjectileBase()
 void APawProjectileBase::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 	// Bind hit delegate now that reflection data is available
 	CollisionComp->OnComponentHit.AddDynamic(this, &APawProjectileBase::OnHit);
 

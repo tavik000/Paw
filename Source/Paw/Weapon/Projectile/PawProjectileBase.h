@@ -6,7 +6,7 @@
 
 #include "PawProjectileBase.generated.h"
 
-class UProjectileMovementComponent;
+class UPawProjectileMovementComponent;
 class USphereComponent;
 
 UCLASS()
@@ -23,7 +23,7 @@ public:
 	           const FHitResult& Hit);
 
 	USphereComponent* GetCollisionComp() const { return CollisionComp; }
-	UProjectileMovementComponent* GetProjectileMovement() const { return ProjectileMovement; }
+	UPawProjectileMovementComponent* GetProjectileMovement() const { return ProjectileMovement; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -33,5 +33,5 @@ protected:
 	USphereComponent* CollisionComp;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
-	UProjectileMovementComponent* ProjectileMovement;
+	UPawProjectileMovementComponent* ProjectileMovement;
 };
