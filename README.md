@@ -79,9 +79,8 @@ Hider can turn invisible in the shadow. but the lighting and shadow are dynamic 
 
 ## Why Unreal Engine 5?
 
--   **Lighting**: Stunning real-time dynamic lighting and shadow effects with GI and reflections using **Lumen** with Real-Time Ray Tracing!!! Let's go! Thanks to Nvidia RTX series, Microsoft DirectX12, and Epic Games Unreal Engine 5.
 -   **Physics(Chaos Destruction)**: Advanced object interactions for breakable and pushable elements.
--   **Multiplayer Framework**: Robust tools for creating seamless multiplayer experiences. Online Subsystem.
+-   **Multiplayer Framework**: Easy-to-use tools for creating seamless multiplayer experiences. Online Subsystem.
 -   **Virtual Shadow Map**: High-resolution real-time shadowing.
 
 ---
