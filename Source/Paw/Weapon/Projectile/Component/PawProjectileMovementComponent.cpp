@@ -217,9 +217,9 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 		RemainingTime -= TimeTick;
 		
 		// Logging
-		UE_LOG(LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f, [%.3f / %.3f] cur/total) sim (Pos %s, Vel %s)"),
-			*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, FMath::Max(0.f, DeltaTime - InitialTimeRemaining), DeltaTime,
-			*UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
+		// UE_LOG(LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f, [%.3f / %.3f] cur/total) sim (Pos %s, Vel %s)"),
+		// 	*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, FMath::Max(0.f, DeltaTime - InitialTimeRemaining), DeltaTime,
+		// 	*UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
 
 		// Initial move state
 		Hit.Time = 1.f;
@@ -268,11 +268,12 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 			}
 
 			// Logging
-			UE_LOG(LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f) no hit (Pos %s, Vel %s)"),
-				*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, *UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
+			// UE_LOG(LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f) no hit (Pos %s, Vel %s)"), *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, *UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
 		}
 		else
 		{
+			// UE_LOG(LogTemp, Warning, TEXT("Hit: %s, Time: %.3f, Normal: %s, Location: %s, IsSliding: %d"),
+			// 	*Hit.GetActor()->GetActorLabel(), Hit.Time, *Hit.Normal.ToString(),  *Hit.ImpactPoint.ToString(), bIsSliding);
 			// Only calculate new velocity if events didn't change it during the movement update.
 			if (Velocity == OldVelocity)
 			{
@@ -281,18 +282,19 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 			}
 
 			// Logging
-			UE_CLOG(UpdatedComponent != nullptr, LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f) new hit at t=%.3f: (Pos %s, Vel %s)"),
-				*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, Hit.Time, *UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
+			// UE_CLOG(UpdatedComponent != nullptr, LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f) new hit at t=%.3f: (Pos %s, Vel %s)"),
+				// *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, Hit.Time, *UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
 
 			// Handle blocking hit
 			NumImpacts++;
 			float SubTickTimeRemaining = TimeTick * (1.f - Hit.Time);
 			const EHandleBlockingHitResult HandleBlockingResult = HandleBlockingHit(Hit, TimeTick, MoveDelta, SubTickTimeRemaining);
+			
 			if (HandleBlockingResult == EHandleBlockingHitResult::Abort || HasStoppedSimulation())
 			{
 				break;
 			}
-			else if (HandleBlockingResult == EHandleBlockingHitResult::Deflect)
+			if (HandleBlockingResult == EHandleBlockingHitResult::Deflect)
 			{
 				NumBounces++;
 				HandleDeflection(Hit, OldVelocity, NumBounces, SubTickTimeRemaining);
@@ -309,10 +311,10 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 				// Unhandled EHandleBlockingHitResult
 				checkNoEntry();
 			}
-			
+
 			// Logging
-			UE_CLOG(UpdatedComponent != nullptr, LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f) deflect at t=%.3f: (Pos %s, Vel %s)"),
-				*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), Iterations, TimeTick, Hit.Time, *UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
+			// UE_CLOG(UpdatedComponent != nullptr, LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f) deflect at t=%.3f: (Pos %s, Vel %s)"),
+			// 	*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), Iterations, TimeTick, Hit.Time, *UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
 			
 			// Add unprocessed time after impact
 			if (SubTickTimeRemaining >= MIN_TICK_TIME)
@@ -325,8 +327,8 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 					Iterations--;
 
 					// Logging
-					UE_LOG(LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f) allowing extra iteration after bounce %u (t=%.3f, adding %.3f secs)"),
-						*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, NumBounces, Hit.Time, SubTickTimeRemaining);
+					// UE_LOG(LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f) allowing extra iteration after bounce %u (t=%.3f, adding %.3f secs)"),
+					// 	*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, NumBounces, Hit.Time, SubTickTimeRemaining);
 				}
 			}
 		}
@@ -350,7 +352,8 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, const FV
 
 	if (bIsSliding)
 	{
-		if (bMultiHit && (PreviousHitNormal | Normal) <= 0.f)
+		// for angle < 80 degrees, slide along wall. Cos 80 degrees = 0.173648f
+		if (bMultiHit && (PreviousHitNormal | Normal) < 0.173648f)
 		{
 			//90 degree or less corner, so use cross product for direction
 			FVector NewDir = (Normal ^ PreviousHitNormal);
@@ -361,11 +364,17 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, const FV
 				Velocity *= -1.f;
 			}
 			Velocity = ConstrainDirectionToPlane(Velocity);
+			// UE_LOG(LogTemp, Warning, TEXT("PreviousHitNormal %s, Normal %s, MultiHit %d, Dot %f"),
+			// 	*PreviousHitNormal.ToString(), *Normal.ToString(), bMultiHit, (PreviousHitNormal | Normal));
+			// UE_LOG(LogTemp, Warning, TEXT("MultiHit Projectile %s: (Role: %d) Sliding along corner, new velocity: %s"),
+			// 	*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
 		}
 		else
 		{
 			//adjust to move along new wall
 			Velocity = ComputeSlideVector(Velocity, 1.f, Normal, Hit);
+			// UE_LOG(LogTemp, Warning, TEXT("No MultiHit Projectile %s: (Role: %d) Sliding along surface, new velocity: %s"),
+			// 	*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
 		}
 
 		// Check min velocity.
@@ -430,10 +439,14 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 
 			const FVector FrictionForce = -NewVelocity.GetSafeNormal() * FMath::Min(-ForceDotN * Friction, NewVelocity.Size());
 			Velocity = ConstrainDirectionToPlane(NewVelocity + FrictionForce);
+			// UE_LOG(LogProjectileMovement, Warning, TEXT("Projectile %s: (Role: %d) Sliding along surface with friction, new velocity: %s"),
+			// 	*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
 		}
 		else
 		{
 			Velocity = PostTickVelocity;
+			// UE_LOG(LogTemp, Warning, TEXT(" Projectile %s: (Role: %d) Sliding along surface without friction, new velocity: %s"),
+			// 	*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
 		}
 
 		// Check min velocity
@@ -542,6 +555,8 @@ float UPawProjectileMovementComponent::GetGravityZ() const
 
 void UPawProjectileMovementComponent::StopSimulating(const FHitResult& HitResult)
 {
+	// UE_LOG(LogTemp, Warning, TEXT(" Projectile %s stopped simulating at location %s with velocity %s"),
+	// 	*GetNameSafe(UpdatedComponent->GetOwner()), *UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
 	Velocity = FVector::ZeroVector;
 	PendingForce = FVector::ZeroVector;
 	PendingForceThisUpdate = FVector::ZeroVector;
@@ -568,7 +583,7 @@ UPawProjectileMovementComponent::EHandleBlockingHitResult UPawProjectileMovement
 
 	if (Hit.bStartPenetrating)
 	{
-		UE_LOG(LogProjectileMovement, Verbose, TEXT("Projectile %s is stuck inside %s.%s with velocity %s!"), *GetNameSafe(ActorOwner), *Hit.HitObjectHandle.GetName(), *GetNameSafe(Hit.GetComponent()), *Velocity.ToString());
+		// UE_LOG(LogProjectileMovement, Verbose, TEXT("Projectile %s is stuck inside %s.%s with velocity %s!"), *GetNameSafe(ActorOwner), *Hit.HitObjectHandle.GetName(), *GetNameSafe(Hit.GetComponent()), *Velocity.ToString());
 		return EHandleBlockingHitResult::Abort;
 	}
 
@@ -614,11 +629,16 @@ void UPawProjectileMovementComponent::HandleImpact(const FHitResult& Hit, float 
 		const FVector OldVelocity = Velocity;
 		Velocity = ComputeBounceResult(Hit, TimeSlice, MoveDelta);
 
+
 		// Trigger bounce events
 		OnProjectileBounce.Broadcast(Hit, OldVelocity);
 
 		// Event may modify velocity or threshold, so check velocity threshold now.
 		Velocity = LimitVelocity(Velocity);
+		
+		// UE_LOG(LogTemp, Warning, TEXT("After bounce: Velocity %s, OldVelocity %s, Hit Normal %s, Bounciness %f, Friction %f"),
+		// 	*Velocity.ToString(), *OldVelocity.ToString(), *Hit.Normal.ToString(), Bounciness, Friction);
+		
 		if (IsVelocityUnderSimulationThreshold())
 		{
 			bStopSimulating = true;
@@ -892,7 +912,7 @@ void UPawProjectileMovementComponent::TickInterpolation(float DeltaTime)
 				const bool bShouldThrottleNow = UpdateThrottleInterpolation(DeltaTime, InterpComponent);
 				if (bShouldThrottleNow)
 				{
-					UE_LOG(LogProjectileMovementInterpolation, Verbose, TEXT("--- Skip  Interpolation (%d frames : %s)"), ThrottleInterpolationFramesSinceInterp, *GetPathNameSafe(InterpComponent));
+					// UE_LOG(LogProjectileMovementInterpolation, Verbose, TEXT("--- Skip  Interpolation (%d frames : %s)"), ThrottleInterpolationFramesSinceInterp, *GetPathNameSafe(InterpComponent));
 					// Skip applying transform to InterpolatedComponent.
 					// Don't say we're done interpolating if we haven't applied the result yet, we need it to update next frame.
 					bInterpolationComplete = false;
@@ -900,7 +920,7 @@ void UPawProjectileMovementComponent::TickInterpolation(float DeltaTime)
 				else
 				{
 					ThrottleInterpolationFramesSinceInterp = 0;
-					UE_LOG(LogProjectileMovementInterpolation, Verbose, TEXT("+++ Apply Interpolation (%d frames : %s)"), ThrottleInterpolationFramesSinceInterp, *GetPathNameSafe(InterpComponent));
+					// UE_LOG(LogProjectileMovementInterpolation, Verbose, TEXT("+++ Apply Interpolation (%d frames : %s)"), ThrottleInterpolationFramesSinceInterp, *GetPathNameSafe(InterpComponent));
 
 					// Apply interpolation result
 					if (UpdatedComponent)
