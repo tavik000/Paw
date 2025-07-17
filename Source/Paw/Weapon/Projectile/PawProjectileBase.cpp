@@ -5,13 +5,14 @@
 
 #include "Component/PawProjectileMovementComponent.h"
 #include "Components/SphereComponent.h"
+#include "Misc/MapErrors.h"
 
 
 APawProjectileBase::APawProjectileBase()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
-	AActor::SetReplicateMovement(true);
+	AActor::SetReplicateMovement(false);
 
 	// Use a sphere as a simple collision representation
 	CollisionComp = CreateDefaultSubobject<USphereComponent>(TEXT("SphereCollisionComp"));
@@ -25,6 +26,14 @@ APawProjectileBase::APawProjectileBase()
 	// Set as root component
 	RootComponent = CollisionComp;
 
+	// Create a mesh component to represent the projectile visually
+	ProjectileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ProjectileMesh"));
+	ProjectileMesh->SetupAttachment(RootComponent);
+	ProjectileMesh->SetCollisionProfileName(TEXT("NoCollision"));
+	ProjectileMesh->SetIsReplicated(true);
+	ProjectileMesh->SetVisibility(true);
+
+
 	// Use a ProjectileMovementComponent to govern this projectile's movement
 	ProjectileMovement = CreateDefaultSubobject<UPawProjectileMovementComponent>(TEXT("ProjectileMovementComp"));
 	ProjectileMovement->UpdatedComponent = CollisionComp;
@@ -37,6 +46,7 @@ APawProjectileBase::APawProjectileBase()
 	// Network interpolation settings for smooth multiplayer movement
 	ProjectileMovement->bInterpMovement = true;
 	ProjectileMovement->bInterpRotation = true;
+	ProjectileMovement->SetInterpolatedComponent(ProjectileMesh);
 
 	// Die after 3 seconds by default
 	InitialLifeSpan = 3.0f;
@@ -56,6 +66,15 @@ void APawProjectileBase::BeginPlay()
 	if (!HasAuthority())
 	{
 		ProjectileMovement->Deactivate();
+	}
+}
+
+void APawProjectileBase::PostNetReceiveLocationAndRotation()
+{
+	Super::PostNetReceiveLocationAndRotation();
+	if (ProjectileMovement && GetLocalRole() == ROLE_SimulatedProxy)
+	{
+		ProjectileMovement->MoveInterpolationTarget(GetActorLocation(), GetActorRotation());
 	}
 }
 

@@ -32,9 +32,6 @@ protected:
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TObjectPtr<UStaticMeshComponent> BubbleMesh;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TSoftObjectPtr<UNiagaraSystem> BreakEffectAsset;
 
 	UPROPERTY(EditAnywhere)

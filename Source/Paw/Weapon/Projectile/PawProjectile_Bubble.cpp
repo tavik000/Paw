@@ -13,12 +13,6 @@
 // Sets default values
 APawProjectile_Bubble::APawProjectile_Bubble()
 {
-	BubbleMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BubbleMesh"));
-	BubbleMesh->SetupAttachment(RootComponent);
-	BubbleMesh->SetCollisionProfileName(TEXT("NoCollision"));
-	BubbleMesh->SetIsReplicated(true);
-	BubbleMesh->SetVisibility(true);
-
 	InitialLifeSpan = 0.0f;
 }
 

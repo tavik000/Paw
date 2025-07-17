@@ -19,8 +19,9 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	UFUNCTION()
-	virtual void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse,
-	           const FHitResult& Hit);
+	virtual void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	                   FVector NormalImpulse,
+	                   const FHitResult& Hit);
 
 	USphereComponent* GetCollisionComp() const { return CollisionComp; }
 	UPawProjectileMovementComponent* GetProjectileMovement() const { return ProjectileMovement; }
@@ -29,8 +30,14 @@ protected:
 	virtual void BeginPlay() override;
 
 protected:
-	UPROPERTY(VisibleDefaultsOnly, Category=Projectile)
+	virtual void PostNetReceiveLocationAndRotation() override;
+
+protected:
+	UPROPERTY(VisibleDefaultsOnly, Category = Projectile)
 	USphereComponent* CollisionComp;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<UStaticMeshComponent> ProjectileMesh;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	UPawProjectileMovementComponent* ProjectileMovement;
