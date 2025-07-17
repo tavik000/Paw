@@ -8,7 +8,7 @@
 #include "PawBubbleLight.generated.h"
 
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBubbleLightBreakDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBubbleLightBreakSignature);
 
 UCLASS()
 class PAW_API APawBubbleLight : public APawBubbleBase
@@ -24,7 +24,7 @@ public:
 
 public:
 	UPROPERTY(BlueprintAssignable)
-	FOnBubbleLightBreakDelegate OnBubbleLightBreak;
+	FOnBubbleLightBreakSignature OnBubbleLightBreak;
 
 protected:
 	virtual void BeginPlay() override;

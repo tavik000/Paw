@@ -13,10 +13,10 @@
 
 class APawPlayerSeeker_Ghost;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathStartedDelegate);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathFinishedDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathStartedSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathFinishedSignature);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHpChangedDelegate, float, HpPercentage);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHpChangedSignature, float, HpPercentage);
 
 UCLASS()
 class PAW_API APawPlayerHider : public APawTPPlayer
@@ -125,13 +125,13 @@ public: // C++ Public Helper
 
 public: // Blueprint Events & Delegates
 	UPROPERTY(BlueprintAssignable, Category = "Health")
-	FOnDeathStartedDelegate OnDeathStarted;
+	FOnDeathStartedSignature OnDeathStarted;
 
 	UPROPERTY(BlueprintAssignable, Category = "Health")
-	FOnDeathFinishedDelegate OnDeathFinished;
+	FOnDeathFinishedSignature OnDeathFinished;
 
 	UPROPERTY(BlueprintAssignable, Category = "Health")
-	FOnHpChangedDelegate OnHpChanged;
+	FOnHpChangedSignature OnHpChanged;
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Health")
 	void OnHealthChanged(float NewHealth, float NewMaxHealth);

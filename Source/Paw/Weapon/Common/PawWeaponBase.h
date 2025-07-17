@@ -8,7 +8,7 @@
 
 class APawBattleCharacter;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEquipMulticastDelegate, APawBattleCharacter*, TargetCharacter);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEquipMulticastSignature, APawBattleCharacter*, TargetCharacter);
 
 UCLASS()
 class PAW_API APawWeaponBase : public AActor
@@ -25,5 +25,5 @@ protected:
 
 public:
 	UPROPERTY(BlueprintAssignable)
-	FOnEquipMulticastDelegate OnEquip;
+	FOnEquipMulticastSignature OnEquip;
 };

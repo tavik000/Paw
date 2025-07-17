@@ -15,8 +15,11 @@ struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnJumpDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnJumpSignature);
 
+// ** Deprecated
+// * @deprecated Use APawCharacterBase instead
+// * @see APawCharacterBase
 UCLASS(config=Game)
 class APawCharacter : public ACharacter
 {
@@ -33,7 +36,7 @@ public:
 	void ServerSetCaptured(bool NewIsCaptured);
 
 	UPROPERTY(BlueprintAssignable)
-	FOnJumpDelegate OnJumpDelegate;
+	FOnJumpSignature OnJumpDelegate;
 
 protected:
 	virtual void BeginPlay();

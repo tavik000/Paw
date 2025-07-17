@@ -9,9 +9,9 @@
 #include "Online/OnlineSessionNames.h"
 #include "PawMultiplayerSessionSubsystem.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FServerCreateDelegate, bool, WasSuccessful);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FServerCreateSignature, bool, WasSuccessful);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FServerJoinDelegate, bool, WasSuccessful);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FServerJoinSignature, bool, WasSuccessful);
 
 /**
  * 
@@ -35,9 +35,9 @@ public:
 
 public:
 	UPROPERTY(BlueprintAssignable)
-	FServerCreateDelegate ServerCreateDel;
+	FServerCreateSignature ServerCreateDel;
 	UPROPERTY(BlueprintAssignable)
-	FServerJoinDelegate ServerJoinDel;
+	FServerJoinSignature ServerJoinDel;
 
 protected:
 	UPROPERTY(BlueprintReadWrite)
