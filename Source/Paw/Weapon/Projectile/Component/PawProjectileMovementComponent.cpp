@@ -12,6 +12,7 @@
 
 CSV_DECLARE_CATEGORY_MODULE_EXTERN(CORE_API, Basic);
 DEFINE_LOG_CATEGORY_STATIC(LogProjectileMovement, Log, All);
+
 DEFINE_LOG_CATEGORY_STATIC(LogProjectileMovementInterpolation, Log, All);
 
 const float UPawProjectileMovementComponent::MIN_TICK_TIME = 1e-6f;
@@ -41,7 +42,7 @@ UPawProjectileMovementComponent::UPawProjectileMovementComponent(const FObjectIn
 	ThrottleInterpolationSkipFramesRecent = 1;
 	ThrottleInterpolationSkipFramesNotRecent = 2;
 
-	Velocity = FVector(1.f,0.f,0.f);
+	Velocity = FVector(1.f, 0.f, 0.f);
 
 	ProjectileGravityScale = 1.f;
 
@@ -117,7 +118,7 @@ void UPawProjectileMovementComponent::InitializeComponent()
 		}
 
 		UpdateComponentVelocity();
-		
+
 		if (UpdatedPrimitive && UpdatedPrimitive->IsSimulatingPhysics())
 		{
 			UpdatedPrimitive->SetPhysicsLinearVelocity(Velocity);
@@ -141,15 +142,19 @@ void UPawProjectileMovementComponent::UpdateTickRegistration()
 	}
 }
 
-void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
+void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevelTick TickType,
+                                                    FActorComponentTickFunction* ThisTickFunction)
 {
-	QUICK_SCOPE_CYCLE_COUNTER( STAT_ProjectileMovementComponent_TickComponent );
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_ProjectileMovementComponent_TickComponent);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(ProjectileMovement);
 
 	// Can avoid moving the interpolated object's children until the end of the entire simulation frame.
 	// This only makes sense if simulation is also enabled, which would move the UpdatedComponent and move the attached InterpolatedComponent (and children) again.
 	const bool bUseScopedInterpolatedMove = bInterpolationUseScopedMovement && bSimulationEnabled;
-	const FScopedMovementUpdate ScopedInterpolatedMove(GetInterpolatedComponent(), bUseScopedInterpolatedMove ? EScopedUpdate::DeferredUpdates : EScopedUpdate::ImmediateUpdates);
+	const FScopedMovementUpdate ScopedInterpolatedMove(GetInterpolatedComponent(),
+	                                                   bUseScopedInterpolatedMove
+		                                                   ? EScopedUpdate::DeferredUpdates
+		                                                   : EScopedUpdate::ImmediateUpdates);
 
 	// Still need to finish interpolating after we've stopped simulating, so do that first.
 	if (!bInterpolationComplete)
@@ -177,7 +182,7 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 	}
 
 	AActor* ActorOwner = UpdatedComponent->GetOwner();
-	if ( !ActorOwner || !CheckStillInWorld() )
+	if (!ActorOwner || !CheckStillInWorld())
 	{
 		return;
 	}
@@ -190,32 +195,40 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 	FVector::FReal VelocityTolerance = 0.0;
 	switch (ActorOwner->GetReplicatedMovement().VelocityQuantizationLevel)
 	{
-	case EVectorQuantization::RoundWholeNumber: VelocityTolerance = 1.0; break;
-	case EVectorQuantization::RoundOneDecimal:  VelocityTolerance = 0.1; break;
-	case EVectorQuantization::RoundTwoDecimals: VelocityTolerance = 0.01; break;
-	default:									VelocityTolerance = UE_KINDA_SMALL_NUMBER; break;
+	case EVectorQuantization::RoundWholeNumber: VelocityTolerance = 1.0;
+		break;
+	case EVectorQuantization::RoundOneDecimal: VelocityTolerance = 0.1;
+		break;
+	case EVectorQuantization::RoundTwoDecimals: VelocityTolerance = 0.01;
+		break;
+	default: VelocityTolerance = UE_KINDA_SMALL_NUMBER;
+		break;
 	}
-	
-	float RemainingTime	= DeltaTime;
+
+	float RemainingTime = DeltaTime;
 	int32 NumImpacts = 0;
 	int32 NumBounces = 0;
 	int32 LoopCount = 0;
 	int32 Iterations = 0;
 	FHitResult Hit(1.f);
-	
-	QUICK_SCOPE_CYCLE_COUNTER( STAT_ProjectileMovementComponent_PerformMovement );
-	const FScopedMovementUpdate ScopedProjectileUpdate(bSimulationUseScopedMovement ? UpdatedComponent : nullptr, EScopedUpdate::DeferredUpdates);
 
-	while (bSimulationEnabled && RemainingTime >= MIN_TICK_TIME && (Iterations < MaxSimulationIterations) && IsValid(ActorOwner) && !HasStoppedSimulation())
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_ProjectileMovementComponent_PerformMovement);
+	const FScopedMovementUpdate ScopedProjectileUpdate(bSimulationUseScopedMovement ? UpdatedComponent : nullptr,
+	                                                   EScopedUpdate::DeferredUpdates);
+
+	while (bSimulationEnabled && RemainingTime >= MIN_TICK_TIME && (Iterations < MaxSimulationIterations) &&
+		IsValid(ActorOwner) && !HasStoppedSimulation())
 	{
 		LoopCount++;
 		Iterations++;
 
 		// subdivide long ticks to more closely follow parabolic trajectory
 		const float InitialTimeRemaining = RemainingTime;
-		const float TimeTick = ShouldUseSubStepping() ? GetSimulationTimeStep(RemainingTime, Iterations) : RemainingTime;
+		const float TimeTick = ShouldUseSubStepping()
+			                       ? GetSimulationTimeStep(RemainingTime, Iterations)
+			                       : RemainingTime;
 		RemainingTime -= TimeTick;
-		
+
 		// Logging
 		// UE_LOG(LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f, [%.3f / %.3f] cur/total) sim (Pos %s, Vel %s)"),
 		// 	*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, FMath::Max(0.f, DeltaTime - InitialTimeRemaining), DeltaTime,
@@ -225,7 +238,9 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 		Hit.Time = 1.f;
 		const FVector OldVelocity = Velocity;
 		const FVector MoveDelta = ComputeMoveDelta(OldVelocity, TimeTick);
-		FQuat NewRotation = (bRotationFollowsVelocity && !OldVelocity.IsNearlyZero(VelocityTolerance)) ? OldVelocity.ToOrientationQuat() : UpdatedComponent->GetComponentQuat();
+		FQuat NewRotation = (bRotationFollowsVelocity && !OldVelocity.IsNearlyZero(VelocityTolerance))
+			                    ? OldVelocity.ToOrientationQuat()
+			                    : UpdatedComponent->GetComponentQuat();
 
 		if (bRotationFollowsVelocity && bRotationRemainsVertical)
 		{
@@ -240,23 +255,25 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 		if (bShouldBounce)
 		{
 			// If we can bounce, we are allowed to move out of penetrations, so use SafeMoveUpdatedComponent which does that automatically.
-			SafeMoveUpdatedComponent( MoveDelta, NewRotation, bSweepCollision, Hit );
+			SafeMoveUpdatedComponent(MoveDelta, NewRotation, bSweepCollision, Hit);
 		}
 		else
 		{
 			// If we can't bounce, then we shouldn't adjust if initially penetrating, because that should be a blocking hit that causes a hit event and stop simulation.
-			TGuardValue<EMoveComponentFlags> ScopedFlagRestore(MoveComponentFlags, MoveComponentFlags | MOVECOMP_NeverIgnoreBlockingOverlaps);
-			MoveUpdatedComponent(MoveDelta, NewRotation, bSweepCollision, &Hit );
+			TGuardValue<EMoveComponentFlags> ScopedFlagRestore(MoveComponentFlags,
+			                                                   MoveComponentFlags |
+			                                                   MOVECOMP_NeverIgnoreBlockingOverlaps);
+			MoveUpdatedComponent(MoveDelta, NewRotation, bSweepCollision, &Hit);
 		}
-		
+
 		// If we hit a trigger that destroyed us, abort.
-		if( !IsValid(ActorOwner) || HasStoppedSimulation() )
+		if (!IsValid(ActorOwner) || HasStoppedSimulation())
 		{
 			return;
 		}
 
 		// Handle hit result after movement
-		if( !Hit.bBlockingHit )
+		if (!Hit.bBlockingHit)
 		{
 			PreviousHitTime = 1.f;
 			bIsSliding = false;
@@ -264,7 +281,7 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 			// Only calculate new velocity if events didn't change it during the movement update.
 			if (Velocity == OldVelocity)
 			{
-				Velocity = ComputeVelocity(Velocity, TimeTick);				
+				Velocity = ComputeVelocity(Velocity, TimeTick);
 			}
 
 			// Logging
@@ -278,18 +295,21 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 			if (Velocity == OldVelocity)
 			{
 				// re-calculate end velocity for partial time
-				Velocity = (Hit.Time > UE_KINDA_SMALL_NUMBER) ? ComputeVelocity(OldVelocity, TimeTick * Hit.Time) : OldVelocity;
+				Velocity = (Hit.Time > UE_KINDA_SMALL_NUMBER)
+					           ? ComputeVelocity(OldVelocity, TimeTick * Hit.Time)
+					           : OldVelocity;
 			}
 
 			// Logging
 			// UE_CLOG(UpdatedComponent != nullptr, LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f) new hit at t=%.3f: (Pos %s, Vel %s)"),
-				// *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, Hit.Time, *UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
+			// *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, Hit.Time, *UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
 
 			// Handle blocking hit
 			NumImpacts++;
 			float SubTickTimeRemaining = TimeTick * (1.f - Hit.Time);
-			const EHandleBlockingHitResult HandleBlockingResult = HandleBlockingHit(Hit, TimeTick, MoveDelta, SubTickTimeRemaining);
-			
+			const EHandleBlockingHitResult HandleBlockingResult = HandleBlockingHit(
+				Hit, TimeTick, MoveDelta, SubTickTimeRemaining);
+
 			if (HandleBlockingResult == EHandleBlockingHitResult::Abort || HasStoppedSimulation())
 			{
 				break;
@@ -315,7 +335,7 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 			// Logging
 			// UE_CLOG(UpdatedComponent != nullptr, LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f) deflect at t=%.3f: (Pos %s, Vel %s)"),
 			// 	*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), Iterations, TimeTick, Hit.Time, *UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
-			
+
 			// Add unprocessed time after impact
 			if (SubTickTimeRemaining >= MIN_TICK_TIME)
 			{
@@ -338,7 +358,8 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 }
 
 
-bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, const FVector& OldVelocity, const uint32 NumBounces, float& SubTickTimeRemaining)
+bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, const FVector& OldVelocity,
+                                                       const uint32 NumBounces, float& SubTickTimeRemaining)
 {
 	const FVector Normal = ConstrainNormalToPlane(Hit.Normal);
 
@@ -348,7 +369,7 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, const FV
 	// if velocity still into wall (after HandleBlockingHit() had a chance to adjust), slide along wall
 	const float DotTolerance = 0.01f;
 	bIsSliding = (bMultiHit && FVector::Coincident(PreviousHitNormal, Normal)) ||
-					((Velocity.GetSafeNormal() | Normal) <= DotTolerance);
+		((Velocity.GetSafeNormal() | Normal) <= DotTolerance);
 
 	if (bIsSliding)
 	{
@@ -366,7 +387,7 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, const FV
 			// }
 			// Velocity = ConstrainDirectionToPlane(Velocity);
 			// UE_LOG(LogTemp, Warning, TEXT("PreviousHitNormal %s, Normal %s, MultiHit %d, Dot %f"),
-				// *PreviousHitNormal.ToString(), *Normal.ToString(), bMultiHit, (PreviousHitNormal | Normal));
+			// *PreviousHitNormal.ToString(), *Normal.ToString(), bMultiHit, (PreviousHitNormal | Normal));
 			// UE_LOG(LogTemp, Warning, TEXT("MultiHit Projectile %s: (Role: %d) Sliding along corner, new velocity: %s"),
 			// 	*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
 		}
@@ -406,7 +427,8 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 
 	// Velocity is now parallel to the impact surface.
 	// Perform the move now, before adding gravity/accel again, so we don't just keep hitting the surface.
-	SafeMoveUpdatedComponent(Velocity * SubTickTimeRemaining, UpdatedComponent->GetComponentQuat(), bSweepCollision, Hit);
+	SafeMoveUpdatedComponent(Velocity * SubTickTimeRemaining, UpdatedComponent->GetComponentQuat(), bSweepCollision,
+	                         Hit);
 
 	if (HasStoppedSimulation())
 	{
@@ -418,8 +440,9 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 	{
 		const float TimeTick = SubTickTimeRemaining;
 		SubTickTimeRemaining = TimeTick * (1.f - Hit.Time);
-		
-		if (HandleBlockingHit(Hit, TimeTick, Velocity * TimeTick, SubTickTimeRemaining) == EHandleBlockingHitResult::Abort ||
+
+		if (HandleBlockingHit(Hit, TimeTick, Velocity * TimeTick, SubTickTimeRemaining) ==
+			EHandleBlockingHitResult::Abort ||
 			HasStoppedSimulation())
 		{
 			return false;
@@ -438,7 +461,8 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 			const FVector ProjectedForce = FVector::VectorPlaneProject(Force, OldHitNormal);
 			const FVector NewVelocity = Velocity + ProjectedForce;
 
-			const FVector FrictionForce = -NewVelocity.GetSafeNormal() * FMath::Min(-ForceDotN * Friction, NewVelocity.Size());
+			const FVector FrictionForce = -NewVelocity.GetSafeNormal() * FMath::Min(
+				-ForceDotN * Friction, NewVelocity.Size());
 			Velocity = ConstrainDirectionToPlane(NewVelocity + FrictionForce);
 			// UE_LOG(LogProjectileMovement, Warning, TEXT("Projectile %s: (Role: %d) Sliding along surface with friction, new velocity: %s"),
 			// 	*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
@@ -528,7 +552,8 @@ FVector UPawProjectileMovementComponent::ComputeAcceleration(const FVector& InVe
 // Allow the projectile to track towards its homing target.
 FVector UPawProjectileMovementComponent::ComputeHomingAcceleration(const FVector& InVelocity, float DeltaTime) const
 {
-	FVector HomingAcceleration = ((HomingTargetComponent->GetComponentLocation() - UpdatedComponent->GetComponentLocation()).GetSafeNormal() * HomingAccelerationMagnitude);
+	FVector HomingAcceleration = ((HomingTargetComponent->GetComponentLocation() - UpdatedComponent->
+		GetComponentLocation()).GetSafeNormal() * HomingAccelerationMagnitude);
 	return HomingAcceleration;
 }
 
@@ -567,16 +592,17 @@ void UPawProjectileMovementComponent::StopSimulating(const FHitResult& HitResult
 }
 
 
-UPawProjectileMovementComponent::EHandleBlockingHitResult UPawProjectileMovementComponent::HandleBlockingHit(const FHitResult& Hit, float TimeTick, const FVector& MoveDelta, float& SubTickTimeRemaining)
+UPawProjectileMovementComponent::EHandleBlockingHitResult UPawProjectileMovementComponent::HandleBlockingHit(
+	const FHitResult& Hit, float TimeTick, const FVector& MoveDelta, float& SubTickTimeRemaining)
 {
 	AActor* ActorOwner = UpdatedComponent ? UpdatedComponent->GetOwner() : NULL;
 	if (!CheckStillInWorld() || !IsValid(ActorOwner))
 	{
 		return EHandleBlockingHitResult::Abort;
 	}
-	
+
 	HandleImpact(Hit, TimeTick, MoveDelta);
-	
+
 	if (!IsValid(ActorOwner) || HasStoppedSimulation())
 	{
 		return EHandleBlockingHitResult::Abort;
@@ -591,8 +617,9 @@ UPawProjectileMovementComponent::EHandleBlockingHitResult UPawProjectileMovement
 	SubTickTimeRemaining = TimeTick * (1.f - Hit.Time);
 	return EHandleBlockingHitResult::Deflect;
 }
- 
-FVector UPawProjectileMovementComponent::ComputeBounceResult(const FHitResult& Hit, float TimeSlice, const FVector& MoveDelta)
+
+FVector UPawProjectileMovementComponent::ComputeBounceResult(const FHitResult& Hit, float TimeSlice,
+                                                             const FVector& MoveDelta)
 {
 	FVector TempVelocity = Velocity;
 	const FVector Normal = ConstrainNormalToPlane(Hit.Normal);
@@ -608,7 +635,10 @@ FVector UPawProjectileMovementComponent::ComputeBounceResult(const FHitResult& H
 		TempVelocity += ProjectedNormal;
 
 		// Only tangential velocity should be affected by friction.
-		const float ScaledFriction = (bBounceAngleAffectsFriction || bIsSliding) ? FMath::Clamp(-VDotNormal / TempVelocity.Size(), MinFrictionFraction, 1.f) * Friction : Friction;
+		const float ScaledFriction = (bBounceAngleAffectsFriction || bIsSliding)
+			                             ? FMath::Clamp(-VDotNormal / TempVelocity.Size(), MinFrictionFraction, 1.f) *
+			                             Friction
+			                             : Friction;
 		TempVelocity *= FMath::Clamp(1.f - ScaledFriction, 0.f, 1.f);
 
 		// Coefficient of restitution only applies perpendicular to impact.
@@ -636,10 +666,10 @@ void UPawProjectileMovementComponent::HandleImpact(const FHitResult& Hit, float 
 
 		// Event may modify velocity or threshold, so check velocity threshold now.
 		Velocity = LimitVelocity(Velocity);
-		
+
 		// UE_LOG(LogTemp, Warning, TEXT("After bounce: Velocity %s, OldVelocity %s, Hit Normal %s, Bounciness %f, Friction %f"),
 		// 	*Velocity.ToString(), *OldVelocity.ToString(), *Hit.Normal.ToString(), Bounciness, Friction);
-		
+
 		if (IsVelocityUnderSimulationThreshold())
 		{
 			bStopSimulating = true;
@@ -659,7 +689,7 @@ void UPawProjectileMovementComponent::HandleImpact(const FHitResult& Hit, float 
 
 bool UPawProjectileMovementComponent::CheckStillInWorld()
 {
-	if ( !UpdatedComponent )
+	if (!UpdatedComponent)
 	{
 		return false;
 	}
@@ -671,7 +701,7 @@ bool UPawProjectileMovementComponent::CheckStillInWorld()
 	}
 
 	// check the variations of KillZ
-	AWorldSettings* WorldSettings = MyWorld->GetWorldSettings( true );
+	AWorldSettings* WorldSettings = MyWorld->GetWorldSettings(true);
 	if (!WorldSettings->AreWorldBoundsChecksEnabled())
 	{
 		return true;
@@ -681,19 +711,21 @@ bool UPawProjectileMovementComponent::CheckStillInWorld()
 	{
 		return false;
 	}
-	if( ActorOwner->GetActorLocation().Z < WorldSettings->KillZ )
+	if (ActorOwner->GetActorLocation().Z < WorldSettings->KillZ)
 	{
-		UDamageType const* DmgType = WorldSettings->KillZDamageType ? WorldSettings->KillZDamageType->GetDefaultObject<UDamageType>() : GetDefault<UDamageType>();
+		UDamageType const* DmgType = WorldSettings->KillZDamageType
+			                             ? WorldSettings->KillZDamageType->GetDefaultObject<UDamageType>()
+			                             : GetDefault<UDamageType>();
 		ActorOwner->FellOutOfWorld(*DmgType);
 		return false;
 	}
 	// Check if box has poked outside the world
-	else if( UpdatedComponent && UpdatedComponent->IsRegistered() )
+	else if (UpdatedComponent && UpdatedComponent->IsRegistered())
 	{
-		const FBox&	Box = UpdatedComponent->Bounds.GetBox();
-		if(	Box.Min.X < -HALF_WORLD_MAX || Box.Max.X > HALF_WORLD_MAX ||
+		const FBox& Box = UpdatedComponent->Bounds.GetBox();
+		if (Box.Min.X < -HALF_WORLD_MAX || Box.Max.X > HALF_WORLD_MAX ||
 			Box.Min.Y < -HALF_WORLD_MAX || Box.Max.Y > HALF_WORLD_MAX ||
-			Box.Min.Z < -HALF_WORLD_MAX || Box.Max.Z > HALF_WORLD_MAX )
+			Box.Min.Z < -HALF_WORLD_MAX || Box.Max.Z > HALF_WORLD_MAX)
 		{
 			UE_LOG(LogProjectileMovement, Warning, TEXT("%s is outside the world bounds!"), *ActorOwner->GetName());
 			ActorOwner->OutsideWorldBounds();
@@ -736,7 +768,11 @@ float UPawProjectileMovementComponent::GetSimulationTimeStep(float RemainingTime
 					static uint32 s_WarningCount = 0;
 					if ((s_WarningCount++ < 100) || (GFrameCounter & 15) == 0)
 					{
-						UE_LOG(LogProjectileMovement, Warning, TEXT("GetSimulationTimeStep() - Max iterations %d hit while remaining time %.6f > MaxSimulationTimeStep (%.3f) for '%s'"), MaxSimulationIterations, RemainingTime, MaxSimulationTimeStep, *GetPathNameSafe(UpdatedComponent));
+						UE_LOG(LogProjectileMovement, Warning,
+						       TEXT(
+							       "GetSimulationTimeStep() - Max iterations %d hit while remaining time %.6f > MaxSimulationTimeStep (%.3f) for '%s'"
+						       ), MaxSimulationIterations, RemainingTime, MaxSimulationTimeStep,
+						       *GetPathNameSafe(UpdatedComponent));
 					}
 				}
 			}
@@ -757,7 +793,10 @@ void UPawProjectileMovementComponent::SetInterpolatedComponent(USceneComponent* 
 
 	if (Component)
 	{
-		if (!ensureMsgf(Component != UpdatedComponent, TEXT("ProjectileMovement interpolated component should not be the same as the simulated component.")))
+		if (!ensureMsgf(Component != UpdatedComponent,
+		                TEXT(
+			                "ProjectileMovement interpolated component should not be the same as the simulated component."
+		                )))
 		{
 			return;
 		}
@@ -770,7 +809,9 @@ void UPawProjectileMovementComponent::SetInterpolatedComponent(USceneComponent* 
 		bInterpolationComplete = true;
 
 		// Space out interpolation skipping to avoid objects spawned on single frame from always updating in sync
-		ThrottleInterpolationFramesSinceInterp = ThrottleInterpolationSkipFramesRecent > 0 ? FMath::RandRange(0, ThrottleInterpolationSkipFramesRecent) : 0;
+		ThrottleInterpolationFramesSinceInterp = ThrottleInterpolationSkipFramesRecent > 0
+			                                         ? FMath::RandRange(0, ThrottleInterpolationSkipFramesRecent)
+			                                         : 0;
 	}
 	else
 	{
@@ -807,7 +848,7 @@ void UPawProjectileMovementComponent::MoveInterpolationTarget(const FVector& New
 			// Avoid moving the child, it will interpolate later
 			const FRotator InterpRelativeRotation = InterpComponent->GetRelativeRotation();
 			FScopedPreventAttachedComponentMove ScopedChildNoMove(InterpComponent);
-			
+
 			// Update interp offset
 			const FVector OldLocation = UpdatedComponent->GetComponentLocation();
 			const FVector NewToOldVector = (OldLocation - NewLocation);
@@ -849,7 +890,7 @@ void UPawProjectileMovementComponent::MoveInterpolationTarget(const FVector& New
 			bInterpolationComplete = true;
 		}
 	}
-	
+
 	if (!bHandledMovement)
 	{
 		UpdatedComponent->SetRelativeLocationAndRotation(NewLocation, NewRotation);
@@ -867,7 +908,7 @@ void UPawProjectileMovementComponent::ResetInterpolation()
 	InterpLocationOffset = FVector::ZeroVector;
 	InterpRotationOffset = FQuat::Identity;
 	bInterpolationComplete = true;
-	
+
 	ThrottleInterpolationFramesSinceInterp = 0;
 }
 
@@ -893,7 +934,8 @@ void UPawProjectileMovementComponent::TickInterpolation(float DeltaTime)
 			if (DeltaTime < InterpRotationTime && bInterpRotation)
 			{
 				// Slowly decay rotation offset
-				InterpRotationOffset = FQuat::FastLerp(InterpRotationOffset, FQuat::Identity, DeltaTime / InterpRotationTime).GetNormalized();
+				InterpRotationOffset = FQuat::FastLerp(InterpRotationOffset, FQuat::Identity,
+				                                       DeltaTime / InterpRotationTime).GetNormalized();
 			}
 			else
 			{
@@ -926,7 +968,10 @@ void UPawProjectileMovementComponent::TickInterpolation(float DeltaTime)
 					// Apply interpolation result
 					if (UpdatedComponent)
 					{
-						const FVector NewRelTranslation = UpdatedComponent->GetComponentToWorld().InverseTransformVectorNoScale(InterpLocationOffset) + InterpInitialLocationOffset;
+						const FVector NewRelTranslation = UpdatedComponent->GetComponentToWorld().
+						                                                    InverseTransformVectorNoScale(
+							                                                    InterpLocationOffset) +
+							InterpInitialLocationOffset;
 						if (bInterpRotation)
 						{
 							const FQuat NewRelRotation = InterpRotationOffset * InterpInitialRotationOffset;
@@ -985,7 +1030,8 @@ bool UPawProjectileMovementComponent::UpdateThrottleInterpolation(float DeltaTim
 	return bIsThrottlingThisFrame;
 }
 
-int32 UPawProjectileMovementComponent::ComputeThrottleInterpolationMaxFrames(float DeltaTime, USceneComponent* InterpComponent)
+int32 UPawProjectileMovementComponent::ComputeThrottleInterpolationMaxFrames(
+	float DeltaTime, USceneComponent* InterpComponent)
 {
 	int32 ThrottleFrames = 0;
 	if (AActor* ActorOwner = InterpComponent->GetOwner())
@@ -1013,3 +1059,34 @@ void UPawProjectileMovementComponent::ResetThrottleInterpolation(float DeltaTime
 	ThrottleInterpolationFramesSinceInterp = 0;
 }
 
+int UPawProjectileMovementComponent::AsyncSweepByObjecType(AActor* Actor, EAsyncTraceType InTraceType,
+                                                           const FVector& Start, const FVector& End, const FQuat& Rot,
+                                                           const FCollisionObjectQueryParams& ObjectQueryParams,
+                                                           const FCollisionQueryParams& Params,
+                                                           const FTraceDelegate* InDelegate, uint32 UserData)
+{
+	if (!IsValid(Actor))
+	{
+		return 0;
+	}
+	UWorld* World = Actor->GetWorld();
+	if (!IsValid(World) || !World->IsGameWorld())
+	{
+		return 0;
+	}
+	UPrimitiveComponent* Prim = Actor->FindComponentByClass<UPrimitiveComponent>();
+	if (!Prim)
+	{
+		return 0;
+	}
+
+	FBodyInstance* BodyInstance = Prim->GetBodyInstance();
+	if (!BodyInstance)
+	{
+		return 0;
+	}
+
+	int TotalSweepCount = 0;
+
+	
+}

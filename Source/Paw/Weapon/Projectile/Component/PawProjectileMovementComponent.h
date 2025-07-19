@@ -22,7 +22,8 @@ public: // Constructor & Public Engine Overrides
 	UPawProjectileMovementComponent(const FObjectInitializer& ObjectInitializer);
 
 	//~ UActorComponent interface
-	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType,
+	                           FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void PostLoad() override;
 	//~ End UActorComponent interface
 
@@ -167,7 +168,8 @@ public: // Properties
 	uint8 bRotationFollowsVelocity : 1;
 
 	/** If true, this projectile will have its rotation updated each frame to maintain the rotations Yaw only. (bRotationFollowsVelocity is required to be true) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projectile, meta = (EditCondition = "bRotationFollowsVelocity"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projectile,
+		meta = (EditCondition = "bRotationFollowsVelocity"))
 	uint8 bRotationRemainsVertical : 1;
 
 	/**
@@ -233,7 +235,8 @@ public: // Properties
 	 * When bounce angle affects friction, apply at least this fraction of normal friction.
 	 * Helps consistently slow objects sliding or rolling along surfaces or in valleys when the usual friction amount would take a very long time to settle.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileBounces, AdvancedDisplay, meta=(ClampMin="0", UIMin="0", ClampMax="1", UIMax="1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileBounces, AdvancedDisplay,
+		meta=(ClampMin="0", UIMin="0", ClampMax="1", UIMax="1"))
 	float MinFrictionFraction;
 
 	/** Saved HitResult Time (0 to 1) from previous simulation step. Equal to 1.0 when there was no impact. */
@@ -274,7 +277,8 @@ public: // Properties
 	 * WARNING: if (MaxSimulationTimeStep * MaxSimulationIterations) is too low for the min framerate, the last simulation step may exceed MaxSimulationTimeStep to complete the simulation.
 	 * @see MaxSimulationIterations, bForceSubStepping
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0.0166", ClampMax="0.50", UIMin="0.0166", UIMax="0.50"), Category=ProjectileSimulation)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0.0166", ClampMax="0.50", UIMin="0.0166", UIMax="0.50"),
+		Category=ProjectileSimulation)
 	float MaxSimulationTimeStep;
 
 	/**
@@ -284,13 +288,15 @@ public: // Properties
 	 * WARNING: if (MaxSimulationTimeStep * MaxSimulationIterations) is too low for the min framerate, the last simulation step may exceed MaxSimulationTimeStep to complete the simulation.
 	 * @see MaxSimulationTimeStep, bForceSubStepping
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1", ClampMax="25", UIMin="1", UIMax="25"), Category=ProjectileSimulation)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1", ClampMax="25", UIMin="1", UIMax="25"),
+		Category=ProjectileSimulation)
 	int32 MaxSimulationIterations;
 
 	/**
 	 * On the first few bounces (up to this amount), allow extra iterations over MaxSimulationIterations if necessary.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0", ClampMax="4", UIMin="0", UIMax="4"), Category=ProjectileSimulation)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0", ClampMax="4", UIMin="0", UIMax="4"),
+		Category=ProjectileSimulation)
 	int32 BounceAdditionalIterations;
 
 	// Properties: Homing System
@@ -401,13 +407,15 @@ public: // Properties
 	/**
 	 * When recently relevant, skip this many frames of interpolation if throttling is enabled.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation, AdvancedDisplay, meta=(ClampMin="0", UIMin="0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation, AdvancedDisplay,
+		meta=(ClampMin="0", UIMin="0"))
 	int32 ThrottleInterpolationSkipFramesRecent;
 
 	/**
 	 * When not recently relevant, skip this many frames of interpolation if throttling is enabled.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation, AdvancedDisplay, meta=(ClampMin="0", UIMin="0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation, AdvancedDisplay,
+		meta=(ClampMin="0", UIMin="0"))
 	int32 ThrottleInterpolationSkipFramesNotRecent;
 
 	/**
@@ -416,7 +424,9 @@ public: // Properties
 	int32 ThrottleInterpolationFramesSinceInterp;
 
 public: // Blueprint Events & Delegates
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnProjectileBounceDelegate, const FHitResult&, ImpactResult, const FVector&, ImpactVelocity);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnProjectileBounceDelegate, const FHitResult&, ImpactResult,
+	                                             const FVector&, ImpactVelocity);
+
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnProjectileStopDelegate, const FHitResult&, ImpactResult);
 
 	/** Called when projectile impacts something and bounces are enabled. */
@@ -433,7 +443,8 @@ protected: // Protected Engine Overrides
 	 * or stops the projectile if bounces are not enabled or velocity is below BounceVelocityStopSimulatingThreshold.
 	 * Triggers applicable events (OnProjectileBounce).
 	 */
-	virtual void HandleImpact(const FHitResult& Hit, float TimeSlice = 0.f, const FVector& MoveDelta = FVector::ZeroVector) override;
+	virtual void HandleImpact(const FHitResult& Hit, float TimeSlice = 0.f,
+	                          const FVector& MoveDelta = FVector::ZeroVector) override;
 
 protected: // Internal Helper Methods
 
@@ -462,7 +473,8 @@ protected: // Internal Helper Methods
 	 * @return Result indicating how simulation should proceed.
 	 * @see EHandleHitWallResult, HandleImpact()
 	 */
-	virtual EHandleBlockingHitResult HandleBlockingHit(const FHitResult& Hit, float TimeTick, const FVector& MoveDelta, float& SubTickTimeRemaining);
+	virtual EHandleBlockingHitResult HandleBlockingHit(const FHitResult& Hit, float TimeTick, const FVector& MoveDelta,
+	                                                   float& SubTickTimeRemaining);
 
 	/**
 	 * Handle a blocking hit after HandleBlockingHit() returns a result indicating that deflection occured.
@@ -475,7 +487,8 @@ protected: // Internal Helper Methods
 	 * @return True if simulation of the projectile should continue, false otherwise.
 	 * @see HandleSliding()
 	 */
-	virtual bool HandleDeflection(FHitResult& Hit, const FVector& OldVelocity, const uint32 NumBounces, float& SubTickTimeRemaining);
+	virtual bool HandleDeflection(FHitResult& Hit, const FVector& OldVelocity, const uint32 NumBounces,
+	                              float& SubTickTimeRemaining);
 
 	/**
 	 * Handle case where projectile is sliding along a surface.
@@ -509,6 +522,19 @@ protected: // Internal Helper Methods
 	 * Custom hook to reset throttle interpolation tracking when it was throttling previously.
 	 */
 	virtual void ResetThrottleInterpolation(float DeltaTime);
+
+private: // Internal Helpers
+
+	static int AsyncSweepByObjecType(
+		AActor* Actor,
+		EAsyncTraceType InTraceType,
+		const FVector& Start,
+		const FVector& End,
+		const FQuat& Rot,
+		const FCollisionObjectQueryParams& ObjectQueryParams,
+		const FCollisionQueryParams& Params = FCollisionQueryParams::DefaultQueryParam,
+		const FTraceDelegate* InDelegate = nullptr,
+		uint32 UserData = 0);
 
 private: // Cached State
 	// Double-buffer of pending force so that updates can use the accumulated value and reset the data so other AddForce() calls work correctly.
