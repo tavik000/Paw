@@ -206,8 +206,8 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 	}
 
 	float RemainingTime = DeltaTime;
-	int32 NumImpacts = 0;
-	int32 NumBounces = 0;
+	NumImpacts = 0;
+	NumBounces = 0;
 	int32 LoopCount = 0;
 	int32 Iterations = 0;
 	FHitResult Hit(1.f);
@@ -216,102 +216,103 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 	const FScopedMovementUpdate ScopedProjectileUpdate(bSimulationUseScopedMovement ? UpdatedComponent : nullptr,
 	                                                   EScopedUpdate::DeferredUpdates);
 
-	while (bSimulationEnabled && RemainingTime >= MIN_TICK_TIME && (Iterations < MaxSimulationIterations) &&
-		IsValid(ActorOwner) && !HasStoppedSimulation())
+	// while (bSimulationEnabled && RemainingTime >= MIN_TICK_TIME && (Iterations < MaxSimulationIterations) &&
+	// 	IsValid(ActorOwner) && !HasStoppedSimulation())
+	// {
+	// 	LoopCount++;
+	// 	Iterations++;
+
+	// subdivide long ticks to more closely follow parabolic trajectory
+	// const float InitialTimeRemaining = RemainingTime;
+	CurrentTimeTick = ShouldUseSubStepping()
+		                  ? GetSimulationTimeStep(RemainingTime, Iterations)
+		                  : RemainingTime;
+	RemainingTime -= CurrentTimeTick;
+
+	// Logging
+	// UE_LOG(LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f, [%.3f / %.3f] cur/total) sim (Pos %s, Vel %s)"),
+	// 	*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, FMath::Max(0.f, DeltaTime - InitialTimeRemaining), DeltaTime,
+	// 	*UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
+
+	// Initial move state
+	Hit.Time = 1.f;
+	OldVelocity = Velocity;
+	const FVector MoveDelta = ComputeMoveDelta(OldVelocity, CurrentTimeTick);
+	FQuat NewRotation = (bRotationFollowsVelocity && !OldVelocity.IsNearlyZero(VelocityTolerance))
+		                    ? OldVelocity.ToOrientationQuat()
+		                    : UpdatedComponent->GetComponentQuat();
+
+	if (bRotationFollowsVelocity && bRotationRemainsVertical)
 	{
-		LoopCount++;
-		Iterations++;
-
-		// subdivide long ticks to more closely follow parabolic trajectory
-		const float InitialTimeRemaining = RemainingTime;
-		CurrentTimeTick = ShouldUseSubStepping()
-			           ? GetSimulationTimeStep(RemainingTime, Iterations)
-			           : RemainingTime;
-		RemainingTime -= CurrentTimeTick;
-
-		// Logging
-		// UE_LOG(LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f, [%.3f / %.3f] cur/total) sim (Pos %s, Vel %s)"),
-		// 	*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, FMath::Max(0.f, DeltaTime - InitialTimeRemaining), DeltaTime,
-		// 	*UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
-
-		// Initial move state
-		Hit.Time = 1.f;
-		OldVelocity = Velocity;
-		const FVector MoveDelta = ComputeMoveDelta(OldVelocity, CurrentTimeTick);
-		FQuat NewRotation = (bRotationFollowsVelocity && !OldVelocity.IsNearlyZero(VelocityTolerance))
-			                    ? OldVelocity.ToOrientationQuat()
-			                    : UpdatedComponent->GetComponentQuat();
-
-		if (bRotationFollowsVelocity && bRotationRemainsVertical)
-		{
-			FRotator DesiredRotation = NewRotation.Rotator();
-			DesiredRotation.Pitch = 0.0f;
-			DesiredRotation.Yaw = FRotator::NormalizeAxis(DesiredRotation.Yaw);
-			DesiredRotation.Roll = 0.0f;
-			NewRotation = DesiredRotation.Quaternion();
-		}
-
-
-		// Move the component
-		if (bShouldBounce)
-		{
-			// If we can bounce, we are allowed to move out of penetrations, so use SafeMoveUpdatedComponent which does that automatically.
-			// SafeMoveUpdatedComponent(MoveDelta, NewRotation, bSweepCollision, Hit);
-			//TODO bSweepCollision;
-
-			FVector ActorLocation = ActorOwner->GetActorLocation();
-			FQuat ActorQuat = ActorOwner->GetActorQuat();
-			auto& AsyncData = AsyncSweepData;
-			AsyncData.Reset();
-			AsyncData.MoveDistance = MoveDelta.Length();
-			AsyncData.HitMinDistance = AsyncData.MoveDistance;
-			AsyncData.Direction = MoveDelta.GetSafeNormal();
-			AsyncData.RelativeQuat = ActorQuat.Inverse() * NewRotation;
-
-			if (FMath::IsNearlyZero(AsyncData.MoveDistance))
-			{
-				return;
-			}
-			FCollisionQueryParams QueryParams;
-			QueryParams.AddIgnoredActor(ActorOwner);
-			FCollisionObjectQueryParams ObjectQueryParams;
-			ObjectQueryParams.AddObjectTypesToQuery(UpdatedComponent->GetCollisionObjectType());
-
-			if (!AsyncSweepDelegate.IsBound())
-			{
-				AsyncSweepDelegate.BindUObject(this, &ThisClass::HandleAsyncSweepResult);
-			}
-			FVector StartLocation = ActorLocation;
-			FVector EndLocation = StartLocation + MoveDelta;
-			AsyncSweepData.SweepCount += AsyncSweepByObjectType(ActorOwner, EAsyncTraceType::Single,
-			                                                    StartLocation, EndLocation,
-			                                                    NewRotation,
-			                                                    ObjectQueryParams, QueryParams, &AsyncSweepDelegate);
-		}
-		else
-		{
-			// If we can't bounce, then we shouldn't adjust if initially penetrating, because that should be a blocking hit that causes a hit event and stop simulation.
-			TGuardValue<EMoveComponentFlags> ScopedFlagRestore(MoveComponentFlags,
-			                                                   MoveComponentFlags |
-			                                                   MOVECOMP_NeverIgnoreBlockingOverlaps);
-			MoveUpdatedComponent(MoveDelta, NewRotation, bSweepCollision, &Hit);
-		}
+		FRotator DesiredRotation = NewRotation.Rotator();
+		DesiredRotation.Pitch = 0.0f;
+		DesiredRotation.Yaw = FRotator::NormalizeAxis(DesiredRotation.Yaw);
+		DesiredRotation.Roll = 0.0f;
+		NewRotation = DesiredRotation.Quaternion();
 	}
 
-	UpdateComponentVelocity();
+
+	// Move the component
+	if (bShouldBounce)
+	{
+		// If we can bounce, we are allowed to move out of penetrations, so use SafeMoveUpdatedComponent which does that automatically.
+		// SafeMoveUpdatedComponent(MoveDelta, NewRotation, bSweepCollision, Hit);
+
+		FVector ActorLocation = ActorOwner->GetActorLocation();
+		FQuat ActorQuat = ActorOwner->GetActorQuat();
+		auto& AsyncData = AsyncSweepData;
+		AsyncData.Reset();
+		AsyncData.MoveDistance = MoveDelta.Length();
+		AsyncData.HitMinDistance = AsyncData.MoveDistance;
+		AsyncData.Direction = MoveDelta.GetSafeNormal();
+		AsyncData.RelativeQuat = ActorQuat.Inverse() * NewRotation;
+		AsyncData.MoveDelta = MoveDelta;
+
+		if (FMath::IsNearlyZero(AsyncData.MoveDistance))
+		{
+			return;
+		}
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActor(ActorOwner);
+		FCollisionObjectQueryParams ObjectQueryParams;
+		ObjectQueryParams.AddObjectTypesToQuery(UpdatedComponent->GetCollisionObjectType());
+
+		if (!AsyncSweepDelegate.IsBound())
+		{
+			AsyncSweepDelegate.BindUObject(this, &ThisClass::HandleMovementAsyncSweepResult);
+		}
+		FVector StartLocation = ActorLocation;
+		FVector EndLocation = StartLocation + MoveDelta;
+		AsyncSweepData.SweepCount += AsyncSweepByObjectType(ActorOwner, EAsyncTraceType::Single,
+		                                                    StartLocation, EndLocation,
+		                                                    NewRotation,
+		                                                    ObjectQueryParams, QueryParams, &AsyncSweepDelegate);
+	}
+	else
+	{
+		// If we can't bounce, then we shouldn't adjust if initially penetrating, because that should be a blocking hit that causes a hit event and stop simulation.
+		TGuardValue<EMoveComponentFlags> ScopedFlagRestore(MoveComponentFlags,
+		                                                   MoveComponentFlags |
+		                                                   MOVECOMP_NeverIgnoreBlockingOverlaps);
+		MoveUpdatedComponent(MoveDelta, NewRotation, bSweepCollision, &Hit);
+	}
+	// }
 }
 
 
-bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit,
-                                                       const uint32 NumBounces, float& SubTickTimeRemaining)
+bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& SubTickTimeRemaining)
 {
+	UE_LOG(LogTemp, Warning, TEXT(" HandleDeflection called for %s"),
+	       *GetNameSafe(UpdatedComponent->GetOwner()));
 	const FVector Normal = ConstrainNormalToPlane(Hit.Normal);
 
 	// Multiple hits within very short time period?
 	const bool bMultiHit = (PreviousHitTime < 1.f && Hit.Time <= UE_KINDA_SMALL_NUMBER);
 
 	// if velocity still into wall (after HandleBlockingHit() had a chance to adjust), slide along wall
-	const float DotTolerance = 0.01f;
+	constexpr float DotTolerance = 0.01f;
+
+	// If the previous hit normal is not valid, or if the current hit normal is not parallel to the previous hit normal,
 	bIsSliding = (bMultiHit && FVector::Coincident(PreviousHitNormal, Normal)) ||
 		((Velocity.GetSafeNormal() | Normal) <= DotTolerance);
 
@@ -322,6 +323,7 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit,
 		if (bMultiHit && (PreviousHitNormal | Normal) < 0.173648f)
 		{
 			//90 degree or less corner, so use cross product for direction
+
 			// FVector NewDir = (Normal ^ PreviousHitNormal);
 			// NewDir = NewDir.GetSafeNormal();
 			// Velocity = Velocity.ProjectOnToNormal(NewDir);
@@ -339,13 +341,17 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit,
 		{
 			//adjust to move along new wall
 			Velocity = ComputeSlideVector(Velocity, 1.f, Normal, Hit);
-			// UE_LOG(LogTemp, Warning, TEXT("No MultiHit Projectile %s: (Role: %d) Sliding along surface, new velocity: %s"),
-			// 	*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
+			UE_LOG(LogTemp, Warning,
+			       TEXT("No MultiHit Projectile %s: (Role: %d) Sliding along surface, new velocity: %s"),
+			       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
+			       *Velocity.ToString());
 		}
 
 		// Check min velocity.
 		if (IsVelocityUnderSimulationThreshold())
 		{
+			UE_LOG(LogTemp, Warning, TEXT(" Projectile %s: (Role: %d) Stopping simulation due to low velocity after sliding."),
+			       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole());
 			StopSimulating(Hit);
 			return false;
 		}
@@ -366,67 +372,58 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit,
 
 bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubTickTimeRemaining)
 {
+	if (HasStoppedSimulation())
+	{
+		return false;
+	}
+	AActor* ActorOwner = UpdatedComponent->GetOwner();
+	if (!IsValid(ActorOwner))
+	{
+		return false;
+	}
 	FHitResult InitialHit(Hit);
 	const FVector OldHitNormal = ConstrainDirectionToPlane(Hit.Normal);
 
 	// Velocity is now parallel to the impact surface.
 	// Perform the move now, before adding gravity/accel again, so we don't just keep hitting the surface.
-	SafeMoveUpdatedComponent(Velocity * SubTickTimeRemaining, UpdatedComponent->GetComponentQuat(), bSweepCollision,
-	                         Hit);
+	// SafeMoveUpdatedComponent(Velocity * SubTickTimeRemaining, UpdatedComponent->GetComponentQuat(), bSweepCollision,
+	//                          Hit);
 
-	if (HasStoppedSimulation())
+
+	// Async Slide Sweep
+	SlidingAsyncData.Reset();
+	SlidingAsyncData.SubTickTimeRemaining = SubTickTimeRemaining;
+	SlidingAsyncData.InitialHit = InitialHit;
+	SlidingAsyncData.OldHitNormal = OldHitNormal;
+
+	FVector MoveDelta = Velocity * SubTickTimeRemaining;
+	SlidingAsyncData.Direction = MoveDelta.GetSafeNormal();
+	SlidingAsyncData.MoveDistance = MoveDelta.Length();
+	SlidingAsyncData.HitMinDistance = SlidingAsyncData.MoveDistance;
+	if (FMath::IsNearlyZero(SlidingAsyncData.MoveDistance))
 	{
 		return false;
 	}
 
-	// A second hit can deflect the velocity (through the normal bounce code), for the next iteration.
-	if (Hit.bBlockingHit)
+	if (!AsyncSlidingDelegate.IsBound())
 	{
-		const float TimeTick = SubTickTimeRemaining;
-		SubTickTimeRemaining = TimeTick * (1.f - Hit.Time);
-
-		if (HandleBlockingHit(Hit, TimeTick, Velocity * TimeTick, SubTickTimeRemaining) ==
-			EHandleBlockingHitResult::Abort ||
-			HasStoppedSimulation())
-		{
-			return false;
-		}
+		AsyncSlidingDelegate.BindUObject(this, &ThisClass::HandleSlidingAsyncSweepResult);
 	}
-	else
-	{
-		// Find velocity after elapsed time
-		const FVector PostTickVelocity = ComputeVelocity(Velocity, SubTickTimeRemaining);
 
-		// If pointing back into surface, apply friction and acceleration.
-		const FVector Force = (PostTickVelocity - Velocity);
-		const float ForceDotN = (Force | OldHitNormal);
-		if (ForceDotN < 0.f)
-		{
-			const FVector ProjectedForce = FVector::VectorPlaneProject(Force, OldHitNormal);
-			const FVector NewVelocity = Velocity + ProjectedForce;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(ActorOwner);
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(UpdatedComponent->GetCollisionObjectType());
+	const FVector StartLocation = ActorOwner->GetActorLocation();
+	const FVector EndLocation = StartLocation + MoveDelta;
 
-			const FVector FrictionForce = -NewVelocity.GetSafeNormal() * FMath::Min(
-				-ForceDotN * Friction, NewVelocity.Size());
-			Velocity = ConstrainDirectionToPlane(NewVelocity + FrictionForce);
-			// UE_LOG(LogProjectileMovement, Warning, TEXT("Projectile %s: (Role: %d) Sliding along surface with friction, new velocity: %s"),
-			// 	*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
-		}
-		else
-		{
-			Velocity = PostTickVelocity;
-			// UE_LOG(LogTemp, Warning, TEXT(" Projectile %s: (Role: %d) Sliding along surface without friction, new velocity: %s"),
-			// 	*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
-		}
-
-		// Check min velocity
-		if (IsVelocityUnderSimulationThreshold())
-		{
-			StopSimulating(InitialHit);
-			return false;
-		}
-
-		SubTickTimeRemaining = 0.f;
-	}
+	UE_LOG(LogTemp, Warning, TEXT("Sliding Seeep for %s, Start %s, End %s, MoveDistance %.3f"),
+	       *GetNameSafe(ActorOwner), *StartLocation.ToString(), *EndLocation.ToString(),
+	       SlidingAsyncData.MoveDistance);
+	SlidingAsyncData.SweepCount += AsyncSweepByObjectType(ActorOwner, EAsyncTraceType::Single,
+	                                                      StartLocation, EndLocation,
+	                                                      UpdatedComponent->GetComponentQuat(),
+	                                                      ObjectQueryParams, QueryParams, &AsyncSlidingDelegate);
 
 	return true;
 }
@@ -542,6 +539,7 @@ UPawProjectileMovementComponent::EHandleBlockingHitResult UPawProjectileMovement
 	AActor* ActorOwner = UpdatedComponent ? UpdatedComponent->GetOwner() : NULL;
 	if (!CheckStillInWorld() || !IsValid(ActorOwner))
 	{
+		UE_LOG(LogTemp, Warning, TEXT(" Projectile %s is not valid or not in world!"), *GetNameSafe(ActorOwner));
 		return EHandleBlockingHitResult::Abort;
 	}
 
@@ -549,13 +547,14 @@ UPawProjectileMovementComponent::EHandleBlockingHitResult UPawProjectileMovement
 
 	if (!IsValid(ActorOwner) || HasStoppedSimulation())
 	{
+		UE_LOG(LogTemp, Warning, TEXT(" Projectile %s is no longer valid or has stopped simulation!"), *GetNameSafe(ActorOwner));
 		return EHandleBlockingHitResult::Abort;
 	}
 
 	if (Hit.bStartPenetrating)
 	{
-		// UE_LOG(LogProjectileMovement, Verbose, TEXT("Projectile %s is stuck inside %s.%s with velocity %s!"), *GetNameSafe(ActorOwner), *Hit.HitObjectHandle.GetName(), *GetNameSafe(Hit.GetComponent()), *Velocity.ToString());
-		return EHandleBlockingHitResult::Abort;
+		// UE_LOG(LogTemp, Warning, TEXT(" Projectile %s hit penetrating surface!"), *GetNameSafe(ActorOwner));
+		// return EHandleBlockingHitResult::Abort;
 	}
 
 	SubTickTimeRemaining = TimeTick * (1.f - Hit.Time);
@@ -1039,7 +1038,7 @@ int UPawProjectileMovementComponent::AsyncSweepByObjectType(AActor* Actor, EAsyn
 	return TotalSweepCount;
 }
 
-void UPawProjectileMovementComponent::HandleAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data)
+void UPawProjectileMovementComponent::HandleMovementAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data)
 {
 	UE_LOG(LogTemp, Warning, TEXT(" HandleAsyncSweepResult HitCount: %d"), Data.OutHits.Num());
 	auto& AsyncData = AsyncSweepData;
@@ -1050,17 +1049,18 @@ void UPawProjectileMovementComponent::HandleAsyncSweepResult(const FTraceHandle&
 			AsyncData.HitMinDistance = Hit.Distance;
 			AsyncData.HitCount++;
 			AsyncData.HitImpactNormal = Hit.ImpactNormal;
+			AsyncData.HitResult = Hit;
 		}
 	}
 
 	AsyncData.SweepCount--;
 	if (AsyncData.SweepCount <= 0)
 	{
-		HandleAsyncSweepCompleted();
+		HandleMovementAsyncSweepCompleted();
 	}
 }
 
-void UPawProjectileMovementComponent::HandleAsyncSweepCompleted()
+void UPawProjectileMovementComponent::HandleMovementAsyncSweepCompleted()
 {
 	UE_LOG(LogTemp, Warning, TEXT(" HandleAsyncSweepCompleted: HitCount: %d, HitMinDistance: %f, Direction: %s"),
 	       AsyncSweepData.HitCount, AsyncSweepData.HitMinDistance, *AsyncSweepData.Direction.ToString());
@@ -1079,9 +1079,7 @@ void UPawProjectileMovementComponent::HandleAsyncSweepCompleted()
 	NewTransform.SetLocation(NewLocation);
 	NewTransform.SetRotation(NewRotation);
 
-	//TODO handle sliding
-
-	// Handle Sweep Hit
+	// Handle Sweep Hit Result
 	if (AsyncData.HitCount == 0)
 	{
 		PreviousHitTime = 1.f;
@@ -1097,74 +1095,151 @@ void UPawProjectileMovementComponent::HandleAsyncSweepCompleted()
 		UpdateComponentVelocity();
 
 		// Logging
-		UE_LOG(LogTemp, Warning, TEXT("Move Projectile %s: (Role: %d) Hit at %.3f, Location: %s, Velocity: %s, IsSliding: %d"),
+		UE_LOG(LogTemp, Warning,
+		       TEXT("Move Projectile %s: (Role: %d) Hit at %.3f, Location: %s, Velocity: %s, IsSliding: %d"),
 		       *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), AsyncData.HitMinDistance,
 		       *NewLocation.ToString(), *Velocity.ToString(), bIsSliding);
 	}
 	else
 	{
-		return;
-		// UE_LOG(LogTemp, Warning, TEXT("Hit: %s, Time: %.3f, Normal: %s, Location: %s, IsSliding: %d"),
-		// 	*Hit.GetActor()->GetActorLabel(), Hit.Time, *Hit.Normal.ToString(),  *Hit.ImpactPoint.ToString(), bIsSliding);
+		UE_LOG(LogTemp, Warning, TEXT("AsyncData.HitCount: %d, HitMinDistance: %f, Direction: %s"),
+		       AsyncData.HitCount, AsyncData.HitMinDistance, *AsyncData.Direction.ToString());
 		// Only calculate new velocity if events didn't change it during the movement update.
-		// if (Velocity == OldVelocity)
-		// {
-		// 	// re-calculate end velocity for partial time
-		// 	Velocity = (Hit.Time > UE_KINDA_SMALL_NUMBER)
-		// 		           ? ComputeVelocity(OldVelocity, TimeTick * Hit.Time)
-		// 		           : OldVelocity;
-		// }
-		//
-		// // Logging
-		// // UE_CLOG(UpdatedComponent != nullptr, LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f) new hit at t=%.3f: (Pos %s, Vel %s)"),
-		// // *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, Hit.Time, *UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
-		//
-		// // Handle blocking hit
-		// NumImpacts++;
-		// float SubTickTimeRemaining = TimeTick * (1.f - Hit.Time);
-		// const EHandleBlockingHitResult HandleBlockingResult = HandleBlockingHit(
-		// 	Hit, TimeTick, MoveDelta, SubTickTimeRemaining);
-		//
-		// if (HandleBlockingResult == EHandleBlockingHitResult::Abort || HasStoppedSimulation())
-		// {
-		// 	break;
-		// }
-		// if (HandleBlockingResult == EHandleBlockingHitResult::Deflect)
-		// {
-		// 	NumBounces++;
-		// 	HandleDeflection(Hit, OldVelocity, NumBounces, SubTickTimeRemaining);
-		// 	PreviousHitTime = Hit.Time;
-		// 	PreviousHitNormal = ConstrainNormalToPlane(Hit.Normal);
-		// }
-		// else if (HandleBlockingResult == EHandleBlockingHitResult::AdvanceNextSubstep)
-		// {
-		// 	// Reset deflection logic to ignore this hit
-		// 	PreviousHitTime = 1.f;
-		// }
-		// else
-		// {
-		// 	// Unhandled EHandleBlockingHitResult
-		// 	checkNoEntry();
-		// }
-		//
-		// // Logging
-		// // UE_CLOG(UpdatedComponent != nullptr, LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f) deflect at t=%.3f: (Pos %s, Vel %s)"),
-		// // 	*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), Iterations, TimeTick, Hit.Time, *UpdatedComponent->GetComponentLocation().ToString(), *Velocity.ToString());
-		//
-		// // Add unprocessed time after impact
-		// if (SubTickTimeRemaining >= MIN_TICK_TIME)
-		// {
-		// 	RemainingTime += SubTickTimeRemaining;
-		//
-		// 	// A few initial impacts should possibly allow more iterations to complete more of the simulation.
-		// 	if (NumImpacts <= BounceAdditionalIterations)
-		// 	{
-		// 		Iterations--;
-		//
-		// 		// Logging
-		// 		// UE_LOG(LogProjectileMovement, Log, TEXT("Projectile %s: (Role: %d, Iteration %d, step %.3f) allowing extra iteration after bounce %u (t=%.3f, adding %.3f secs)"),
-		// 		// 	*GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), LoopCount, TimeTick, NumBounces, Hit.Time, SubTickTimeRemaining);
-		// 	}
-		// }
+		FHitResult& Hit = AsyncData.HitResult;
+		const float& HitTime = AsyncData.HitResult.Time;
+		const FVector& MoveDelta = AsyncData.MoveDelta;
+		if (Velocity == OldVelocity)
+		{
+			// re-calculate end velocity for partial time
+			Velocity = (HitTime > UE_KINDA_SMALL_NUMBER)
+				           ? ComputeVelocity(OldVelocity, CurrentTimeTick * HitTime)
+				           : OldVelocity;
+			UE_LOG(LogTemp, Warning, TEXT("Velocity: %s, OldVelocity: %s, HitTime: %.3f, CurrentTimeTick: %.3f"),
+			       *Velocity.ToString(), *OldVelocity.ToString(), HitTime, CurrentTimeTick);
+		}
+
+		// Handle blocking hit
+		NumImpacts++;
+		float SubTickTimeRemaining = CurrentTimeTick * (1.f - HitTime);
+		const EHandleBlockingHitResult HandleBlockingResult = HandleBlockingHit(
+			Hit, CurrentTimeTick, MoveDelta, SubTickTimeRemaining);
+
+		if (HandleBlockingResult == EHandleBlockingHitResult::Abort || HasStoppedSimulation())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Abort Projectile %s: (Role: %d) Stopped simulation after async sweep hit."),
+			       *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole());
+			return;
+		}
+		if (HandleBlockingResult == EHandleBlockingHitResult::Deflect)
+		{
+			NumBounces++;
+			if (!HandleDeflection(Hit, SubTickTimeRemaining))
+			{
+				UE_LOG(LogTemp, Warning, TEXT(" Projectile %s: (Role: %d) Deflection failed, stopping simulation."),
+				       *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole());
+				StopSimulating(Hit);
+				return;
+			}
+
+			PreviousHitTime = Hit.Time;
+			PreviousHitNormal = ConstrainNormalToPlane(Hit.Normal);
+		}
+		else if (HandleBlockingResult == EHandleBlockingHitResult::AdvanceNextSubstep)
+		{
+			// Reset deflection logic to ignore this hit
+			PreviousHitTime = 1.f;
+		}
+		else
+		{
+			checkNoEntry();
+		}
+	}
+}
+
+void UPawProjectileMovementComponent::HandleSlidingAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data)
+{
+	UE_LOG(LogTemp, Warning, TEXT(" HandleSlidingAsyncSweepResult HitCount: %d"), Data.OutHits.Num());
+	auto& AsyncData = SlidingAsyncData;
+	for (FHitResult Hit : Data.OutHits)
+	{
+		if (AsyncData.HitMinDistance > Hit.Distance)
+		{
+			AsyncData.HitMinDistance = Hit.Distance;
+			AsyncData.HitCount++;
+			AsyncData.HitResult = Hit;
+		}
+	}
+
+	AsyncData.SweepCount--;
+	if (AsyncData.SweepCount <= 0)
+	{
+		HandleSlidingAsyncSweepCompleted();
+	}
+}
+
+void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
+{
+	UE_LOG(LogTemp, Warning, TEXT(" HandleSlidingAsyncSweepCompleted: HitCount: %d, HitMinDistance: %f, Direction: %s"),
+	       SlidingAsyncData.HitCount, SlidingAsyncData.HitMinDistance, *SlidingAsyncData.Direction.ToString());
+	AActor* ActorOwner = UpdatedComponent ? UpdatedComponent->GetOwner() : NULL;
+	// If we hit a trigger that destroyed us, abort.
+	if (!CheckStillInWorld() || !IsValid(ActorOwner) || HasStoppedSimulation())
+	{
+		return;
+	}
+
+	// A second hit can deflect the velocity (through the normal bounce code), for the next iteration.
+	auto& AsyncData = SlidingAsyncData;
+	FHitResult& Hit = SlidingAsyncData.HitResult;
+	float& SubTickTimeRemaining = AsyncData.SubTickTimeRemaining;
+	const FVector& OldHitNormal = AsyncData.OldHitNormal;
+	if (AsyncData.HitCount > 0)
+	{
+		const float TimeTick = SubTickTimeRemaining;
+		SubTickTimeRemaining = TimeTick * (1.f - Hit.Time);
+
+		if (HandleBlockingHit(Hit, TimeTick, Velocity * TimeTick, SubTickTimeRemaining) ==
+			EHandleBlockingHitResult::Abort ||
+			HasStoppedSimulation())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("SlidingAsyncSweepCompleted: Projectile %s: (Role: %d) Stopped simulation after sliding hit."),
+			       *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole());
+			StopSimulating(Hit);
+		}
+	}
+	else
+	{
+		// Find velocity after elapsed time
+		const FVector PostTickVelocity = ComputeVelocity(Velocity, SubTickTimeRemaining);
+
+		// If pointing back into surface, apply friction and acceleration.
+		const FVector Force = (PostTickVelocity - Velocity);
+		const float ForceDotN = (Force | OldHitNormal);
+		if (ForceDotN < 0.f)
+		{
+			const FVector ProjectedForce = FVector::VectorPlaneProject(Force, OldHitNormal);
+			const FVector NewVelocity = Velocity + ProjectedForce;
+
+			const FVector FrictionForce = -NewVelocity.GetSafeNormal() * FMath::Min(
+				-ForceDotN * Friction, NewVelocity.Size());
+			Velocity = ConstrainDirectionToPlane(NewVelocity + FrictionForce);
+			UE_LOG(LogProjectileMovement, Warning, TEXT("Projectile %s: (Role: %d) Sliding along surface with friction, new velocity: %s"),
+				*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
+		}
+		else
+		{
+			Velocity = PostTickVelocity;
+			UE_LOG(LogTemp, Warning, TEXT(" Projectile %s: (Role: %d) Sliding along surface without friction, new velocity: %s"),
+				*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
+		}
+
+		// Check min velocity
+		if (IsVelocityUnderSimulationThreshold())
+		{
+			StopSimulating(Hit);
+			return;
+		}
+
+		SubTickTimeRemaining = 0.f;
 	}
 }

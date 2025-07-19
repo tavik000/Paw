@@ -487,8 +487,7 @@ protected: // Internal Helper Methods
 	 * @return True if simulation of the projectile should continue, false otherwise.
 	 * @see HandleSliding()
 	 */
-	virtual bool HandleDeflection(FHitResult& Hit, const uint32 NumBounces,
-	                              float& SubTickTimeRemaining);
+	virtual bool HandleDeflection(FHitResult& Hit, float& SubTickTimeRemaining);
 
 	/**
 	 * Handle case where projectile is sliding along a surface.
@@ -536,9 +535,14 @@ private: // Internal Helpers
 		const FTraceDelegate* InDelegate = nullptr,
 		uint32 UserData = 0);
 
-	void HandleAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
+	void HandleMovementAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
 
-	void HandleAsyncSweepCompleted();
+	void HandleMovementAsyncSweepCompleted();
+
+	void HandleSlidingAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
+
+	void HandleSlidingAsyncSweepCompleted();
+	
 
 private: // Cached State
 	// Double-buffer of pending force so that updates can use the accumulated value and reset the data so other AddForce() calls work correctly.
@@ -557,9 +561,11 @@ private: // Cached State
 	/** Minimum delta time considered when ticking. Delta times below this are not considered. This is a very small non-zero positive value to avoid potential divide-by-zero in simulation code. */
 	static const float MIN_TICK_TIME;
 
-	struct FAsyncSweepData
+
+	// Moving async sweep data
+	struct FMovementAsyncSweepData
 	{
-		FAsyncSweepData() { Reset(); }
+		FMovementAsyncSweepData() { Reset(); }
 
 		void Reset()
 		{
@@ -572,15 +578,49 @@ private: // Cached State
 		int SweepCount;
 		double MoveDistance;
 		FVector Direction;
+		FVector MoveDelta;
 		FQuat RelativeQuat;
 
 		int HitCount;
 		double HitMinDistance;
 		FVector HitImpactNormal;
+		FHitResult HitResult;
 	};
-
-	FAsyncSweepData AsyncSweepData;
+	
+	FMovementAsyncSweepData AsyncSweepData;
 	FTraceDelegate AsyncSweepDelegate;
 	float CurrentTimeTick;
 	FVector OldVelocity;
+	int32 NumImpacts;
+	int32 NumBounces;
+
+	// Sliding data
+	struct FSlidingAsyncSweepData
+	{
+		float SubTickTimeRemaining = 0.f;
+		FHitResult InitialHit;
+		FVector OldHitNormal;
+		FVector Direction;
+		float MoveDistance = 0.f;
+		float HitMinDistance = 0.f;
+		int32 HitCount = 0;
+		int32 SweepCount = 0;
+		FHitResult HitResult;
+
+		void Reset()
+		{
+			SubTickTimeRemaining = 0.f;
+			InitialHit = FHitResult();
+			OldHitNormal = FVector::ZeroVector;
+			Direction = FVector::ZeroVector;
+			MoveDistance = 0.f;
+			HitMinDistance = 0.f;
+			HitCount = 0;
+			SweepCount = 0;
+			HitResult = FHitResult();
+		}
+	};
+
+	FSlidingAsyncSweepData SlidingAsyncData;
+	FTraceDelegate AsyncSlidingDelegate;
 };
