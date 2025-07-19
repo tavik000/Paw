@@ -543,6 +543,10 @@ private: // Internal Helpers
 
 	void HandleSlidingAsyncSweepCompleted();
 
+	void HandleBounceAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
+
+	void HandleBounceAsyncSweepCompleted();
+
 	bool IsAllAsyncSweepingCompleted() const;
 	
 
@@ -625,4 +629,36 @@ private: // Cached State
 
 	FSlidingAsyncSweepData SlidingAsyncData;
 	FTraceDelegate AsyncSlidingDelegate;
+
+	// Bounce data
+	struct FBounceAsyncSweepData
+	{
+		float SubTickTimeRemaining = 0.f;
+		FHitResult InitialHit;
+		FVector OldHitNormal;
+		FVector Direction;
+		float MoveDistance = 0.f;
+		float HitMinDistance = 0.f;
+		int32 HitCount = 0;
+		int32 SweepCount = 0;
+		FHitResult HitResult;
+		FQuat RelativeQuat;
+
+		void Reset()
+		{
+			SubTickTimeRemaining = 0.f;
+			InitialHit = FHitResult();
+			Direction = FVector::ZeroVector;
+			OldHitNormal = FVector::ZeroVector;
+			MoveDistance = 0.f;
+			HitMinDistance = 0.f;
+			HitCount = 0;
+			SweepCount = 0;
+			HitResult = FHitResult();
+			RelativeQuat = FQuat::Identity;
+		}
+	};
+
+	FBounceAsyncSweepData BounceAsyncData;
+	FTraceDelegate AsyncBounceDelegate;
 };
