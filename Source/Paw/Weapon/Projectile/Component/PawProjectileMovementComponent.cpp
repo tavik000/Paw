@@ -192,6 +192,13 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 		return;
 	}
 
+	if (!IsAllAsyncSweepingCompleted())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Skip Tick, Async sweeps are not completed for %s"),
+		       *GetNameSafe(UpdatedComponent->GetOwner()));
+		return;
+	}
+
 	FVector::FReal VelocityTolerance = 0.0;
 	switch (ActorOwner->GetReplicatedMovement().VelocityQuantizationLevel)
 	{
@@ -350,7 +357,8 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 		// Check min velocity.
 		if (IsVelocityUnderSimulationThreshold())
 		{
-			UE_LOG(LogTemp, Warning, TEXT(" Projectile %s: (Role: %d) Stopping simulation due to low velocity after sliding."),
+			UE_LOG(LogTemp, Warning,
+			       TEXT(" Projectile %s: (Role: %d) Stopping simulation due to low velocity after sliding."),
 			       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole());
 			StopSimulating(Hit);
 			return false;
@@ -547,7 +555,8 @@ UPawProjectileMovementComponent::EHandleBlockingHitResult UPawProjectileMovement
 
 	if (!IsValid(ActorOwner) || HasStoppedSimulation())
 	{
-		UE_LOG(LogTemp, Warning, TEXT(" Projectile %s is no longer valid or has stopped simulation!"), *GetNameSafe(ActorOwner));
+		UE_LOG(LogTemp, Warning, TEXT(" Projectile %s is no longer valid or has stopped simulation!"),
+		       *GetNameSafe(ActorOwner));
 		return EHandleBlockingHitResult::Abort;
 	}
 
@@ -1062,8 +1071,9 @@ void UPawProjectileMovementComponent::HandleMovementAsyncSweepResult(const FTrac
 
 void UPawProjectileMovementComponent::HandleMovementAsyncSweepCompleted()
 {
-	UE_LOG(LogTemp, Warning, TEXT(" HandleAsyncSweepCompleted: HitCount: %d, HitMinDistance: %f, Direction: %s"),
-	       AsyncSweepData.HitCount, AsyncSweepData.HitMinDistance, *AsyncSweepData.Direction.ToString());
+	UE_LOG(LogTemp, Warning, TEXT(" HandleAsyncSweepCompleted: HitCount: %d, HitMinDistance: %f, Direction: %s, HitActor: %s"),
+	       AsyncSweepData.HitCount, AsyncSweepData.HitMinDistance, *AsyncSweepData.Direction.ToString(),
+	       *GetNameSafe(AsyncSweepData.HitResult.GetActor()));
 	AActor* ActorOwner = UpdatedComponent ? UpdatedComponent->GetOwner() : NULL;
 	// If we hit a trigger that destroyed us, abort.
 	if (!CheckStillInWorld() || !IsValid(ActorOwner) || HasStoppedSimulation())
@@ -1162,8 +1172,18 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepResult(const FTrace
 	auto& AsyncData = SlidingAsyncData;
 	for (FHitResult Hit : Data.OutHits)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("OldNormal: %s, HitNormal: %s, ConstrainNormalToPlane(Hit.Normal): %s"),
+		       *AsyncData.OldHitNormal.ToString(), *Hit.Normal.ToString(),
+		       *ConstrainDirectionToPlane(Hit.Normal).ToString());
+		if (AsyncData.OldHitNormal == ConstrainDirectionToPlane(Hit.Normal))
+		{
+			UE_LOG(LogTemp, Warning, TEXT(" Skipping hit with same normal: %s"), *Hit.Normal.ToString());
+			continue;
+		}
 		if (AsyncData.HitMinDistance > Hit.Distance)
 		{
+			UE_LOG(LogTemp, Warning, TEXT(" Updating HitMinDistance: %.3f -> %.3f"),
+			       AsyncData.HitMinDistance, Hit.Distance);
 			AsyncData.HitMinDistance = Hit.Distance;
 			AsyncData.HitCount++;
 			AsyncData.HitResult = Hit;
@@ -1179,8 +1199,9 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepResult(const FTrace
 
 void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 {
-	UE_LOG(LogTemp, Warning, TEXT(" HandleSlidingAsyncSweepCompleted: HitCount: %d, HitMinDistance: %f, Direction: %s"),
-	       SlidingAsyncData.HitCount, SlidingAsyncData.HitMinDistance, *SlidingAsyncData.Direction.ToString());
+	UE_LOG(LogTemp, Warning, TEXT(" HandleSlidingAsyncSweepCompleted: HitCount: %d, HitMinDistance: %f, Direction: %s, HitActor: %s"),
+	       SlidingAsyncData.HitCount, SlidingAsyncData.HitMinDistance, *SlidingAsyncData.Direction.ToString(),
+	       *GetNameSafe(SlidingAsyncData.HitResult.GetActor()));
 	AActor* ActorOwner = UpdatedComponent ? UpdatedComponent->GetOwner() : NULL;
 	// If we hit a trigger that destroyed us, abort.
 	if (!CheckStillInWorld() || !IsValid(ActorOwner) || HasStoppedSimulation())
@@ -1189,11 +1210,11 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 	}
 
 	// A second hit can deflect the velocity (through the normal bounce code), for the next iteration.
-	auto& AsyncData = SlidingAsyncData;
+	auto& SlideAsyncData = SlidingAsyncData;
 	FHitResult& Hit = SlidingAsyncData.HitResult;
-	float& SubTickTimeRemaining = AsyncData.SubTickTimeRemaining;
-	const FVector& OldHitNormal = AsyncData.OldHitNormal;
-	if (AsyncData.HitCount > 0)
+	float& SubTickTimeRemaining = SlideAsyncData.SubTickTimeRemaining;
+	const FVector& OldHitNormal = SlideAsyncData.OldHitNormal;
+	if (SlideAsyncData.HitCount > 0)
 	{
 		const float TimeTick = SubTickTimeRemaining;
 		SubTickTimeRemaining = TimeTick * (1.f - Hit.Time);
@@ -1202,13 +1223,27 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 			EHandleBlockingHitResult::Abort ||
 			HasStoppedSimulation())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("SlidingAsyncSweepCompleted: Projectile %s: (Role: %d) Stopped simulation after sliding hit."),
+			UE_LOG(LogTemp, Warning,
+			       TEXT("SlidingAsyncSweepCompleted: Projectile %s: (Role: %d) Stopped simulation after sliding hit."),
 			       *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole());
 			StopSimulating(Hit);
+			return;
 		}
+
+		UE_LOG(LogTemp, Warning, TEXT(" SlidingAsyncSweepCompleted but not stopped simulation, Hit: %s, Time: %.3f, RemainingTime: %.3f"),
+		       *Hit.ToString(), Hit.Time, SubTickTimeRemaining);
 	}
 	else
 	{
+
+		auto& MovementSweepAsyncData = AsyncSweepData;
+		auto NewTransform = ActorOwner->GetActorTransform();
+		auto NewLocation = NewTransform.GetLocation() + SlideAsyncData.Direction * SlideAsyncData.HitMinDistance;
+		auto NewRotation = NewTransform.GetRotation() * MovementSweepAsyncData.RelativeQuat;
+		NewTransform.SetLocation(NewLocation);
+		NewTransform.SetRotation(NewRotation);
+		ActorOwner->SetActorTransform(NewTransform);
+		
 		// Find velocity after elapsed time
 		const FVector PostTickVelocity = ComputeVelocity(Velocity, SubTickTimeRemaining);
 
@@ -1223,14 +1258,18 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 			const FVector FrictionForce = -NewVelocity.GetSafeNormal() * FMath::Min(
 				-ForceDotN * Friction, NewVelocity.Size());
 			Velocity = ConstrainDirectionToPlane(NewVelocity + FrictionForce);
-			UE_LOG(LogProjectileMovement, Warning, TEXT("Projectile %s: (Role: %d) Sliding along surface with friction, new velocity: %s"),
-				*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
+			UE_LOG(LogProjectileMovement, Warning,
+			       TEXT("Projectile %s: (Role: %d) Sliding along surface with friction, new velocity: %s"),
+			       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
+			       *Velocity.ToString());
 		}
 		else
 		{
 			Velocity = PostTickVelocity;
-			UE_LOG(LogTemp, Warning, TEXT(" Projectile %s: (Role: %d) Sliding along surface without friction, new velocity: %s"),
-				*GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(), *Velocity.ToString());
+			UE_LOG(LogTemp, Warning,
+			       TEXT(" Projectile %s: (Role: %d) Sliding along surface without friction, new velocity: %s"),
+			       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
+			       *Velocity.ToString());
 		}
 
 		// Check min velocity
@@ -1241,5 +1280,12 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 		}
 
 		SubTickTimeRemaining = 0.f;
+		
+		UpdateComponentVelocity();
 	}
+}
+
+bool UPawProjectileMovementComponent::IsAllAsyncSweepingCompleted() const
+{
+	return (AsyncSweepData.SweepCount <= 0 && SlidingAsyncData.SweepCount <= 0);
 }

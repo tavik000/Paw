@@ -542,6 +542,8 @@ private: // Internal Helpers
 	void HandleSlidingAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
 
 	void HandleSlidingAsyncSweepCompleted();
+
+	bool IsAllAsyncSweepingCompleted() const;
 	
 
 private: // Cached State
