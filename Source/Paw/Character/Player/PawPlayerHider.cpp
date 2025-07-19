@@ -587,7 +587,7 @@ void APawPlayerHider::ServerConvertToSeeker_Implementation()
 	NewSeeker->SetTeamId(ETeamId::Seeker);
 	SetTeamId(ETeamId::Seeker);
 
-	UE_LOG(LogTemp, Log, TEXT("ServerConvertToSeeker: Successfully converted %s to seeker ghost"), *GetActorLabel());
+	UE_LOG(LogTemp, Log, TEXT("ServerConvertToSeeker: Successfully converted %s to seeker ghost"), *GetActorNameOrLabel());
 
 	// Note: Hider visual updates are now handled by the new seeker's BeginPlay()
 	// This eliminates timing issues with network replication
