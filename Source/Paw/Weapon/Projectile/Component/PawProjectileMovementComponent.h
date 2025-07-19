@@ -487,7 +487,7 @@ protected: // Internal Helper Methods
 	 * @return True if simulation of the projectile should continue, false otherwise.
 	 * @see HandleSliding()
 	 */
-	virtual bool HandleDeflection(FHitResult& Hit, const FVector& OldVelocity, const uint32 NumBounces,
+	virtual bool HandleDeflection(FHitResult& Hit, const uint32 NumBounces,
 	                              float& SubTickTimeRemaining);
 
 	/**
@@ -525,7 +525,7 @@ protected: // Internal Helper Methods
 
 private: // Internal Helpers
 
-	static int AsyncSweepByObjecType(
+	static int AsyncSweepByObjectType(
 		AActor* Actor,
 		EAsyncTraceType InTraceType,
 		const FVector& Start,
@@ -535,6 +535,10 @@ private: // Internal Helpers
 		const FCollisionQueryParams& Params = FCollisionQueryParams::DefaultQueryParam,
 		const FTraceDelegate* InDelegate = nullptr,
 		uint32 UserData = 0);
+
+	void HandleAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
+
+	void HandleAsyncSweepCompleted();
 
 private: // Cached State
 	// Double-buffer of pending force so that updates can use the accumulated value and reset the data so other AddForce() calls work correctly.
@@ -552,4 +556,31 @@ private: // Cached State
 
 	/** Minimum delta time considered when ticking. Delta times below this are not considered. This is a very small non-zero positive value to avoid potential divide-by-zero in simulation code. */
 	static const float MIN_TICK_TIME;
+
+	struct FAsyncSweepData
+	{
+		FAsyncSweepData() { Reset(); }
+
+		void Reset()
+		{
+			SweepCount = 0;
+			MoveDistance = 0;
+			HitCount = 0;
+			HitMinDistance = 0;
+		}
+
+		int SweepCount;
+		double MoveDistance;
+		FVector Direction;
+		FQuat RelativeQuat;
+
+		int HitCount;
+		double HitMinDistance;
+		FVector HitImpactNormal;
+	};
+
+	FAsyncSweepData AsyncSweepData;
+	FTraceDelegate AsyncSweepDelegate;
+	float CurrentTimeTick;
+	FVector OldVelocity;
 };
