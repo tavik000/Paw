@@ -589,7 +589,7 @@ private: // Cached State
 		FHitResult HitResult;
 	};
 	
-	FMovementAsyncSweepData AsyncSweepData;
+	FMovementAsyncSweepData MovementAsyncSweepData;
 	FTraceDelegate AsyncSweepDelegate;
 	float CurrentTimeTick;
 	FVector OldVelocity;
