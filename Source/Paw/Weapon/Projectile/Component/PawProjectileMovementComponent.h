@@ -18,14 +18,142 @@ class PAW_API UPawProjectileMovementComponent : public UMovementComponent
 {
 	GENERATED_BODY()
 
-public:
+public: // Constructor & Public Engine Overrides
 	UPawProjectileMovementComponent(const FObjectInitializer& ObjectInitializer);
 
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnProjectileBounceDelegate, const FHitResult&, ImpactResult,
-	                                             const FVector&, ImpactVelocity);
+	//~ UActorComponent interface
+	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void PostLoad() override;
+	//~ End UActorComponent interface
 
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnProjectileStopDelegate, const FHitResult&, ImpactResult);
+	//~ UMovementComponent interface
+	virtual float GetMaxSpeed() const override { return MaxSpeed; }
+	virtual void InitializeComponent() override;
+	virtual void UpdateTickRegistration() override;
+	//~ End UMovementComponent interface
 
+public: // Blueprint-Callable API
+	/**
+	 * Returns true if velocity magnitude is less than BounceVelocityStopSimulatingThreshold.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement")
+	bool IsVelocityUnderSimulationThreshold() const
+	{
+		return Velocity.SizeSquared() < FMath::Square(BounceVelocityStopSimulatingThreshold);
+	}
+
+	/** Sets the velocity to the new value, rotated into Actor space. */
+	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement")
+	virtual void SetVelocityInLocalSpace(FVector NewVelocity);
+
+	/** Clears the reference to UpdatedComponent, fires stop event (OnProjectileStop), and stops ticking (if bAutoUpdateTickRegistration is true). */
+	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement")
+	virtual void StopSimulating(const FHitResult& HitResult);
+
+	/** Don't allow velocity magnitude to exceed MaxSpeed, if MaxSpeed is non-zero. */
+	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement")
+	FVector LimitVelocity(FVector NewVelocity) const;
+
+	/**
+	 * Assigns the component that will be used for network interpolation/smoothing. It is expected that this is a component attached somewhere below the UpdatedComponent.
+	 * When network updates use MoveInterpolationTarget() to move the UpdatedComponent, the interpolated component's relative offset will be maintained and smoothed over
+	 * the course of future component ticks. The current relative location and rotation of the component is saved as the target offset for future interpolation.
+	 * @see MoveInterpolationTarget(), bInterpMovement, bInterpRotation
+	 */
+	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement|Interpolation")
+	virtual void SetInterpolatedComponent(USceneComponent* Component);
+
+	/**
+	 * Moves the UpdatedComponent, which is also the interpolation target for the interpolated component. If there is not interpolated component, this simply moves UpdatedComponent.
+	 * Use this typically from PostNetReceiveLocationAndRotation() or similar from an Actor.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement|Interpolation")
+	virtual void MoveInterpolationTarget(const FVector& NewLocation, const FRotator& NewRotation);
+
+	/**
+	 * Resets interpolation so that interpolated component snaps back to the initial location/rotation without any additional offsets.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement|Interpolation")
+	virtual void ResetInterpolation();
+
+	/**
+	 * Returns whether interpolation is complete because the target has been reached. True when interpolation is disabled.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement|Interpolation")
+	bool IsInterpolationComplete() const { return bInterpolationComplete || !bInterpMovement; }
+
+public: // C++ Public Helpers
+	/**
+	 * This will check to see if the projectile is still in the world.  It will check things like
+	 * the KillZ, outside world bounds, etc. and handle the situation.
+	 */
+	virtual bool CheckStillInWorld();
+
+	/** @return Buoyancy of UpdatedComponent in fluid.  0.0=sinks as fast as in air, 1.0=neutral buoyancy*/
+	float GetBuoyancy() const { return Buoyancy; };
+
+	bool ShouldApplyGravity() const { return ProjectileGravityScale != 0.f; }
+
+	bool HasStoppedSimulation() { return (UpdatedComponent == nullptr) || (IsActive() == false); }
+
+	/**
+	 * Returns the component used for network interpolation.
+	 */
+	USceneComponent* GetInterpolatedComponent() const;
+
+	/**
+	 * Given an initial velocity and a time step, compute a new velocity.
+	 * Default implementation applies the result of ComputeAcceleration() to velocity.
+	 * 
+	 * @param  InitialVelocity Initial velocity.
+	 * @param  DeltaTime Time step of the update.
+	 * @return Velocity after DeltaTime time step.
+	 */
+	virtual FVector ComputeVelocity(FVector InitialVelocity, float DeltaTime) const;
+
+	/** Compute the distance we should move in the given time, at a given a velocity. */
+	virtual FVector ComputeMoveDelta(const FVector& InVelocity, float DeltaTime) const;
+
+	/** Compute the acceleration that will be applied */
+	virtual FVector ComputeAcceleration(const FVector& InVelocity, float DeltaTime) const;
+
+	/** Allow the projectile to track towards its homing target. */
+	virtual FVector ComputeHomingAcceleration(const FVector& InVelocity, float DeltaTime) const;
+
+	/** Adds a force which is accumulated until next tick, used by ComputeAcceleration() to affect Velocity. */
+	void AddForce(FVector Force);
+
+	/** Returns the sum of pending forces from AddForce(). */
+	FVector GetPendingForce() const { return PendingForce; }
+
+	/** Clears any pending forces from AddForce(). If bClearImmediateForce is true, clears any force being processed during this update as well. */
+	void ClearPendingForce(bool bClearImmediateForce = false);
+
+	/**
+	 * Compute remaining time step given remaining time and current iterations.
+	 * The last iteration (limited by MaxSimulationIterations) always returns the remaining time, which may violate MaxSimulationTimeStep.
+	 *
+	 * @param RemainingTime		Remaining time in the tick.
+	 * @param Iterations		Current iteration of the tick (starting at 1).
+	 * @return The remaining time step to use for the next sub-step of iteration.
+	 * @see MaxSimulationTimeStep, MaxSimulationIterations
+	 * @see ShouldUseSubStepping()
+	 */
+	float GetSimulationTimeStep(float RemainingTime, int32 Iterations) const;
+
+	/**
+	 * Determine whether or not to use substepping in the projectile motion update.
+	 * If true, GetSimulationTimeStep() will be used to time-slice the update. If false, all remaining time will be used during the tick.
+	 * @return Whether or not to use substepping in the projectile motion update.
+	 * @see GetSimulationTimeStep()
+	 */
+	virtual bool ShouldUseSubStepping() const;
+
+	/** Compute gravity effect given current physics volume, projectile gravity scale, etc. */
+	virtual float GetGravityZ() const override;
+
+public: // Properties
+	// Properties: Projectile Settings
 	/** Initial speed of projectile. If greater than zero, this will override the initial Velocity value and instead treat Velocity as a direction. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projectile)
 	float InitialSpeed;
@@ -39,13 +167,8 @@ public:
 	uint8 bRotationFollowsVelocity : 1;
 
 	/** If true, this projectile will have its rotation updated each frame to maintain the rotations Yaw only. (bRotationFollowsVelocity is required to be true) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projectile,
-		meta = (EditCondition = "bRotationFollowsVelocity"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projectile, meta = (EditCondition = "bRotationFollowsVelocity"))
 	uint8 bRotationRemainsVertical : 1;
-
-	/** If true, simple bounces will be simulated. Set this to false to stop simulating on contact. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileBounces)
-	uint8 bShouldBounce : 1;
 
 	/**
 	 * If true, the initial Velocity is interpreted as being in local space upon startup.
@@ -54,34 +177,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projectile)
 	uint8 bInitialVelocityInLocalSpace : 1;
 
-	/**
-	 * If true, forces sub-stepping to break up movement into discrete smaller steps to improve accuracy of the trajectory.
-	 * Objects that move in a straight line typically do *not* need to set this, as movement always uses continuous collision detection (sweeps) so collision is not missed.
-	 * Sub-stepping is automatically enabled when under the effects of gravity or when homing towards a target.
-	 * @see MaxSimulationTimeStep, MaxSimulationIterations
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileSimulation)
-	uint8 bForceSubStepping : 1;
+	/** Custom gravity scale for this projectile. Set to 0 for no gravity. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projectile)
+	float ProjectileGravityScale;
 
-	/**
-	 * If true, does normal simulation ticking and update. If false, simulation is halted, but component will still tick (allowing interpolation to run).
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileSimulation)
-	uint8 bSimulationEnabled : 1;
+	/** Buoyancy of UpdatedComponent in fluid. 0.0=sinks as fast as in air, 1.0=neutral buoyancy */
+	UPROPERTY()
+	float Buoyancy;
 
-	/**
-	 * If true, movement uses swept collision checks.
-	 * If false, collision effectively teleports to the destination. Note that when this is disabled, movement will never generate blocking collision hits (though overlaps will be updated).
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileSimulation)
-	uint8 bSweepCollision : 1;
-
-	/**
-	 * If true, we will accelerate toward our homing target. HomingTargetComponent must be set after the projectile is spawned.
-	 * @see HomingTargetComponent, HomingAccelerationMagnitude
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Homing)
-	uint8 bIsHomingProjectile : 1;
+	// Properties: Bounce System
+	/** If true, simple bounces will be simulated. Set this to false to stop simulating on contact. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileBounces)
+	uint8 bShouldBounce : 1;
 
 	/**
 	 * Controls the effects of friction on velocity parallel to the impact surface when bouncing.
@@ -96,73 +203,6 @@ public:
 	 */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category=ProjectileBounces)
 	uint8 bIsSliding : 1;
-
-	/**
-	 * If true and there is an interpolated component set, location (and optionally rotation) interpolation is enabled which allows the interpolated object to smooth uneven updates
-	 * of the UpdatedComponent's location (usually to smooth network updates). This requires using SetInterpolatedComponent() to indicate the visual component that lags behind the collision,
-	 * and using MoveInterpolationTarget() when the new target location/rotation is received (usually on a net update).
-	 * @see SetInterpolatedComponent(), MoveInterpolationTarget()
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation)
-	uint8 bInterpMovement : 1;
-
-	/**
-	 * If true and there is an interpolated component set, rotation interpolation is enabled which allows the interpolated object to smooth uneven updates
-	 * of the UpdatedComponent's rotation (usually to smooth network updates).
-	 * Rotation interpolation is *only* applied if bInterpMovement is also enabled.
-	 * @see SetInterpolatedComponent(), MoveInterpolationTarget()
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation)
-	uint8 bInterpRotation : 1;
-
-	/**
-	 * If true, throttle interpolation when not relevant.
-	 * @see ThrottleInterpolationSkipFramesNotRecent, ThrottleInterpolationSkipFramesRecent, ThrottleInterpolationThresholdNotRenderedShortTime, ThrottleInterpolationThresholdNotRenderedLongTime
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation)
-	uint8 bThrottleInterpolation : 1;
-
-protected:
-	/**
-	 * True if interpolation has reached the target, false if there is more interpolation required.
-	 */
-	uint8 bInterpolationComplete : 1;
-
-	/**
-	 * Tracks the number of frames since the last interpolation.
-	 */
-	int32 ThrottleInterpolationFramesSinceInterp;
-
-public:
-	/**
-	 * If true, uses FScopedMovementUpdate to avoid moving the UpdatedComponent more than once during a tick during simulation.
-	 * This also defers overlap updates and some impact events until after the simulation update completes, so it may delay important events and continue deflection, so use with caution.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category=ProjectileInterpolation)
-	uint8 bSimulationUseScopedMovement : 1;
-
-	/**
-	 * If true, uses FScopedMovementUpdate to avoid moving the attached interpolated object's children more than once during a tick when it would both interpolate and move during projectile simulation.
-	 * This also defers overlap updates for the interpolated object until after the simulation update completes.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category=ProjectileInterpolation)
-	uint8 bInterpolationUseScopedMovement : 1;
-
-	/** Saved HitResult Time (0 to 1) from previous simulation step. Equal to 1.0 when there was no impact. */
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category=ProjectileBounces)
-	float PreviousHitTime;
-
-	/** Saved HitResult Normal from previous simulation step that resulted in an impact. If PreviousHitTime is 1.0, then the hit was not in the last step. */
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category=ProjectileBounces)
-	FVector PreviousHitNormal;
-
-	/** Custom gravity scale for this projectile. Set to 0 for no gravity. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projectile)
-	float ProjectileGravityScale;
-
-	/** Buoyancy of UpdatedComponent in fluid. 0.0=sinks as fast as in air, 1.0=neutral buoyancy */
-	UPROPERTY()
-	float Buoyancy;
 
 	/**
 	 * Percentage of velocity maintained after the bounce in the direction of the normal of impact (coefficient of restitution).
@@ -193,26 +233,73 @@ public:
 	 * When bounce angle affects friction, apply at least this fraction of normal friction.
 	 * Helps consistently slow objects sliding or rolling along surfaces or in valleys when the usual friction amount would take a very long time to settle.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileBounces, AdvancedDisplay,
-		meta=(ClampMin="0", UIMin="0", ClampMax="1", UIMax="1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileBounces, AdvancedDisplay, meta=(ClampMin="0", UIMin="0", ClampMax="1", UIMax="1"))
 	float MinFrictionFraction;
 
+	/** Saved HitResult Time (0 to 1) from previous simulation step. Equal to 1.0 when there was no impact. */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category=ProjectileBounces)
+	float PreviousHitTime;
+
+	/** Saved HitResult Normal from previous simulation step that resulted in an impact. If PreviousHitTime is 1.0, then the hit was not in the last step. */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category=ProjectileBounces)
+	FVector PreviousHitNormal;
+
+	// Properties: Simulation Settings
 	/**
-	 * Returns true if velocity magnitude is less than BounceVelocityStopSimulatingThreshold.
+	 * If true, forces sub-stepping to break up movement into discrete smaller steps to improve accuracy of the trajectory.
+	 * Objects that move in a straight line typically do *not* need to set this, as movement always uses continuous collision detection (sweeps) so collision is not missed.
+	 * Sub-stepping is automatically enabled when under the effects of gravity or when homing towards a target.
+	 * @see MaxSimulationTimeStep, MaxSimulationIterations
 	 */
-	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement")
-	bool IsVelocityUnderSimulationThreshold() const
-	{
-		return Velocity.SizeSquared() < FMath::Square(BounceVelocityStopSimulatingThreshold);
-	}
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileSimulation)
+	uint8 bForceSubStepping : 1;
 
-	/** Called when projectile impacts something and bounces are enabled. */
-	UPROPERTY(BlueprintAssignable)
-	FOnProjectileBounceDelegate OnProjectileBounce;
+	/**
+	 * If true, does normal simulation ticking and update. If false, simulation is halted, but component will still tick (allowing interpolation to run).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileSimulation)
+	uint8 bSimulationEnabled : 1;
 
-	/** Called when projectile has come to a stop (velocity is below simulation threshold, bounces are disabled, or it is forcibly stopped). */
-	UPROPERTY(BlueprintAssignable)
-	FOnProjectileStopDelegate OnProjectileStop;
+	/**
+	 * If true, movement uses swept collision checks.
+	 * If false, collision effectively teleports to the destination. Note that when this is disabled, movement will never generate blocking collision hits (though overlaps will be updated).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileSimulation)
+	uint8 bSweepCollision : 1;
+
+	/**
+	 * Max time delta for each discrete simulation step.
+	 * Lowering this value can address precision issues with fast-moving objects or complex collision scenarios, at the cost of performance.
+	 *
+	 * WARNING: if (MaxSimulationTimeStep * MaxSimulationIterations) is too low for the min framerate, the last simulation step may exceed MaxSimulationTimeStep to complete the simulation.
+	 * @see MaxSimulationIterations, bForceSubStepping
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0.0166", ClampMax="0.50", UIMin="0.0166", UIMax="0.50"), Category=ProjectileSimulation)
+	float MaxSimulationTimeStep;
+
+	/**
+	 * Max number of iterations used for each discrete simulation step.
+	 * Increasing this value can address precision issues with fast-moving objects or complex collision scenarios, at the cost of performance.
+	 *
+	 * WARNING: if (MaxSimulationTimeStep * MaxSimulationIterations) is too low for the min framerate, the last simulation step may exceed MaxSimulationTimeStep to complete the simulation.
+	 * @see MaxSimulationTimeStep, bForceSubStepping
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1", ClampMax="25", UIMin="1", UIMax="25"), Category=ProjectileSimulation)
+	int32 MaxSimulationIterations;
+
+	/**
+	 * On the first few bounces (up to this amount), allow extra iterations over MaxSimulationIterations if necessary.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0", ClampMax="4", UIMin="0", UIMax="4"), Category=ProjectileSimulation)
+	int32 BounceAdditionalIterations;
+
+	// Properties: Homing System
+	/**
+	 * If true, we will accelerate toward our homing target. HomingTargetComponent must be set after the projectile is spawned.
+	 * @see HomingTargetComponent, HomingAccelerationMagnitude
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Homing)
+	uint8 bIsHomingProjectile : 1;
 
 	/** The magnitude of our acceleration towards the homing target. Overall velocity magnitude will still be limited by MaxSpeed. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Homing)
@@ -225,124 +312,50 @@ public:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Category=Homing)
 	TWeakObjectPtr<USceneComponent> HomingTargetComponent;
 
-	/** Sets the velocity to the new value, rotated into Actor space. */
-	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement")
-	virtual void SetVelocityInLocalSpace(FVector NewVelocity);
-
-	//Begin UActorComponent Interface
-	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType,
-	                           FActorComponentTickFunction* ThisTickFunction) override;
-	virtual void PostLoad() override;
-	//End UActorComponent Interface
-
-	//Begin UMovementComponent Interface
-	virtual float GetMaxSpeed() const override { return MaxSpeed; }
-	virtual void InitializeComponent() override;
-	virtual void UpdateTickRegistration() override;
-	//End UMovementComponent Interface
+	// Properties: Interpolation System
+	/**
+	 * If true and there is an interpolated component set, location (and optionally rotation) interpolation is enabled which allows the interpolated object to smooth uneven updates
+	 * of the UpdatedComponent's location (usually to smooth network updates). This requires using SetInterpolatedComponent() to indicate the visual component that lags behind the collision,
+	 * and using MoveInterpolationTarget() when the new target location/rotation is received (usually on a net update).
+	 * @see SetInterpolatedComponent(), MoveInterpolationTarget()
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation)
+	uint8 bInterpMovement : 1;
 
 	/**
-	 * This will check to see if the projectile is still in the world.  It will check things like
-	 * the KillZ, outside world bounds, etc. and handle the situation.
+	 * If true and there is an interpolated component set, rotation interpolation is enabled which allows the interpolated object to smooth uneven updates
+	 * of the UpdatedComponent's rotation (usually to smooth network updates).
+	 * Rotation interpolation is *only* applied if bInterpMovement is also enabled.
+	 * @see SetInterpolatedComponent(), MoveInterpolationTarget()
 	 */
-	virtual bool CheckStillInWorld();
-
-	/** @return Buoyancy of UpdatedComponent in fluid.  0.0=sinks as fast as in air, 1.0=neutral buoyancy*/
-	float GetBuoyancy() const { return Buoyancy; };
-
-	bool ShouldApplyGravity() const { return ProjectileGravityScale != 0.f; }
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation)
+	uint8 bInterpRotation : 1;
 
 	/**
-	 * Given an initial velocity and a time step, compute a new velocity.
-	 * Default implementation applies the result of ComputeAcceleration() to velocity.
-	 * 
-	 * @param  InitialVelocity Initial velocity.
-	 * @param  DeltaTime Time step of the update.
-	 * @return Velocity after DeltaTime time step.
+	 * If true, throttle interpolation when not relevant.
+	 * @see ThrottleInterpolationSkipFramesNotRecent, ThrottleInterpolationSkipFramesRecent, ThrottleInterpolationThresholdNotRenderedShortTime, ThrottleInterpolationThresholdNotRenderedLongTime
 	 */
-	virtual FVector ComputeVelocity(FVector InitialVelocity, float DeltaTime) const;
-
-	/** Clears the reference to UpdatedComponent, fires stop event (OnProjectileStop), and stops ticking (if bAutoUpdateTickRegistration is true). */
-	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement")
-	virtual void StopSimulating(const FHitResult& HitResult);
-
-	bool HasStoppedSimulation() { return (UpdatedComponent == nullptr) || (IsActive() == false); }
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation)
+	uint8 bThrottleInterpolation : 1;
 
 	/**
-	 * Compute remaining time step given remaining time and current iterations.
-	 * The last iteration (limited by MaxSimulationIterations) always returns the remaining time, which may violate MaxSimulationTimeStep.
-	 *
-	 * @param RemainingTime		Remaining time in the tick.
-	 * @param Iterations		Current iteration of the tick (starting at 1).
-	 * @return The remaining time step to use for the next sub-step of iteration.
-	 * @see MaxSimulationTimeStep, MaxSimulationIterations
-	 * @see ShouldUseSubStepping()
+	 * True if interpolation has reached the target, false if there is more interpolation required.
 	 */
-	float GetSimulationTimeStep(float RemainingTime, int32 Iterations) const;
+	uint8 bInterpolationComplete : 1;
 
 	/**
-	 * Determine whether or not to use substepping in the projectile motion update.
-	 * If true, GetSimulationTimeStep() will be used to time-slice the update. If false, all remaining time will be used during the tick.
-	 * @return Whether or not to use substepping in the projectile motion update.
-	 * @see GetSimulationTimeStep()
+	 * If true, uses FScopedMovementUpdate to avoid moving the UpdatedComponent more than once during a tick during simulation.
+	 * This also defers overlap updates and some impact events until after the simulation update completes, so it may delay important events and continue deflection, so use with caution.
 	 */
-	virtual bool ShouldUseSubStepping() const;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category=ProjectileInterpolation)
+	uint8 bSimulationUseScopedMovement : 1;
 
 	/**
-	 * Max time delta for each discrete simulation step.
-	 * Lowering this value can address precision issues with fast-moving objects or complex collision scenarios, at the cost of performance.
-	 *
-	 * WARNING: if (MaxSimulationTimeStep * MaxSimulationIterations) is too low for the min framerate, the last simulation step may exceed MaxSimulationTimeStep to complete the simulation.
-	 * @see MaxSimulationIterations, bForceSubStepping
+	 * If true, uses FScopedMovementUpdate to avoid moving the attached interpolated object's children more than once during a tick when it would both interpolate and move during projectile simulation.
+	 * This also defers overlap updates for the interpolated object until after the simulation update completes.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0.0166", ClampMax="0.50", UIMin="0.0166", UIMax="0.50"),
-		Category=ProjectileSimulation)
-	float MaxSimulationTimeStep;
-
-	/**
-	 * Max number of iterations used for each discrete simulation step.
-	 * Increasing this value can address precision issues with fast-moving objects or complex collision scenarios, at the cost of performance.
-	 *
-	 * WARNING: if (MaxSimulationTimeStep * MaxSimulationIterations) is too low for the min framerate, the last simulation step may exceed MaxSimulationTimeStep to complete the simulation.
-	 * @see MaxSimulationTimeStep, bForceSubStepping
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="1", ClampMax="25", UIMin="1", UIMax="25"),
-		Category=ProjectileSimulation)
-	int32 MaxSimulationIterations;
-
-	/**
-	 * On the first few bounces (up to this amount), allow extra iterations over MaxSimulationIterations if necessary.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0", ClampMax="4", UIMin="0", UIMax="4"),
-		Category=ProjectileSimulation)
-	int32 BounceAdditionalIterations;
-
-	/**
-	 * Assigns the component that will be used for network interpolation/smoothing. It is expected that this is a component attached somewhere below the UpdatedComponent.
-	 * When network updates use MoveInterpolationTarget() to move the UpdatedComponent, the interpolated component's relative offset will be maintained and smoothed over
-	 * the course of future component ticks. The current relative location and rotation of the component is saved as the target offset for future interpolation.
-	 * @see MoveInterpolationTarget(), bInterpMovement, bInterpRotation
-	 */
-	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement|Interpolation")
-	virtual void SetInterpolatedComponent(USceneComponent* Component);
-
-	/**
-	 * Returns the component used for network interpolation.
-	 */
-	USceneComponent* GetInterpolatedComponent() const;
-
-	/**
-	 * Moves the UpdatedComponent, which is also the interpolation target for the interpolated component. If there is not interpolated component, this simply moves UpdatedComponent.
-	 * Use this typically from PostNetReceiveLocationAndRotation() or similar from an Actor.
-	 */
-	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement|Interpolation")
-	virtual void MoveInterpolationTarget(const FVector& NewLocation, const FRotator& NewRotation);
-
-	/**
-	 * Resets interpolation so that interpolated component snaps back to the initial location/rotation without any additional offsets.
-	 */
-	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement|Interpolation")
-	virtual void ResetInterpolation();
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category=ProjectileInterpolation)
+	uint8 bInterpolationUseScopedMovement : 1;
 
 	/**
 	 * "Time" over which most of the location interpolation occurs, when the UpdatedComponent (target) moves ahead of the interpolated component.
@@ -388,41 +401,41 @@ public:
 	/**
 	 * When recently relevant, skip this many frames of interpolation if throttling is enabled.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation, AdvancedDisplay,
-		meta=(ClampMin="0", UIMin="0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation, AdvancedDisplay, meta=(ClampMin="0", UIMin="0"))
 	int32 ThrottleInterpolationSkipFramesRecent;
 
 	/**
 	 * When not recently relevant, skip this many frames of interpolation if throttling is enabled.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation, AdvancedDisplay,
-		meta=(ClampMin="0", UIMin="0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileInterpolation, AdvancedDisplay, meta=(ClampMin="0", UIMin="0"))
 	int32 ThrottleInterpolationSkipFramesNotRecent;
 
 	/**
-	 * Returns whether interpolation is complete because the target has been reached. True when interpolation is disabled.
+	 * Tracks the number of frames since the last interpolation.
 	 */
-	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement|Interpolation")
-	bool IsInterpolationComplete() const { return bInterpolationComplete || !bInterpMovement; }
+	int32 ThrottleInterpolationFramesSinceInterp;
 
-protected:
-	/**
-	 * Update interpolation throttling for this frame. Uses ComputeThrottleInterpolationMaxFrames() to determine the number of frames to allow to be skipped.
-	 * @return true if throttled this frame, false if there should be an update.
-	 */
-	bool UpdateThrottleInterpolation(float DeltaTime, USceneComponent* InterpComponent);
+public: // Blueprint Events & Delegates
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnProjectileBounceDelegate, const FHitResult&, ImpactResult, const FVector&, ImpactVelocity);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnProjectileStopDelegate, const FHitResult&, ImpactResult);
 
-	/**
-	 * Determine the number of frames to allow to skip when interpolating. Returning 0 means not to allow throttling.
-	 * Default implementation chooses between ThrottleInterpolationThresholdNotRenderedShortTime and ThrottleInterpolationThresholdNotRenderedLongTime based on WasRecentlyRendered(),
-	 * extend or override this for custom behavior.
-	 */
-	virtual int32 ComputeThrottleInterpolationMaxFrames(float DeltaTime, USceneComponent* InterpComponent);
+	/** Called when projectile impacts something and bounces are enabled. */
+	UPROPERTY(BlueprintAssignable)
+	FOnProjectileBounceDelegate OnProjectileBounce;
 
+	/** Called when projectile has come to a stop (velocity is below simulation threshold, bounces are disabled, or it is forcibly stopped). */
+	UPROPERTY(BlueprintAssignable)
+	FOnProjectileStopDelegate OnProjectileStop;
+
+protected: // Protected Engine Overrides
 	/**
-	 * Custom hook to reset throttle interpolation tracking when it was throttling previously.
+	 * Applies bounce logic if enabled to affect velocity upon impact (using ComputeBounceResult()),
+	 * or stops the projectile if bounces are not enabled or velocity is below BounceVelocityStopSimulatingThreshold.
+	 * Triggers applicable events (OnProjectileBounce).
 	 */
-	virtual void ResetThrottleInterpolation(float DeltaTime);
+	virtual void HandleImpact(const FHitResult& Hit, float TimeSlice = 0.f, const FVector& MoveDelta = FVector::ZeroVector) override;
+
+protected: // Internal Helper Methods
 
 	// Enum indicating how simulation should proceed after HandleBlockingHit() is called.
 	enum class EHandleBlockingHitResult
@@ -449,16 +462,7 @@ protected:
 	 * @return Result indicating how simulation should proceed.
 	 * @see EHandleHitWallResult, HandleImpact()
 	 */
-	virtual EHandleBlockingHitResult HandleBlockingHit(const FHitResult& Hit, float TimeTick, const FVector& MoveDelta,
-	                                                   float& SubTickTimeRemaining);
-
-	/**
-	 * Applies bounce logic if enabled to affect velocity upon impact (using ComputeBounceResult()),
-	 * or stops the projectile if bounces are not enabled or velocity is below BounceVelocityStopSimulatingThreshold.
-	 * Triggers applicable events (OnProjectileBounce).
-	 */
-	virtual void HandleImpact(const FHitResult& Hit, float TimeSlice = 0.f,
-	                          const FVector& MoveDelta = FVector::ZeroVector) override;
+	virtual EHandleBlockingHitResult HandleBlockingHit(const FHitResult& Hit, float TimeTick, const FVector& MoveDelta, float& SubTickTimeRemaining);
 
 	/**
 	 * Handle a blocking hit after HandleBlockingHit() returns a result indicating that deflection occured.
@@ -471,8 +475,7 @@ protected:
 	 * @return True if simulation of the projectile should continue, false otherwise.
 	 * @see HandleSliding()
 	 */
-	virtual bool HandleDeflection(FHitResult& Hit, const FVector& OldVelocity, const uint32 NumBounces,
-	                              float& SubTickTimeRemaining);
+	virtual bool HandleDeflection(FHitResult& Hit, const FVector& OldVelocity, const uint32 NumBounces, float& SubTickTimeRemaining);
 
 	/**
 	 * Handle case where projectile is sliding along a surface.
@@ -487,35 +490,33 @@ protected:
 	/** Computes result of a bounce and returns the new velocity. */
 	virtual FVector ComputeBounceResult(const FHitResult& Hit, float TimeSlice, const FVector& MoveDelta);
 
-public:
-	/** Don't allow velocity magnitude to exceed MaxSpeed, if MaxSpeed is non-zero. */
-	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement")
-	FVector LimitVelocity(FVector NewVelocity) const;
+	virtual void TickInterpolation(float DeltaTime);
 
-	/** Compute the distance we should move in the given time, at a given a velocity. */
-	virtual FVector ComputeMoveDelta(const FVector& InVelocity, float DeltaTime) const;
+	/**
+	 * Update interpolation throttling for this frame. Uses ComputeThrottleInterpolationMaxFrames() to determine the number of frames to allow to be skipped.
+	 * @return true if throttled this frame, false if there should be an update.
+	 */
+	bool UpdateThrottleInterpolation(float DeltaTime, USceneComponent* InterpComponent);
 
-	/** Compute the acceleration that will be applied */
-	virtual FVector ComputeAcceleration(const FVector& InVelocity, float DeltaTime) const;
+	/**
+	 * Determine the number of frames to allow to skip when interpolating. Returning 0 means not to allow throttling.
+	 * Default implementation chooses between ThrottleInterpolationThresholdNotRenderedShortTime and ThrottleInterpolationThresholdNotRenderedLongTime based on WasRecentlyRendered(),
+	 * extend or override this for custom behavior.
+	 */
+	virtual int32 ComputeThrottleInterpolationMaxFrames(float DeltaTime, USceneComponent* InterpComponent);
 
-	/** Allow the projectile to track towards its homing target. */
-	virtual FVector ComputeHomingAcceleration(const FVector& InVelocity, float DeltaTime) const;
+	/**
+	 * Custom hook to reset throttle interpolation tracking when it was throttling previously.
+	 */
+	virtual void ResetThrottleInterpolation(float DeltaTime);
 
-	/** Adds a force which is accumulated until next tick, used by ComputeAcceleration() to affect Velocity. */
-	void AddForce(FVector Force);
-
-	/** Returns the sum of pending forces from AddForce(). */
-	FVector GetPendingForce() const { return PendingForce; }
-
-	/** Clears any pending forces from AddForce(). If bClearImmediateForce is true, clears any force being processed during this update as well. */
-	void ClearPendingForce(bool bClearImmediateForce = false);
-
-protected:
+private: // Cached State
 	// Double-buffer of pending force so that updates can use the accumulated value and reset the data so other AddForce() calls work correctly.
 	// Also prevents accumulation over frames where the update aborts for whatever reason, and works with substepping movement.
 	FVector PendingForceThisUpdate;
 
-	virtual void TickInterpolation(float DeltaTime);
+	// Pending force for next tick.
+	FVector PendingForce;
 
 	FVector InterpLocationOffset;
 	FVector InterpInitialLocationOffset;
@@ -523,15 +524,6 @@ protected:
 	FQuat InterpRotationOffset;
 	FQuat InterpInitialRotationOffset;
 
-private:
-	// Pending force for next tick.
-	FVector PendingForce;
-
-public:
-	/** Compute gravity effect given current physics volume, projectile gravity scale, etc. */
-	virtual float GetGravityZ() const override;
-
-protected:
 	/** Minimum delta time considered when ticking. Delta times below this are not considered. This is a very small non-zero positive value to avoid potential divide-by-zero in simulation code. */
 	static const float MIN_TICK_TIME;
 };
