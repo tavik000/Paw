@@ -112,10 +112,14 @@ void UPawGunComponent::Fire()
 	FVector GroundCheckEnd = SpawnLocation - FVector(0, 0, 200.0f); // Check 200 units down
 	
 	FHitResult GroundHit;
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
 	FCollisionQueryParams GroundParams;
 	GroundParams.AddIgnoredActor(GetOwner());
 	
-	if (GetWorld()->LineTraceSingleByChannel(GroundHit, GroundCheckStart, GroundCheckEnd, ECC_WorldStatic, GroundParams))
+	if (GetWorld()->LineTraceSingleByObjectType(GroundHit, GroundCheckStart, GroundCheckEnd, ObjectQueryParams, GroundParams))
 	{
 		// Found ground below, ensure we're above it
 		float DistanceToGround = FVector::Dist(SpawnLocation, GroundHit.ImpactPoint);
