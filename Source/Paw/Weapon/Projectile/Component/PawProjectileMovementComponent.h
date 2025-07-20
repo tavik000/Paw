@@ -528,6 +528,11 @@ private: // Internal Helpers
 	void AddMovementToQueue(float DeltaTime);
 	void ProcessQueuedMovements();
 	void ClearMovementQueue();
+	
+	// Projectile collision cooldown management
+	void AddProjectileCollisionCooldown(AActor* OtherProjectile);
+	bool IsProjectileCollisionOnCooldown(AActor* OtherProjectile) const;
+	void CleanupExpiredCollisionCooldowns();
 
 	static int AsyncSweepByObjectType(
 		AActor* Actor,
@@ -697,4 +702,19 @@ private: // Cached State
 	TArray<FQueuedMovementUpdate> QueuedUpdates;
 	static constexpr int32 MaxQueuedUpdates = 5;
 	static constexpr float MaxQueueTime = 0.033f; // 33ms max queue time (2 frames at 60fps)
+	
+	// Projectile collision cooldown system
+	struct FProjectileCollisionCooldown
+	{
+		TWeakObjectPtr<AActor> OtherProjectile;
+		float CooldownEndTime;
+		
+		FProjectileCollisionCooldown() : CooldownEndTime(0.0f) {}
+		FProjectileCollisionCooldown(AActor* InOtherProjectile, float InCooldownEndTime)
+			: OtherProjectile(InOtherProjectile), CooldownEndTime(InCooldownEndTime) {}
+	};
+	
+	TArray<FProjectileCollisionCooldown> ProjectileCollisionCooldowns;
+	static constexpr float ProjectileCollisionCooldownTime = 0.1f; // 100ms cooldown between same projectile pairs
+	static constexpr int32 MaxCollisionCooldowns = 10; // Limit memory usage
 };

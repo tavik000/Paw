@@ -8,6 +8,7 @@
 #include "GameFramework/WorldSettings.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "EngineUtils.h"
+#include "Paw/Weapon/Projectile/PawProjectileBase.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PawProjectileMovementComponent)
 
@@ -220,6 +221,15 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 
 	// Process any queued movement updates first
 	ProcessQueuedMovements();
+	
+	// Clean up expired collision cooldowns periodically
+	static float LastCooldownCleanupTime = 0.0f;
+	const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	if (CurrentTime - LastCooldownCleanupTime > 1.0f) // Clean up every second
+	{
+		CleanupExpiredCollisionCooldowns();
+		LastCooldownCleanupTime = CurrentTime;
+	}
 
 
 	FVector::FReal VelocityTolerance = 0.0;
@@ -420,12 +430,22 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 		}
 		else
 		{
-			//adjust to move along new wall
+			//adjust to move along new wall with improved Z velocity preservation
+			const FVector OriginalVelocity = Velocity;
 			Velocity = ComputeSlideVector(Velocity, 1.f, Normal, Hit);
+			
+			// Preserve more Z velocity when sliding, especially for projectile-projectile collisions
+			const bool bIsHorizontalSurface = FMath::Abs(Normal.Z) > 0.7f; // Ground/ceiling surface
+			if (bIsHorizontalSurface && FMath::Abs(OriginalVelocity.Z) > 0.1f)
+			{
+				// For horizontal surfaces, preserve some vertical momentum to prevent complete flattening
+				const float ZPreservationFactor = FMath::IsNearlyZero(Friction) ? 0.9f : 0.5f;
+				Velocity.Z = FMath::Lerp(Velocity.Z, OriginalVelocity.Z, ZPreservationFactor);
+			}
+			
 			// UE_LOG(LogTemp, Warning,
-			//        TEXT("No MultiHit Projectile %s: (Role: %d) Sliding along surface, new velocity: %s"),
-			//        *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
-			//        *Velocity.ToString());
+			//        TEXT("Slide vector: Original %s -> Final %s (Z preservation applied: %d)"),
+			//        *OriginalVelocity.ToString(), *Velocity.ToString(), bIsHorizontalSurface);
 		}
 
 		// Check min velocity.
@@ -1537,8 +1557,12 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 		       BounceData.HitCount, BounceData.HitMinDistance, *BounceData.Direction.ToString());
 
 
+		// Check if we hit another projectile - don't trigger corner bounce for projectile-projectile collisions
+		AActor* HitActor = BounceData.HitResult.GetActor();
+		const bool bHitProjectile = HitActor && HitActor->IsA<APawProjectileBase>();
+		
 		// Detect corner bounce (immediate hit during bounce movement) - but exclude projectile collisions
-		if (constexpr float CornerDetectionDistance = 5.0f; BounceData.HitMinDistance < CornerDetectionDistance)
+		if (constexpr float CornerDetectionDistance = 5.0f; BounceData.HitMinDistance < CornerDetectionDistance && !bHitProjectile)
 		{
 			// Check for infinite bounce protection
 			const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
@@ -1579,6 +1603,110 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 			NewTransform.SetRotation(NewRotation);
 
 			ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
+			UpdateComponentVelocity();
+		}
+		else if (bHitProjectile)
+		{
+			// Check collision cooldown to prevent immediate re-collision
+			if (IsProjectileCollisionOnCooldown(HitActor))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Projectile-projectile collision on cooldown, ignoring collision with %s"), 
+				       *GetNameSafe(HitActor));
+				
+				// Treat as no collision - continue movement without applying collision physics
+				ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
+				UpdateComponentVelocity();
+				return;
+			}
+			
+			// Enhanced logging for projectile-projectile collision
+			UE_LOG(LogTemp, Warning, TEXT("=== PROJECTILE-PROJECTILE COLLISION ==="));
+			UE_LOG(LogTemp, Warning, TEXT("This projectile: %s, Velocity: %s"), 
+			       *GetNameSafe(ActorOwner), *Velocity.ToString());
+			UE_LOG(LogTemp, Warning, TEXT("Other projectile: %s"), *GetNameSafe(HitActor));
+			UE_LOG(LogTemp, Warning, TEXT("Collision distance: %.6f, Normal: %s"), 
+			       BounceData.HitMinDistance, *BounceData.HitResult.Normal.ToString());
+			
+			// Projectile-projectile collision - apply momentum exchange physics
+			UE_LOG(LogTemp, Warning, TEXT("Applying momentum exchange physics..."));
+			
+			// Move to collision point
+			NewLocation = ActorOwner->GetActorLocation() + BounceData.Direction * BounceData.HitMinDistance;
+			NewTransform.SetLocation(NewLocation);
+			ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
+			
+			// Apply momentum exchange between projectiles
+			if (APawProjectileBase* OtherProjectile = Cast<APawProjectileBase>(HitActor))
+			{
+				if (UPawProjectileMovementComponent* OtherMovement = OtherProjectile->GetProjectileMovement())
+				{
+					// Simple elastic collision physics - exchange velocities
+					const FVector ThisVelocity = Velocity;
+					const FVector OtherVelocity = OtherMovement->Velocity;
+					
+					// Apply collision normal for realistic bounce direction
+					const FVector CollisionNormal = BounceData.HitResult.Normal;
+					
+					// Calculate relative velocity
+					const FVector RelativeVelocity = ThisVelocity - OtherVelocity;
+					const float VelAlongNormal = FVector::DotProduct(RelativeVelocity, CollisionNormal);
+					
+					// Don't resolve if velocities are separating
+					if (VelAlongNormal > 0)
+					{
+						// Assuming equal mass, apply simple elastic collision
+						const float Restitution = 0.8f; // Slight energy loss
+						const FVector VelocityChange = -(1 + Restitution) * VelAlongNormal * CollisionNormal;
+						
+						Velocity = ThisVelocity + VelocityChange;
+						OtherMovement->Velocity = OtherVelocity - VelocityChange;
+						
+						// Ensure both projectiles maintain minimum velocities
+						Velocity = LimitVelocity(Velocity);
+						OtherMovement->Velocity = OtherMovement->LimitVelocity(OtherMovement->Velocity);
+						
+						UE_LOG(LogTemp, Warning, TEXT("Momentum exchange successful:"));
+						UE_LOG(LogTemp, Warning, TEXT("  This projectile: %s -> %s"), 
+						       *ThisVelocity.ToString(), *Velocity.ToString());
+						UE_LOG(LogTemp, Warning, TEXT("  Other projectile: %s -> %s"), 
+						       *OtherVelocity.ToString(), *OtherMovement->Velocity.ToString());
+						UE_LOG(LogTemp, Warning, TEXT("  Relative velocity along normal: %.3f"), VelAlongNormal);
+						UE_LOG(LogTemp, Warning, TEXT("  Restitution applied: %.3f"), Restitution);
+					}
+					else
+					{
+						UE_LOG(LogTemp, Warning, TEXT("Projectiles already separating (VelAlongNormal: %.3f), no momentum exchange needed"), VelAlongNormal);
+					}
+					
+					// CRITICAL: Physically separate overlapping projectiles to prevent infinite collision loops
+					if (BounceData.HitMinDistance <= 0.001f) // Overlapping or extremely close
+					{
+						const FVector BounceCollisionNormal = BounceData.HitResult.Normal;
+						const float MinSeparationDistance = 10.0f; // Minimum separation in Unreal units
+						
+						// Calculate separation positions
+						const FVector ThisNewLocation = ActorOwner->GetActorLocation() - BounceCollisionNormal * (MinSeparationDistance * 0.5f);
+						const FVector OtherNewLocation = OtherProjectile->GetActorLocation() + BounceCollisionNormal * (MinSeparationDistance * 0.5f);
+						
+						// Apply separation
+						ActorOwner->SetActorLocation(ThisNewLocation, false, nullptr, ETeleportType::TeleportPhysics);
+						OtherProjectile->SetActorLocation(OtherNewLocation, false, nullptr, ETeleportType::TeleportPhysics);
+						
+						UE_LOG(LogTemp, Warning, TEXT("Applied physical separation:"));
+						UE_LOG(LogTemp, Warning, TEXT("  This projectile moved to: %s"), *ThisNewLocation.ToString());
+						UE_LOG(LogTemp, Warning, TEXT("  Other projectile moved to: %s"), *OtherNewLocation.ToString());
+						UE_LOG(LogTemp, Warning, TEXT("  Separation distance: %.3f"), MinSeparationDistance);
+					}
+					
+					// Add collision cooldown to prevent immediate re-collision between these same projectiles
+					AddProjectileCollisionCooldown(OtherProjectile);
+					UE_LOG(LogTemp, Log, TEXT("Added collision cooldown between projectiles %s and %s"), 
+					       *GetNameSafe(ActorOwner), *GetNameSafe(OtherProjectile));
+				}
+			}
+			
+			// Reset corner bounce counter since this was a projectile collision
+			ConsecutiveCornerBounces = 0;
 			UpdateComponentVelocity();
 		}
 		else
@@ -1721,5 +1849,111 @@ void UPawProjectileMovementComponent::ClearMovementQueue()
 	{
 		UE_LOG(LogTemp, Verbose, TEXT("Clearing movement queue (%d entries)"), QueuedUpdates.Num());
 		QueuedUpdates.Empty();
+	}
+}
+
+void UPawProjectileMovementComponent::AddProjectileCollisionCooldown(AActor* OtherProjectile)
+{
+	if (!IsValid(OtherProjectile))
+	{
+		return;
+	}
+	
+	const UWorld* World = GetWorld();
+	if (!IsValid(World))
+	{
+		return;
+	}
+	
+	const float CurrentTime = World->GetTimeSeconds();
+	const float CooldownEndTime = CurrentTime + ProjectileCollisionCooldownTime;
+	
+	// Clean up expired cooldowns before adding new ones
+	CleanupExpiredCollisionCooldowns();
+	
+	// Check if this projectile already has a cooldown entry
+	for (FProjectileCollisionCooldown& Cooldown : ProjectileCollisionCooldowns)
+	{
+		if (Cooldown.OtherProjectile.Get() == OtherProjectile)
+		{
+			// Update existing cooldown
+			Cooldown.CooldownEndTime = CooldownEndTime;
+			UE_LOG(LogTemp, Verbose, TEXT("Updated collision cooldown for projectile %s, ends at %.3f"), 
+			       *GetNameSafe(OtherProjectile), CooldownEndTime);
+			return;
+		}
+	}
+	
+	// Enforce memory limits
+	if (ProjectileCollisionCooldowns.Num() >= MaxCollisionCooldowns)
+	{
+		// Remove oldest cooldown to make room
+		ProjectileCollisionCooldowns.RemoveAt(0);
+		UE_LOG(LogTemp, Verbose, TEXT("Collision cooldown overflow, removed oldest entry"));
+	}
+	
+	// Add new cooldown entry
+	ProjectileCollisionCooldowns.Add(FProjectileCollisionCooldown(OtherProjectile, CooldownEndTime));
+	UE_LOG(LogTemp, Verbose, TEXT("Added collision cooldown for projectile %s, ends at %.3f (array size: %d)"), 
+	       *GetNameSafe(OtherProjectile), CooldownEndTime, ProjectileCollisionCooldowns.Num());
+}
+
+bool UPawProjectileMovementComponent::IsProjectileCollisionOnCooldown(AActor* OtherProjectile) const
+{
+	if (!IsValid(OtherProjectile))
+	{
+		return false;
+	}
+	
+	const UWorld* World = GetWorld();
+	if (!IsValid(World))
+	{
+		return false;
+	}
+	
+	const float CurrentTime = World->GetTimeSeconds();
+	
+	// Check if this projectile has an active cooldown
+	for (const FProjectileCollisionCooldown& Cooldown : ProjectileCollisionCooldowns)
+	{
+		if (Cooldown.OtherProjectile.Get() == OtherProjectile)
+		{
+			const bool bOnCooldown = CurrentTime < Cooldown.CooldownEndTime;
+			if (bOnCooldown)
+			{
+				const float TimeRemaining = Cooldown.CooldownEndTime - CurrentTime;
+				UE_LOG(LogTemp, Verbose, TEXT("Projectile %s collision on cooldown, %.3f seconds remaining"), 
+				       *GetNameSafe(OtherProjectile), TimeRemaining);
+			}
+			return bOnCooldown;
+		}
+	}
+	
+	return false;
+}
+
+void UPawProjectileMovementComponent::CleanupExpiredCollisionCooldowns()
+{
+	const UWorld* World = GetWorld();
+	if (!IsValid(World))
+	{
+		return;
+	}
+	
+	const float CurrentTime = World->GetTimeSeconds();
+	const int32 InitialCount = ProjectileCollisionCooldowns.Num();
+	
+	// Remove expired cooldowns
+	ProjectileCollisionCooldowns.RemoveAll([CurrentTime](const FProjectileCollisionCooldown& Cooldown)
+	{
+		const bool bExpired = CurrentTime >= Cooldown.CooldownEndTime || !Cooldown.OtherProjectile.IsValid();
+		return bExpired;
+	});
+	
+	const int32 RemovedCount = InitialCount - ProjectileCollisionCooldowns.Num();
+	if (RemovedCount > 0)
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("Cleaned up %d expired collision cooldowns (remaining: %d)"), 
+		       RemovedCount, ProjectileCollisionCooldowns.Num());
 	}
 }
