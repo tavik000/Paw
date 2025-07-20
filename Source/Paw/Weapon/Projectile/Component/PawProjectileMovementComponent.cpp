@@ -7,7 +7,6 @@
 #include "Components/PrimitiveComponent.h"
 #include "GameFramework/WorldSettings.h"
 #include "ProfilingDebugging/CsvProfiler.h"
-#include "EngineUtils.h"
 #include "Paw/Weapon/Projectile/PawProjectileBase.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PawProjectileMovementComponent)
