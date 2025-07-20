@@ -153,20 +153,8 @@ void UPawProjectileMovementComponent::UpdateTickRegistration()
 	}
 }
 
-void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevelTick TickType,
-                                                    FActorComponentTickFunction* ThisTickFunction)
+bool UPawProjectileMovementComponent::TickInterpolationValidation(float DeltaTime)
 {
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_ProjectileMovementComponent_TickComponent);
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(ProjectileMovement);
-
-	// Can avoid moving the interpolated object's children until the end of the entire simulation frame.
-	// This only makes sense if simulation is also enabled, which would move the UpdatedComponent and move the attached InterpolatedComponent (and children) again.
-	const bool bUseScopedInterpolatedMove = bInterpolationUseScopedMovement && bSimulationEnabled;
-	const FScopedMovementUpdate ScopedInterpolatedMove(GetInterpolatedComponent(),
-	                                                   bUseScopedInterpolatedMove
-		                                                   ? EScopedUpdate::DeferredUpdates
-		                                                   : EScopedUpdate::ImmediateUpdates);
-
 	// Still need to finish interpolating after we've stopped simulating, so do that first.
 	if (!bInterpolationComplete)
 	{
@@ -182,27 +170,14 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 	// skip if don't want component updated when not rendered or updated component can't move
 	if (HasStoppedSimulation() || ShouldSkipUpdate(DeltaTime))
 	{
-		return;
+		return false;
 	}
 
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	return true;
+}
 
-	if (!IsValid(UpdatedComponent) || !bSimulationEnabled)
-	{
-		return;
-	}
-
-	AActor* ActorOwner = UpdatedComponent->GetOwner();
-	if (!ActorOwner || !CheckStillInWorld())
-	{
-		return;
-	}
-
-	if (UpdatedComponent->IsSimulatingPhysics())
-	{
-		return;
-	}
-
+bool UPawProjectileMovementComponent::TickAsyncSweepManagement(float DeltaTime)
+{
 	if (!IsAllAsyncSweepingCompleted())
 	{
 		// Queue movement update instead of skipping tick entirely
@@ -213,12 +188,19 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 		{
 			ProcessQueuedMovements();
 		}
-		return;
+		return false;
 	}
+	return true;
+}
 
+void UPawProjectileMovementComponent::TickMovementQueueProcessing()
+{
 	// Process any queued movement updates first
 	ProcessQueuedMovements();
+}
 
+void UPawProjectileMovementComponent::TickCollisionCooldownCleanup()
+{
 	// Clean up expired collision cooldowns periodically
 	static float LastCooldownCleanupTime = 0.0f;
 	const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
@@ -227,8 +209,10 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 		CleanupExpiredCollisionCooldowns();
 		LastCooldownCleanupTime = CurrentTime;
 	}
+}
 
-
+void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AActor* ActorOwner)
+{
 	FVector::FReal VelocityTolerance = 0.0;
 	switch (ActorOwner->GetReplicatedMovement().VelocityQuantizationLevel)
 	{
@@ -253,19 +237,11 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 	const FScopedMovementUpdate ScopedProjectileUpdate(bSimulationUseScopedMovement ? UpdatedComponent : nullptr,
 	                                                   EScopedUpdate::DeferredUpdates);
 
-	// while (bSimulationEnabled && RemainingTime >= MIN_TICK_TIME && (Iterations < MaxSimulationIterations) &&
-	// 	IsValid(ActorOwner) && !HasStoppedSimulation())
-	// {
-	// 	LoopCount++;
-	// 	Iterations++;
-
 	// subdivide long ticks to more closely follow parabolic trajectory
-	// const float InitialTimeRemaining = RemainingTime;
 	CurrentTimeTick = ShouldUseSubStepping()
 		                  ? GetSimulationTimeStep(RemainingTime, Iterations)
 		                  : RemainingTime;
 	RemainingTime -= CurrentTimeTick;
-
 
 	// Initial move state
 	Hit.Time = 1.f;
@@ -283,7 +259,6 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 		DesiredRotation.Roll = 0.0f;
 		NewRotation = DesiredRotation.Quaternion();
 	}
-
 
 	// Move the component
 	if (bShouldBounce)
@@ -331,9 +306,63 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 		                                                   MOVECOMP_NeverIgnoreBlockingOverlaps);
 		MoveUpdatedComponent(MoveDelta, NewRotation, bSweepCollision, &Hit);
 	}
-	// }
 }
 
+void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevelTick TickType,
+                                                    FActorComponentTickFunction* ThisTickFunction)
+{
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_ProjectileMovementComponent_TickComponent);
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(ProjectileMovement);
+
+	// Can avoid moving the interpolated object's children until the end of the entire simulation frame.
+	// This only makes sense if simulation is also enabled, which would move the UpdatedComponent and move the attached InterpolatedComponent (and children) again.
+	const bool bUseScopedInterpolatedMove = bInterpolationUseScopedMovement && bSimulationEnabled;
+	const FScopedMovementUpdate ScopedInterpolatedMove(GetInterpolatedComponent(),
+	                                                   bUseScopedInterpolatedMove
+		                                                   ? EScopedUpdate::DeferredUpdates
+		                                                   : EScopedUpdate::ImmediateUpdates);
+
+	// Handle interpolation validation and early returns
+	if (!TickInterpolationValidation(DeltaTime))
+	{
+		return;
+	}
+
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (!IsValid(UpdatedComponent) || !bSimulationEnabled)
+	{
+		return;
+	}
+
+	AActor* ActorOwner = UpdatedComponent->GetOwner();
+	if (!ActorOwner || !CheckStillInWorld())
+	{
+		return;
+	}
+
+	if (UpdatedComponent->IsSimulatingPhysics())
+	{
+		return;
+	}
+
+	// Handle async sweep management
+	if (!TickAsyncSweepManagement(DeltaTime))
+	{
+		return;
+	}
+
+	// Process movement queue and cleanup
+	TickMovementQueueProcessing();
+	TickCollisionCooldownCleanup();
+
+	// Run the main physics simulation
+	TickPhysicsSimulation(DeltaTime, ActorOwner);
+}
+
+// ============================================================================
+// Physics & Collision System
+// ============================================================================
 
 bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& SubTickTimeRemaining)
 {
@@ -571,6 +600,10 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 	return true;
 }
 
+
+// ============================================================================
+// Movement & Velocity System
+// ============================================================================
 
 void UPawProjectileMovementComponent::SetVelocityInLocalSpace(FVector NewVelocity)
 {
@@ -827,6 +860,9 @@ bool UPawProjectileMovementComponent::CheckStillInWorld()
 	return true;
 }
 
+// ============================================================================
+// Simulation & Time Stepping System
+// ============================================================================
 
 bool UPawProjectileMovementComponent::ShouldUseSubStepping() const
 {
@@ -871,6 +907,10 @@ float UPawProjectileMovementComponent::GetSimulationTimeStep(float RemainingTime
 	// no less than MIN_TICK_TIME (to avoid potential divide-by-zero during simulation).
 	return FMath::Max(MIN_TICK_TIME, RemainingTime);
 }
+
+// ============================================================================
+// Network Interpolation System
+// ============================================================================
 
 void UPawProjectileMovementComponent::SetInterpolatedComponent(USceneComponent* Component)
 {
@@ -1144,6 +1184,10 @@ void UPawProjectileMovementComponent::ResetThrottleInterpolation(float DeltaTime
 {
 	ThrottleInterpolationFramesSinceInterp = 0;
 }
+
+// ============================================================================
+// Async Sweep System
+// ============================================================================
 
 int UPawProjectileMovementComponent::AsyncSweepByObjectType(AActor* Actor, EAsyncTraceType InTraceType,
                                                             const FVector& Start, const FVector& End, const FQuat& Rot,
@@ -1554,6 +1598,10 @@ bool UPawProjectileMovementComponent::IsAllAsyncSweepingCompleted() const
 		0);
 }
 
+// ============================================================================
+// Movement Queue System
+// ============================================================================
+
 void UPawProjectileMovementComponent::AddMovementToQueue(float DeltaTime)
 {
 	if (!UpdatedComponent)
@@ -1624,6 +1672,10 @@ void UPawProjectileMovementComponent::ClearMovementQueue()
 		QueuedUpdates.Empty();
 	}
 }
+
+// ============================================================================
+// Projectile Collision Cooldown System
+// ============================================================================
 
 void UPawProjectileMovementComponent::AddProjectileCollisionCooldown(AActor* OtherProjectile)
 {

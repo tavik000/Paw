@@ -21,17 +21,13 @@ class PAW_API UPawProjectileMovementComponent : public UMovementComponent
 public: // Constructor & Public Engine Overrides
 	UPawProjectileMovementComponent(const FObjectInitializer& ObjectInitializer);
 
-	//~ UActorComponent interface
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType,
 	                           FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void PostLoad() override;
-	//~ End UActorComponent interface
 
-	//~ UMovementComponent interface
 	virtual float GetMaxSpeed() const override { return MaxSpeed; }
 	virtual void InitializeComponent() override;
 	virtual void UpdateTickRegistration() override;
-	//~ End UMovementComponent interface
 
 public: // Blueprint-Callable API
 	/**
@@ -154,7 +150,8 @@ public: // C++ Public Helpers
 	virtual float GetGravityZ() const override;
 
 public: // Properties
-	// Properties: Projectile Settings
+
+	// Properties: Core Projectile Settings
 	/** Initial speed of projectile. If greater than zero, this will override the initial Velocity value and instead treat Velocity as a direction. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projectile)
 	float InitialSpeed;
@@ -187,7 +184,7 @@ public: // Properties
 	UPROPERTY()
 	float Buoyancy;
 
-	// Properties: Bounce System
+	// Properties: Physics & Bounce System
 	/** If true, simple bounces will be simulated. Set this to false to stop simulating on contact. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileBounces)
 	uint8 bShouldBounce : 1;
@@ -299,7 +296,7 @@ public: // Properties
 		Category=ProjectileSimulation)
 	int32 BounceAdditionalIterations;
 
-	// Properties: Homing System
+	// Properties: Targeting & Homing System
 	/**
 	 * If true, we will accelerate toward our homing target. HomingTargetComponent must be set after the projectile is spawned.
 	 * @see HomingTargetComponent, HomingAccelerationMagnitude
@@ -318,7 +315,7 @@ public: // Properties
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Category=Homing)
 	TWeakObjectPtr<USceneComponent> HomingTargetComponent;
 
-	// Properties: Interpolation System
+	// Properties: Network Interpolation System
 	/**
 	 * If true and there is an interpolated component set, location (and optionally rotation) interpolation is enabled which allows the interpolated object to smooth uneven updates
 	 * of the UpdatedComponent's location (usually to smooth network updates). This requires using SetInterpolatedComponent() to indicate the visual component that lags behind the collision,
@@ -446,7 +443,16 @@ protected: // Protected Engine Overrides
 	virtual void HandleImpact(const FHitResult& Hit, float TimeSlice = 0.f,
 	                          const FVector& MoveDelta = FVector::ZeroVector) override;
 
-protected: // Internal Helper Methods
+protected: // Protected Helper Methods
+
+	// Tick Component Sub-Methods
+	bool TickInterpolationValidation(float DeltaTime);
+	bool TickAsyncSweepManagement(float DeltaTime);
+	void TickMovementQueueProcessing();
+	void TickCollisionCooldownCleanup();
+	void TickPhysicsSimulation(float DeltaTime, AActor* ActorOwner);
+
+	// Physics & Collision Methods
 
 	// Enum indicating how simulation should proceed after HandleBlockingHit() is called.
 	enum class EHandleBlockingHitResult
@@ -502,6 +508,7 @@ protected: // Internal Helper Methods
 	/** Computes result of a bounce and returns the new velocity. */
 	virtual FVector ComputeBounceResult(const FHitResult& Hit, float TimeSlice, const FVector& MoveDelta);
 
+	// Interpolation Methods
 	virtual void TickInterpolation(float DeltaTime);
 
 	/**
@@ -522,18 +529,19 @@ protected: // Internal Helper Methods
 	 */
 	virtual void ResetThrottleInterpolation(float DeltaTime);
 
-private: // Internal Helpers
+private: // Internal Helper Methods
 	
-	// Movement queue management
+	// Movement Queue Management
 	void AddMovementToQueue(float DeltaTime);
 	void ProcessQueuedMovements();
 	void ClearMovementQueue();
 	
-	// Projectile collision cooldown management
+	// Projectile Collision Cooldown Management
 	void AddProjectileCollisionCooldown(AActor* OtherProjectile);
 	bool IsProjectileCollisionOnCooldown(AActor* OtherProjectile) const;
 	void CleanupExpiredCollisionCooldowns();
 
+	// Async Sweep System
 	static int AsyncSweepByObjectType(
 		AActor* Actor,
 		EAsyncTraceType InTraceType,
@@ -558,16 +566,16 @@ private: // Internal Helpers
 	void HandleBounceAsyncSweepCompleted();
 
 	bool IsAllAsyncSweepingCompleted() const;
-	
 
-private: // Cached State
+private: // Cached State & Internal Data
+
+	// Force System State
 	// Double-buffer of pending force so that updates can use the accumulated value and reset the data so other AddForce() calls work correctly.
 	// Also prevents accumulation over frames where the update aborts for whatever reason, and works with substepping movement.
 	FVector PendingForceThisUpdate;
-
-	// Pending force for next tick.
 	FVector PendingForce;
 
+	// Interpolation System State
 	FVector InterpLocationOffset;
 	FVector InterpInitialLocationOffset;
 	TWeakObjectPtr<USceneComponent> InterpolatedComponentPtr;
@@ -577,8 +585,7 @@ private: // Cached State
 	/** Minimum delta time considered when ticking. Delta times below this are not considered. This is a very small non-zero positive value to avoid potential divide-by-zero in simulation code. */
 	static const float MIN_TICK_TIME;
 
-
-	// Moving async sweep data
+	// Async Sweep Data Structures
 	struct FMovementAsyncSweepData
 	{
 		FMovementAsyncSweepData() { Reset(); }
@@ -610,7 +617,7 @@ private: // Cached State
 	int32 NumImpacts;
 	int32 NumBounces;
 
-	// Sliding data
+	// Sliding System Data
 	struct FSlidingAsyncSweepData
 	{
 		float SubTickTimeRemaining = 0.f;
@@ -640,7 +647,7 @@ private: // Cached State
 	FSlidingAsyncSweepData SlidingAsyncData;
 	FTraceDelegate AsyncSlidingDelegate;
 
-	// Bounce data
+	// Bounce System Data
 	struct FBounceAsyncSweepData
 	{
 		float SubTickTimeRemaining = 0.f;
@@ -672,22 +679,21 @@ private: // Cached State
 	FBounceAsyncSweepData BounceAsyncData;
 	FTraceDelegate AsyncBounceDelegate;
 
-	// Anti-infinite-bounce protection
+	// Anti-Infinite Bounce Protection System
 	int32 ConsecutiveCornerBounces;
 	float LastCornerBounceTime;
 	static constexpr int32 MaxConsecutiveCornerBounces = 5;
 	static constexpr float CornerBounceTimeoutWindow = 2.0f; // seconds
 	
-	// Normal bounce limits
 	int32 TotalBounceCount;
 	static constexpr int32 MaxTotalBounces = 10;
 	
-	// Sliding hysteresis system
+	// Sliding Hysteresis System
 	float LastSlidingStateChangeTime;
 	bool bPreviousSlidingState;
 	static constexpr float SlidingHysteresisTime = 0.1f; // 100ms hysteresis to prevent rapid state changes
 	
-	// Movement update queuing system
+	// Movement Update Queuing System
 	struct FQueuedMovementUpdate
 	{
 		float DeltaTime;
@@ -703,7 +709,7 @@ private: // Cached State
 	static constexpr int32 MaxQueuedUpdates = 5;
 	static constexpr float MaxQueueTime = 0.033f; // 33ms max queue time (2 frames at 60fps)
 	
-	// Projectile collision cooldown system
+	// Projectile Collision Cooldown System
 	struct FProjectileCollisionCooldown
 	{
 		TWeakObjectPtr<AActor> OtherProjectile;
