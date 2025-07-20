@@ -292,7 +292,8 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 		FCollisionObjectQueryParams ObjectQueryParams;
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
-
+		ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
+		
 		if (!AsyncSweepDelegate.IsBound())
 		{
 			AsyncSweepDelegate.BindUObject(this, &ThisClass::HandleMovementAsyncSweepResult);
@@ -435,7 +436,8 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 		FCollisionObjectQueryParams ObjectQueryParams;
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
-
+		ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
+		
 		const FVector StartLocation = ActorOwner->GetActorLocation();
 		const FVector EndLocation = StartLocation + MoveDelta;
 		const FQuat NewRotation = ActorOwner->GetActorQuat() * MovementAsyncSweepData.RelativeQuat;
@@ -495,6 +497,8 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 	FCollisionObjectQueryParams ObjectQueryParams;
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
+	
 	const FVector StartLocation = ActorOwner->GetActorLocation();
 	const FVector EndLocation = StartLocation + MoveDelta;
 
