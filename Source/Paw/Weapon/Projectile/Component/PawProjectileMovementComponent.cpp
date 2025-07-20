@@ -1412,49 +1412,44 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Hit during bounce sweep: HitCount: %d, HitMinDistance: %f, Direction: %s"),
 		       BounceData.HitCount, BounceData.HitMinDistance, *BounceData.Direction.ToString());
-		StopSimulating(BounceData.HitResult);
-		return;
-		// Hit something during bounce movement, handle it
-		FHitResult& Hit = BounceData.HitResult;
-		float SubTickTimeRemaining = BounceData.SubTickTimeRemaining;
 		
-		// Move to hit point first
-		auto HitTransform = ActorOwner->GetActorTransform();
-		auto HitLocation = HitTransform.GetLocation() + BounceData.Direction * BounceData.HitMinDistance;
-		HitTransform.SetLocation(HitLocation);
-		ActorOwner->SetActorTransform(HitTransform, false, nullptr, ETeleportType::TeleportPhysics);
-		
-		// Adjust remaining time based on hit
-		SubTickTimeRemaining = BounceData.SubTickTimeRemaining * (1.f - Hit.Time);
-		
-		// Handle the new blocking hit
-		const EHandleBlockingHitResult HandleBlockingResult = HandleBlockingHit(
-			Hit, BounceData.SubTickTimeRemaining, Velocity * BounceData.SubTickTimeRemaining, SubTickTimeRemaining);
-
-		if (HandleBlockingResult == EHandleBlockingHitResult::Abort || HasStoppedSimulation())
+		// Detect corner bounce (immediate hit during bounce movement)
+		if (constexpr float CornerDetectionDistance = 5.0f; BounceData.HitMinDistance < CornerDetectionDistance)
 		{
-			UE_LOG(LogTemp, Warning, TEXT(" Bounce Projectile %s: (Role: %d) Stopped simulation after bounce hit."),
-			       *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole());
-			return;
-		}
-		if (HandleBlockingResult == EHandleBlockingHitResult::Deflect)
-		{
-			NumBounces++;
-			if (!HandleDeflection(Hit, SubTickTimeRemaining))
+			// Corner bounce detected - reverse velocity with energy loss
+			UE_LOG(LogTemp, Warning, TEXT("Corner bounce detected (distance: %.3f), reversing velocity"), BounceData.HitMinDistance);
+			
+			// Reverse velocity direction with bounciness factor (natural energy loss)
+			Velocity = -Velocity * Bounciness;
+			
+			// Apply friction for additional energy loss
+			Velocity *= (1.0f - Friction);
+			
+			// Check if velocity is still above simulation threshold
+			if (IsVelocityUnderSimulationThreshold())
 			{
-				UE_LOG(LogTemp, Warning, TEXT(" Bounce Projectile %s: (Role: %d) Deflection failed, stopping simulation."),
-				       *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole());
-				StopSimulating(Hit);
+				UE_LOG(LogTemp, Warning, TEXT("Corner bounce velocity too low, stopping simulation"));
+				StopSimulating(BounceData.HitResult);
 				return;
 			}
-
-			PreviousHitTime = Hit.Time;
-			PreviousHitNormal = ConstrainNormalToPlane(Hit.Normal);
+			
+			// Move slightly away from hit point to prevent immediate re-collision
+			FVector AwayDirection = -BounceData.Direction;
+			NewLocation += AwayDirection * 3.0f; // Small offset
+			NewTransform.SetLocation(NewLocation);
+			ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
+			
+			UpdateComponentVelocity();
+			UE_LOG(LogTemp, Warning, TEXT("Corner bounce applied, new velocity: %s, moved away by: %s"), 
+			       *Velocity.ToString(), *(AwayDirection * 3.0f).ToString());
 		}
-		else if (HandleBlockingResult == EHandleBlockingHitResult::AdvanceNextSubstep)
+		else
 		{
-			// Reset deflection logic to ignore this hit
-			PreviousHitTime = 1.f;
+			// Not a corner bounce - handle as normal collision would require the full collision handling
+			// For now, stop simulation for non-corner hits during bounce movement
+			UE_LOG(LogTemp, Warning, TEXT("Non-corner hit during bounce movement (distance: %.3f), stopping simulation"), 
+			       BounceData.HitMinDistance);
+			StopSimulating(BounceData.HitResult);
 		}
 	}
 }
