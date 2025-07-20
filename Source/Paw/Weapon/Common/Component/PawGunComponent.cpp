@@ -13,7 +13,6 @@
 UPawGunComponent::UPawGunComponent()
 {
 	// Default offset from the character location for projectiles to spawn
-	MuzzleOffset = FVector(100.0f, 0.0f, 10.0f);
 	SetIsReplicatedByDefault(true);
 }
 
@@ -81,21 +80,49 @@ void UPawGunComponent::Fire()
 	}
 	
 	// Try and fire a projectile
+	AActor* ActorOwner = GetOwner();
+	if (!IsValid(ActorOwner))
+	{
+		return;
+	}
 	APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
 	const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
-	const FVector Start = GetOwner()->GetActorLocation();
+	const FVector Start = FPSPlayer->GetActorLocation();
 	const FVector End = Start + (SpawnRotation.Vector() * 10000);
 	FHitResult HitResult;
 	FCollisionQueryParams CollisionParams;
-	CollisionParams.AddIgnoredActor(GetOwner());
+	CollisionParams.AddIgnoredActor(ActorOwner);
+	CollisionParams.AddIgnoredActor(FPSPlayer);
 	GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECollisionChannel::ECC_Visibility, CollisionParams);
 	const float Distance = FVector::Dist(Start, HitResult.ImpactPoint);
 	const bool IsFacingDownOrTooClose = Distance < FireClosetDistance || SpawnRotation.Pitch <= FacingDownPitch;
 
-	FVector SpawnLocation = GetOwner()->GetActorLocation();
-	if (IsFacingDownOrTooClose)
+	FVector SpawnLocation = FPSPlayer->GetActorLocation() + FPSPlayer->GetActorForwardVector() * MuzzleOffset;
+	// if (IsFacingDownOrTooClose)
+	// {
+	// 	SpawnLocation = SpawnLocation + FPSPlayer->GetActorForwardVector() * TooCloseAdjustOffset;
+	// }
+	
+	// Ensure minimum ground clearance to prevent spawning inside ground
+	constexpr float MinGroundClearance = 50.0f; // Minimum distance above ground
+	FVector GroundCheckStart = SpawnLocation;
+	FVector GroundCheckEnd = SpawnLocation - FVector(0, 0, 200.0f); // Check 200 units down
+	
+	FHitResult GroundHit;
+	FCollisionQueryParams GroundParams;
+	GroundParams.AddIgnoredActor(GetOwner());
+	
+	if (GetWorld()->LineTraceSingleByChannel(GroundHit, GroundCheckStart, GroundCheckEnd, ECC_WorldStatic, GroundParams))
 	{
-		SpawnLocation = SpawnLocation + GetOwner()->GetActorForwardVector() * TooCloseAdjustOffset;
+		// Found ground below, ensure we're above it
+		float DistanceToGround = FVector::Dist(SpawnLocation, GroundHit.ImpactPoint);
+		if (DistanceToGround < MinGroundClearance)
+		{
+			// Adjust spawn location to be above ground
+			SpawnLocation = GroundHit.ImpactPoint + FVector(0, 0, MinGroundClearance);
+			UE_LOG(LogTemp, Warning, TEXT("Adjusted projectile spawn location to prevent ground penetration. New location: %s"), 
+			       *SpawnLocation.ToString());
+		}
 	}
 	
 

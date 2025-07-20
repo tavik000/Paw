@@ -36,7 +36,7 @@ protected:
 	UAnimMontage* FireAnimation;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
-	FVector MuzzleOffset;
+	float MuzzleOffset;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
 	float FireClosetDistance = 22.5f;
