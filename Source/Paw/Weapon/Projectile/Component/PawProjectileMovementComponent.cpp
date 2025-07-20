@@ -206,13 +206,13 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 	{
 		// Queue movement update instead of skipping tick entirely
 		AddMovementToQueue(DeltaTime);
-		UE_LOG(LogTemp, Verbose, TEXT("Queued movement update for %s (DeltaTime: %.4f, Queue size: %d, bIsSliding: %d)"),
-		       *GetNameSafe(UpdatedComponent->GetOwner()), DeltaTime, QueuedUpdates.Num(), bIsSliding);
+		// UE_LOG(LogTemp, Verbose, TEXT("Queued movement update for %s (DeltaTime: %.4f, Queue size: %d, bIsSliding: %d)"),
+		//        *GetNameSafe(UpdatedComponent->GetOwner()), DeltaTime, QueuedUpdates.Num(), bIsSliding);
 		
 		// During sliding with zero friction, process queue more aggressively to reduce lag
 		if (bIsSliding && FMath::IsNearlyZero(Friction) && QueuedUpdates.Num() >= 2)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Processing queue early during zero-friction sliding to reduce lag"));
+			// UE_LOG(LogTemp, Warning, TEXT("Processing queue early during zero-friction sliding to reduce lag"));
 			ProcessQueuedMovements();
 		}
 		return;
@@ -335,8 +335,8 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 
 bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& SubTickTimeRemaining)
 {
-	UE_LOG(LogTemp, Warning, TEXT(" HandleDeflection called for %s, SubTickTimeRemaining: %.3f"),
-	       *GetNameSafe(UpdatedComponent->GetOwner()), SubTickTimeRemaining);
+	// UE_LOG(LogTemp, Warning, TEXT(" HandleDeflection called for %s, SubTickTimeRemaining: %.3f"),
+	//        *GetNameSafe(UpdatedComponent->GetOwner()), SubTickTimeRemaining);
 	const FVector Normal = ConstrainNormalToPlane(Hit.Normal);
 
 	// Multiple hits within very short time period?
@@ -346,9 +346,9 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 	constexpr float DotTolerance = 0.05f; // Increased from 0.01f to reduce sliding sensitivity
 	constexpr float MinSlidingVelocity = 50.0f; // Minimum velocity to consider sliding
 
-	UE_LOG(LogTemp, Warning, TEXT("HandleDeflection: bMultiHit: %d, PreviousHitNormal: %s, Normal: %s, VelocityNormal: %s, Dot: %.3f, VelMag: %.1f, bIsSliding: %d, Friction: %.3f"),
-	       bMultiHit, *PreviousHitNormal.ToString(), *Normal.ToString(),
-	       *Velocity.GetSafeNormal().ToString(), (Velocity.GetSafeNormal() | Normal), Velocity.Size(), bIsSliding, Friction);
+	// UE_LOG(LogTemp, Warning, TEXT("HandleDeflection: bMultiHit: %d, PreviousHitNormal: %s, Normal: %s, VelocityNormal: %s, Dot: %.3f, VelMag: %.1f, bIsSliding: %d, Friction: %.3f"),
+	//        bMultiHit, *PreviousHitNormal.ToString(), *Normal.ToString(),
+	//        *Velocity.GetSafeNormal().ToString(), (Velocity.GetSafeNormal() | Normal), Velocity.Size(), bIsSliding, Friction);
 	
 	const bool bIsGroundSurface = FMath::Abs(Normal.Z) > 0.7f;
 
@@ -369,15 +369,15 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 			bIsSliding = bNewSlidingState;
 			LastSlidingStateChangeTime = CurrentTime;
 			bPreviousSlidingState = bNewSlidingState;
-			UE_LOG(LogTemp, Warning, TEXT("Sliding state changed from %d to %d (hysteresis applied)"), 
-			       !bNewSlidingState, bNewSlidingState);
+			// UE_LOG(LogTemp, Warning, TEXT("Sliding state changed from %d to %d (hysteresis applied)"), 
+			//        !bNewSlidingState, bNewSlidingState);
 		}
 		else
 		{
 			// Keep previous state due to hysteresis
 			bIsSliding = bPreviousSlidingState;
-			UE_LOG(LogTemp, Verbose, TEXT("Sliding state change suppressed by hysteresis (%.3fs since last change)"), 
-			       TimeSinceLastChange);
+			// UE_LOG(LogTemp, Verbose, TEXT("Sliding state change suppressed by hysteresis (%.3fs since last change)"), 
+			//        TimeSinceLastChange);
 		}
 	}
 	else
@@ -386,16 +386,17 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 		bIsSliding = bNewSlidingState;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("Set bIsSliding to %d for %s, PreviousHitNormal: %s, Normal: %s, VelocityNormal: %s, Dot: %.3f"),
-	       bIsSliding, *GetNameSafe(UpdatedComponent->GetOwner()), *PreviousHitNormal.ToString(),
-	       *Normal.ToString(), *Velocity.GetSafeNormal().ToString(), (Velocity.GetSafeNormal() | Normal));
+	// UE_LOG(LogTemp, Warning, TEXT("Set bIsSliding to %d for %s, PreviousHitNormal: %s, Normal: %s, VelocityNormal: %s, Dot: %.3f"),
+	//        bIsSliding, *GetNameSafe(UpdatedComponent->GetOwner()), *PreviousHitNormal.ToString(),
+	//        *Normal.ToString(), *Velocity.GetSafeNormal().ToString(), (Velocity.GetSafeNormal() | Normal));
 
 	if (bIsSliding)
 	{
 		const float FrameTime = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f;
-		UE_LOG(LogTemp, Warning, TEXT("SLIDING: Projectile %s: (Role: %d) Velocity: %s, Normal: %s, Friction: %.3f, FrameTime: %.3fms"),
-		       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
-		       *Velocity.ToString(), *Normal.ToString(), Friction, FrameTime * 1000.0f);
+		// UE_LOG(LogTemp, Warning, TEXT("SLIDING: Projectile %s: (Role: %d) Velocity: %s, Normal: %s, Friction: %.3f, FrameTime: %.3fms"),
+		//        *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
+		//        *Velocity.ToString(), *Normal.ToString(), Friction, FrameTime * 1000.0f);
+		
 		// Disable multihit testing for now. but it might cause issues with sliding along corners.
 		// for angle < 80 degrees, slide along wall. Cos 80 degrees = 0.173648f
 		if (bMultiHit && (PreviousHitNormal | Normal) < 0.173648f)
@@ -419,10 +420,10 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 		{
 			//adjust to move along new wall
 			Velocity = ComputeSlideVector(Velocity, 1.f, Normal, Hit);
-			UE_LOG(LogTemp, Warning,
-			       TEXT("No MultiHit Projectile %s: (Role: %d) Sliding along surface, new velocity: %s"),
-			       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
-			       *Velocity.ToString());
+			// UE_LOG(LogTemp, Warning,
+			//        TEXT("No MultiHit Projectile %s: (Role: %d) Sliding along surface, new velocity: %s"),
+			//        *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
+			//        *Velocity.ToString());
 		}
 
 		// Check min velocity.
@@ -489,9 +490,9 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 		const FVector EndLocation = StartLocation + MoveDelta;
 		const FQuat NewRotation = ActorOwner->GetActorQuat() * MovementAsyncSweepData.RelativeQuat;
 
-		UE_LOG(LogTemp, Warning, TEXT(" Bounce Sweep for %s, Start %s, End %s, MoveDistance %.3f"),
-		       *GetNameSafe(ActorOwner), *StartLocation.ToString(), *EndLocation.ToString(),
-		       BounceAsyncData.MoveDistance);
+		// UE_LOG(LogTemp, Warning, TEXT(" Bounce Sweep for %s, Start %s, End %s, MoveDistance %.3f"),
+		//        *GetNameSafe(ActorOwner), *StartLocation.ToString(), *EndLocation.ToString(),
+		//        BounceAsyncData.MoveDistance);
 
 		BounceAsyncData.SweepCount += AsyncSweepByObjectType(ActorOwner, EAsyncTraceType::Single,
 		                                                     StartLocation, EndLocation,
@@ -521,8 +522,8 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 	if (FMath::IsNearlyZero(Friction))
 	{
 		const float StartTime = GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.0f;
-		UE_LOG(LogTemp, Warning, TEXT("SLIDING FAST PATH: Zero-friction sliding for %s at %.3fms"), 
-		       *GetNameSafe(ActorOwner), StartTime * 1000.0f);
+		// UE_LOG(LogTemp, Warning, TEXT("SLIDING FAST PATH: Zero-friction sliding for %s at %.3fms"), 
+		//        *GetNameSafe(ActorOwner), StartTime * 1000.0f);
 		
 		// Direct position update without async sweep
 		FVector MoveDelta = Velocity * SubTickTimeRemaining;
@@ -538,8 +539,8 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 		
 		const float EndTime = GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.0f;
 		const float ProcessingTime = (EndTime - StartTime) * 1000.0f;
-		UE_LOG(LogTemp, Warning, TEXT("FAST PATH COMPLETE: Processing time %.3fms, new velocity %s"), 
-		       ProcessingTime, *Velocity.ToString());
+		// UE_LOG(LogTemp, Warning, TEXT("FAST PATH COMPLETE: Processing time %.3fms, new velocity %s"), 
+		//        ProcessingTime, *Velocity.ToString());
 		
 		// Check min velocity
 		if (IsVelocityUnderSimulationThreshold())
@@ -1204,17 +1205,17 @@ int UPawProjectileMovementComponent::AsyncSweepByObjectType(AActor* Actor, EAsyn
 	World->AsyncSweepByObjectType(
 		InTraceType, Start, End, Rot, ObjectQueryParams, CollisionShape, Params,
 		InDelegate, UserData);
-	UE_LOG(LogTemp, Warning,
-	       TEXT(" AsyncSweepByObjectType: %s, Start: %s, End: %s, Rot: %s, ObjectQueryParams: %d, Params: %s"),
-	       *Actor->GetName(), *Start.ToString(), *End.ToString(), *Rot.Rotator().ToString(),
-	       ObjectQueryParams.ObjectTypesToQuery, *Params.ToString());
+	// UE_LOG(LogTemp, Warning,
+	//        TEXT(" AsyncSweepByObjectType: %s, Start: %s, End: %s, Rot: %s, ObjectQueryParams: %d, Params: %s"),
+	//        *Actor->GetName(), *Start.ToString(), *End.ToString(), *Rot.Rotator().ToString(),
+	//        ObjectQueryParams.ObjectTypesToQuery, *Params.ToString());
 	TotalSweepCount++;
 	return TotalSweepCount;
 }
 
 void UPawProjectileMovementComponent::HandleMovementAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data)
 {
-	UE_LOG(LogTemp, Warning, TEXT(" HandleAsyncSweepResult HitCount: %d"), Data.OutHits.Num());
+	// UE_LOG(LogTemp, Warning, TEXT(" HandleAsyncSweepResult HitCount: %d"), Data.OutHits.Num());
 	auto& AsyncData = MovementAsyncSweepData;
 	for (FHitResult Hit : Data.OutHits)
 	{
@@ -1236,9 +1237,9 @@ void UPawProjectileMovementComponent::HandleMovementAsyncSweepResult(const FTrac
 
 void UPawProjectileMovementComponent::HandleMovementAsyncSweepCompleted()
 {
-	UE_LOG(LogTemp, Warning, TEXT(" HandleAsyncSweepCompleted: HitCount: %d, HitMinDistance: %f, Direction: %s, HitActor: %s"),
-	       MovementAsyncSweepData.HitCount, MovementAsyncSweepData.HitMinDistance, *MovementAsyncSweepData.Direction.ToString(),
-	       *GetNameSafe(MovementAsyncSweepData.HitResult.GetActor()));
+	// UE_LOG(LogTemp, Warning, TEXT(" HandleAsyncSweepCompleted: HitCount: %d, HitMinDistance: %f, Direction: %s, HitActor: %s"),
+	//        MovementAsyncSweepData.HitCount, MovementAsyncSweepData.HitMinDistance, *MovementAsyncSweepData.Direction.ToString(),
+	//        *GetNameSafe(MovementAsyncSweepData.HitResult.GetActor()));
 	AActor* ActorOwner = UpdatedComponent ? UpdatedComponent->GetOwner() : NULL;
 	// If we hit a trigger that destroyed us, abort.
 	if (!CheckStillInWorld() || !IsValid(ActorOwner) || HasStoppedSimulation())
@@ -1247,7 +1248,6 @@ void UPawProjectileMovementComponent::HandleMovementAsyncSweepCompleted()
 	}
 
 	auto& AsyncData = MovementAsyncSweepData;
-	double RemainDistance = AsyncData.MoveDistance - AsyncData.HitMinDistance;
 	auto NewTransform = ActorOwner->GetActorTransform();
 	auto NewLocation = NewTransform.GetLocation() + AsyncData.Direction * AsyncData.HitMinDistance;
 	auto NewRotation = NewTransform.GetRotation() * AsyncData.RelativeQuat;
@@ -1259,7 +1259,7 @@ void UPawProjectileMovementComponent::HandleMovementAsyncSweepCompleted()
 	{
 		PreviousHitTime = 1.f;
 		bIsSliding = false;
-		UE_LOG(LogTemp, Warning, TEXT("Set bIsSliding to false, no hits found."));
+		// UE_LOG(LogTemp, Warning, TEXT("Set bIsSliding to false, no hits found."));
 
 		// Only calculate new velocity if events didn't change it during the movement update.
 		if (Velocity == OldVelocity)
@@ -1271,15 +1271,15 @@ void UPawProjectileMovementComponent::HandleMovementAsyncSweepCompleted()
 		UpdateComponentVelocity();
 
 		// Logging
-		UE_LOG(LogTemp, Warning,
-		       TEXT("Move Projectile %s: (Role: %d) Hit at %.3f, Location: %s, Velocity: %s, IsSliding: %d"),
-		       *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), AsyncData.HitMinDistance,
-		       *NewLocation.ToString(), *Velocity.ToString(), bIsSliding);
+		// UE_LOG(LogTemp, Warning,
+		//        TEXT("Move Projectile %s: (Role: %d) Hit at %.3f, Location: %s, Velocity: %s, IsSliding: %d"),
+		//        *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), AsyncData.HitMinDistance,
+		//        *NewLocation.ToString(), *Velocity.ToString(), bIsSliding);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("AsyncData.HitCount: %d, HitMinDistance: %f, Direction: %s"),
-		       AsyncData.HitCount, AsyncData.HitMinDistance, *AsyncData.Direction.ToString());
+		// UE_LOG(LogTemp, Warning, TEXT("AsyncData.HitCount: %d, HitMinDistance: %f, Direction: %s"),
+		//        AsyncData.HitCount, AsyncData.HitMinDistance, *AsyncData.Direction.ToString());
 		// Only calculate new velocity if events didn't change it during the movement update.
 		FHitResult& Hit = AsyncData.HitResult;
 		const float& HitTime = AsyncData.HitResult.Time;
@@ -1290,8 +1290,8 @@ void UPawProjectileMovementComponent::HandleMovementAsyncSweepCompleted()
 			Velocity = (HitTime > UE_KINDA_SMALL_NUMBER)
 				           ? ComputeVelocity(OldVelocity, CurrentTimeTick * HitTime)
 				           : OldVelocity;
-			UE_LOG(LogTemp, Warning, TEXT("Velocity: %s, OldVelocity: %s, HitTime: %.3f, CurrentTimeTick: %.3f"),
-			       *Velocity.ToString(), *OldVelocity.ToString(), HitTime, CurrentTimeTick);
+			// UE_LOG(LogTemp, Warning, TEXT("Velocity: %s, OldVelocity: %s, HitTime: %.3f, CurrentTimeTick: %.3f"),
+			//        *Velocity.ToString(), *OldVelocity.ToString(), HitTime, CurrentTimeTick);
 		}
 
 		// Handle blocking hit
@@ -1338,9 +1338,9 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepResult(const FTrace
 	auto& AsyncData = SlidingAsyncData;
 	for (FHitResult Hit : Data.OutHits)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("OldNormal: %s, HitNormal: %s, ConstrainNormalToPlane(Hit.Normal): %s"),
-		       *AsyncData.OldHitNormal.ToString(), *Hit.Normal.ToString(),
-		       *ConstrainDirectionToPlane(Hit.Normal).ToString());
+		// UE_LOG(LogTemp, Warning, TEXT("OldNormal: %s, HitNormal: %s, ConstrainNormalToPlane(Hit.Normal): %s"),
+		//        *AsyncData.OldHitNormal.ToString(), *Hit.Normal.ToString(),
+		//        *ConstrainDirectionToPlane(Hit.Normal).ToString());
 		if (AsyncData.OldHitNormal == ConstrainDirectionToPlane(Hit.Normal))
 		{
 			UE_LOG(LogTemp, Warning, TEXT(" Skipping hit with same normal: %s"), *Hit.Normal.ToString());
@@ -1365,9 +1365,9 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepResult(const FTrace
 
 void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 {
-	UE_LOG(LogTemp, Warning, TEXT(" HandleSlidingAsyncSweepCompleted: HitCount: %d, HitMinDistance: %f, Direction: %s, HitActor: %s"),
-	       SlidingAsyncData.HitCount, SlidingAsyncData.HitMinDistance, *SlidingAsyncData.Direction.ToString(),
-	       *GetNameSafe(SlidingAsyncData.HitResult.GetActor()));
+	// UE_LOG(LogTemp, Warning, TEXT(" HandleSlidingAsyncSweepCompleted: HitCount: %d, HitMinDistance: %f, Direction: %s, HitActor: %s"),
+	//        SlidingAsyncData.HitCount, SlidingAsyncData.HitMinDistance, *SlidingAsyncData.Direction.ToString(),
+	//        *GetNameSafe(SlidingAsyncData.HitResult.GetActor()));
 	AActor* ActorOwner = UpdatedComponent ? UpdatedComponent->GetOwner() : NULL;
 	// If we hit a trigger that destroyed us, abort.
 	if (!CheckStillInWorld() || !IsValid(ActorOwner) || HasStoppedSimulation())
@@ -1421,10 +1421,10 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 			Velocity = HorizontalVelocity + FVector(0.0f, 0.0f, Velocity.Z) + VerticalAcceleration;
 			Velocity = ConstrainDirectionToPlane(Velocity);
 			
-			UE_LOG(LogTemp, Warning,
-			       TEXT("Projectile %s: (Role: %d) Zero-friction sliding, preserved horizontal velocity: %s"),
-			       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
-			       *Velocity.ToString());
+			// UE_LOG(LogTemp, Warning,
+			//        TEXT("Projectile %s: (Role: %d) Zero-friction sliding, preserved horizontal velocity: %s"),
+			//        *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
+			//        *Velocity.ToString());
 		}
 		else
 		{
@@ -1442,18 +1442,18 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 				const FVector FrictionForce = -NewVelocity.GetSafeNormal() * FMath::Min(
 					-ForceDotN * Friction, NewVelocity.Size());
 				Velocity = ConstrainDirectionToPlane(NewVelocity + FrictionForce);
-				UE_LOG(LogProjectileMovement, Warning,
-				       TEXT("Projectile %s: (Role: %d) Sliding along surface with friction %.3f, new velocity: %s"),
-				       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
-				       Friction, *Velocity.ToString());
+				// UE_LOG(LogProjectileMovement, Warning,
+				//        TEXT("Projectile %s: (Role: %d) Sliding along surface with friction %.3f, new velocity: %s"),
+				//        *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
+				//        Friction, *Velocity.ToString());
 			}
 			else
 			{
 				Velocity = PostTickVelocity;
-				UE_LOG(LogTemp, Warning,
-				       TEXT("Projectile %s: (Role: %d) Sliding along surface with friction %.3f (no surface force), new velocity: %s"),
-				       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
-				       Friction, *Velocity.ToString());
+				// UE_LOG(LogTemp, Warning,
+				//        TEXT("Projectile %s: (Role: %d) Sliding along surface with friction %.3f (no surface force), new velocity: %s"),
+				//        *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
+				//        Friction, *Velocity.ToString());
 			}
 		}
 
@@ -1472,19 +1472,19 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 
 void UPawProjectileMovementComponent::HandleBounceAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data)
 {
-	UE_LOG(LogTemp, Warning, TEXT(" HandleBounceAsyncSweepResult HitCount: %d"), Data.OutHits.Num());
+	// UE_LOG(LogTemp, Warning, TEXT(" HandleBounceAsyncSweepResult HitCount: %d"), Data.OutHits.Num());
 	auto& AsyncData = BounceAsyncData;
 	for (FHitResult Hit : Data.OutHits)
 	{
 		if (AsyncData.OldHitNormal == ConstrainDirectionToPlane(Hit.Normal))
 		{
-			UE_LOG(LogTemp, Warning, TEXT(" Bounce Sweep skipping hit with same normal: %s"), *Hit.Normal.ToString());
+			// UE_LOG(LogTemp, Warning, TEXT(" Bounce Sweep skipping hit with same normal: %s"), *Hit.Normal.ToString());
 			continue;
 		}
 		if (AsyncData.HitMinDistance > Hit.Distance)
 		{
-			UE_LOG(LogTemp, Warning, TEXT(" Updating Bounce HitMinDistance: %.3f -> %.3f"),
-			       AsyncData.HitMinDistance, Hit.Distance);
+			// UE_LOG(LogTemp, Warning, TEXT(" Updating Bounce HitMinDistance: %.3f -> %.3f"),
+			//        AsyncData.HitMinDistance, Hit.Distance);
 			AsyncData.HitMinDistance = Hit.Distance;
 			AsyncData.HitCount++;
 			AsyncData.HitResult = Hit;
@@ -1500,9 +1500,9 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepResult(const FTraceH
 
 void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 {
-	UE_LOG(LogTemp, Warning, TEXT(" HandleBounceAsyncSweepCompleted: HitCount: %d, HitMinDistance: %f, Direction: %s, HitActor: %s"),
-	       BounceAsyncData.HitCount, BounceAsyncData.HitMinDistance, *BounceAsyncData.Direction.ToString(),
-	       *GetNameSafe(BounceAsyncData.HitResult.GetActor()));
+	// UE_LOG(LogTemp, Warning, TEXT(" HandleBounceAsyncSweepCompleted: HitCount: %d, HitMinDistance: %f, Direction: %s, HitActor: %s"),
+	//        BounceAsyncData.HitCount, BounceAsyncData.HitMinDistance, *BounceAsyncData.Direction.ToString(),
+	//        *GetNameSafe(BounceAsyncData.HitResult.GetActor()));
 	AActor* ActorOwner = UpdatedComponent ? UpdatedComponent->GetOwner() : NULL;
 	// If we hit a trigger that destroyed us, abort.
 	if (!CheckStillInWorld() || !IsValid(ActorOwner) || HasStoppedSimulation())
@@ -1526,22 +1526,22 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 		// Reset consecutive corner bounce counter on successful movement
 		ConsecutiveCornerBounces = 0;
 		
-		UE_LOG(LogTemp, Warning, TEXT(" Bounce Projectile %s: (Role: %d) No hits, safe movement to %s"),
-		       *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), *NewLocation.ToString());
+		// UE_LOG(LogTemp, Warning, TEXT(" Bounce Projectile %s: (Role: %d) No hits, safe movement to %s"),
+		//        *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), *NewLocation.ToString());
 	}
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Hit during bounce sweep: HitCount: %d, HitMinDistance: %f, Direction: %s"),
 		       BounceData.HitCount, BounceData.HitMinDistance, *BounceData.Direction.ToString());
 		
-		// Detect corner bounce (immediate hit during bounce movement)
+		
+		// Detect corner bounce (immediate hit during bounce movement) - but exclude projectile collisions
 		if (constexpr float CornerDetectionDistance = 5.0f; BounceData.HitMinDistance < CornerDetectionDistance)
 		{
 			// Check for infinite bounce protection
 			const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-			const bool bRecentCornerBounce = (CurrentTime - LastCornerBounceTime) < CornerBounceTimeoutWindow;
-			
-			if (bRecentCornerBounce)
+
+			if (const bool bRecentCornerBounce = (CurrentTime - LastCornerBounceTime) < CornerBounceTimeoutWindow)
 			{
 				ConsecutiveCornerBounces++;
 			}
@@ -1563,61 +1563,18 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 			}
 			
 			// Corner bounce detected - use intelligent escape logic
-			UE_LOG(LogTemp, Warning, TEXT("Corner bounce detected (distance: %.3f, bounce #%d), attempting intelligent escape"), 
+			UE_LOG(LogTemp, Warning, TEXT("Corner bounce detected (distance: %.3f, bounce #%d) "),
 			       BounceData.HitMinDistance, ConsecutiveCornerBounces);
-			
-			// Try to find a clear escape direction
-			FVector EscapeDirection;
-			float EscapeDistance;
-			if (FindCornerEscapeDirection(NewLocation, EscapeDirection, EscapeDistance))
-			{
-				// Successfully found escape direction
-				NewLocation += EscapeDirection * EscapeDistance;
-				NewTransform.SetLocation(NewLocation);
-				ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
-				
-				// Adjust velocity to point away from collision
-				Velocity = EscapeDirection.GetSafeNormal() * Velocity.Size() * Bounciness;
-				
-				// Apply friction for energy loss
-				Velocity *= (1.0f - Friction);
-				
-				UpdateComponentVelocity();
-				UE_LOG(LogTemp, Warning, TEXT("Corner escape successful: direction=%s, distance=%.3f, new velocity=%s"), 
-				       *EscapeDirection.ToString(), EscapeDistance, *Velocity.ToString());
-			}
-			else
-			{
-				// Fallback: use original logic with larger distance
-				UE_LOG(LogTemp, Warning, TEXT("No clear escape direction found, using fallback escape"));
-				
-				// Reverse velocity direction with bounciness factor
-				Velocity = -Velocity * Bounciness;
-				Velocity *= (1.0f - Friction);
-				
-				// Move away with larger distance
-				FVector AwayDirection = -BounceData.Direction.GetSafeNormal();
-				if (AwayDirection.IsNearlyZero())
-				{
-					AwayDirection = FVector::UpVector; // Default to upward escape
-				}
-				
-				NewLocation += AwayDirection * 15.0f; // Increased from 3.0f
-				NewTransform.SetLocation(NewLocation);
-				ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
-				
-				UpdateComponentVelocity();
-				UE_LOG(LogTemp, Warning, TEXT("Fallback corner escape applied, moved away by: %s"), 
-				       *(AwayDirection * 15.0f).ToString());
-			}
-			
-			// Check if velocity is still above simulation threshold
-			if (IsVelocityUnderSimulationThreshold())
-			{
-				UE_LOG(LogTemp, Warning, TEXT("Corner bounce velocity too low, stopping simulation"));
-				StopSimulating(BounceData.HitResult);
-				return;
-			}
+
+			auto& AsyncData = MovementAsyncSweepData;
+			NewTransform = ActorOwner->GetActorTransform();
+			NewLocation = NewTransform.GetLocation() - AsyncData.Direction * AsyncData.HitMinDistance;
+			NewRotation = NewTransform.GetRotation() * AsyncData.RelativeQuat;
+			NewTransform.SetLocation(NewLocation);
+			NewTransform.SetRotation(NewRotation);
+
+			ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
+			UpdateComponentVelocity();
 		}
 		else
 		{
@@ -1679,81 +1636,6 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 bool UPawProjectileMovementComponent::IsAllAsyncSweepingCompleted() const
 {
 	return (MovementAsyncSweepData.SweepCount <= 0 && SlidingAsyncData.SweepCount <= 0 && BounceAsyncData.SweepCount <= 0);
-}
-
-bool UPawProjectileMovementComponent::FindCornerEscapeDirection(const FVector& CurrentLocation, FVector& OutEscapeDirection, float& OutEscapeDistance)
-{
-	if (!UpdatedComponent)
-	{
-		return false;
-	}
-
-	AActor* ActorOwner = UpdatedComponent->GetOwner();
-	if (!IsValid(ActorOwner))
-	{
-		return false;
-	}
-
-	// Set up collision query parameters - exclude other projectiles
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(ActorOwner);
-	QueryParams.bTraceComplex = false;
-	
-	// Add all other projectiles to ignore list
-	UWorld* World = GetWorld();
-	if (!IsValid(World))
-	{
-		return false;
-	}
-
-	const float ProjectileRadius = 5.0f; // Match projectile collision radius
-	
-	// Test escape directions in order of preference
-	TArray<FVector> TestDirections = {
-		FVector::UpVector,                    // Straight up (preferred)
-		FVector(0, 0, 0.7f).GetSafeNormal(), // Slight upward angle
-		FVector(1, 0, 0.5f).GetSafeNormal(), // Forward-up diagonal
-		FVector(-1, 0, 0.5f).GetSafeNormal(),// Backward-up diagonal
-		FVector(0, 1, 0.5f).GetSafeNormal(), // Right-up diagonal
-		FVector(0, -1, 0.5f).GetSafeNormal(),// Left-up diagonal
-		FVector::ForwardVector,               // Forward
-		FVector::BackwardVector,              // Backward
-		FVector::RightVector,                 // Right
-		FVector::LeftVector                   // Left
-	};
-
-	// Test progressively larger escape distances
-	TArray<float> TestDistances = { 15.0f, 25.0f, 35.0f, 50.0f };
-
-	for (float TestDistance : TestDistances)
-	{
-		for (const FVector& Direction : TestDirections)
-		{
-			FVector TestLocation = CurrentLocation + Direction * TestDistance;
-			
-			// Check if this location is clear
-			bool bLocationClear = !World->OverlapAnyTestByChannel(
-				TestLocation,
-				FQuat::Identity,
-				ECC_WorldStatic,
-				FCollisionShape::MakeSphere(ProjectileRadius),
-				QueryParams
-			);
-
-			if (bLocationClear)
-			{
-				OutEscapeDirection = Direction;
-				OutEscapeDistance = TestDistance;
-				UE_LOG(LogTemp, Log, TEXT("Found clear escape direction: %s at distance %.3f"), 
-				       *Direction.ToString(), TestDistance);
-				return true;
-			}
-		}
-	}
-
-	// No clear escape direction found
-	UE_LOG(LogTemp, Warning, TEXT("Failed to find clear escape direction from %s"), *CurrentLocation.ToString());
-	return false;
 }
 
 void UPawProjectileMovementComponent::AddMovementToQueue(float DeltaTime)

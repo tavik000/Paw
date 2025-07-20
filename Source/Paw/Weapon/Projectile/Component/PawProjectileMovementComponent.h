@@ -523,16 +523,6 @@ protected: // Internal Helper Methods
 	virtual void ResetThrottleInterpolation(float DeltaTime);
 
 private: // Internal Helpers
-
-	/**
-	 * Attempts to find a clear escape direction from a corner collision.
-	 * Tests multiple directions to find one that doesn't have obstacles.
-	 * @param CurrentLocation Current projectile location
-	 * @param OutEscapeDirection The direction to escape (normalized)
-	 * @param OutEscapeDistance The distance to move in that direction
-	 * @return true if a clear escape direction was found
-	 */
-	bool FindCornerEscapeDirection(const FVector& CurrentLocation, FVector& OutEscapeDirection, float& OutEscapeDistance);
 	
 	// Movement queue management
 	void AddMovementToQueue(float DeltaTime);

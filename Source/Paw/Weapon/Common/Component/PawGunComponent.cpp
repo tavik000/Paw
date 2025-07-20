@@ -120,8 +120,6 @@ void UPawGunComponent::Fire()
 		{
 			// Adjust spawn location to be above ground
 			SpawnLocation = GroundHit.ImpactPoint + FVector(0, 0, MinGroundClearance);
-			UE_LOG(LogTemp, Warning, TEXT("Adjusted projectile spawn location to prevent ground penetration. New location: %s"), 
-			       *SpawnLocation.ToString());
 		}
 	}
 	
