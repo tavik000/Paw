@@ -533,6 +533,11 @@ private: // Internal Helpers
 	 * @return true if a clear escape direction was found
 	 */
 	bool FindCornerEscapeDirection(const FVector& CurrentLocation, FVector& OutEscapeDirection, float& OutEscapeDistance);
+	
+	// Movement queue management
+	void AddMovementToQueue(float DeltaTime);
+	void ProcessQueuedMovements();
+	void ClearMovementQueue();
 
 	static int AsyncSweepByObjectType(
 		AActor* Actor,
@@ -681,4 +686,25 @@ private: // Cached State
 	// Normal bounce limits
 	int32 TotalBounceCount;
 	static constexpr int32 MaxTotalBounces = 10;
+	
+	// Sliding hysteresis system
+	float LastSlidingStateChangeTime;
+	bool bPreviousSlidingState;
+	static constexpr float SlidingHysteresisTime = 0.1f; // 100ms hysteresis to prevent rapid state changes
+	
+	// Movement update queuing system
+	struct FQueuedMovementUpdate
+	{
+		float DeltaTime;
+		FVector StartVelocity;
+		float TimeStamp;
+		
+		FQueuedMovementUpdate() : DeltaTime(0.0f), StartVelocity(FVector::ZeroVector), TimeStamp(0.0f) {}
+		FQueuedMovementUpdate(float InDeltaTime, const FVector& InVelocity, float InTimeStamp)
+			: DeltaTime(InDeltaTime), StartVelocity(InVelocity), TimeStamp(InTimeStamp) {}
+	};
+	
+	TArray<FQueuedMovementUpdate> QueuedUpdates;
+	static constexpr int32 MaxQueuedUpdates = 5;
+	static constexpr float MaxQueueTime = 0.033f; // 33ms max queue time (2 frames at 60fps)
 };

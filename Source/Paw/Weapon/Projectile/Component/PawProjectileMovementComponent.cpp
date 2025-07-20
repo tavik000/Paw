@@ -70,6 +70,10 @@ UPawProjectileMovementComponent::UPawProjectileMovementComponent(const FObjectIn
 	ConsecutiveCornerBounces = 0;
 	LastCornerBounceTime = 0.0f;
 	TotalBounceCount = 0;
+	
+	// Initialize sliding hysteresis system
+	LastSlidingStateChangeTime = 0.0f;
+	bPreviousSlidingState = false;
 }
 
 
@@ -200,10 +204,22 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 
 	if (!IsAllAsyncSweepingCompleted())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Skip Tick, Async sweeps are not completed for %s"),
-		       *GetNameSafe(UpdatedComponent->GetOwner()));
+		// Queue movement update instead of skipping tick entirely
+		AddMovementToQueue(DeltaTime);
+		UE_LOG(LogTemp, Verbose, TEXT("Queued movement update for %s (DeltaTime: %.4f, Queue size: %d, bIsSliding: %d)"),
+		       *GetNameSafe(UpdatedComponent->GetOwner()), DeltaTime, QueuedUpdates.Num(), bIsSliding);
+		
+		// During sliding with zero friction, process queue more aggressively to reduce lag
+		if (bIsSliding && FMath::IsNearlyZero(Friction) && QueuedUpdates.Num() >= 2)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Processing queue early during zero-friction sliding to reduce lag"));
+			ProcessQueuedMovements();
+		}
 		return;
 	}
+	
+	// Process any queued movement updates first
+	ProcessQueuedMovements();
 
 	
 
@@ -327,18 +343,48 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 	const bool bMultiHit = (PreviousHitTime < 1.f && Hit.Time <= UE_KINDA_SMALL_NUMBER);
 
 	// if velocity still into wall (after HandleBlockingHit() had a chance to adjust), slide along wall
-	constexpr float DotTolerance = 0.01f;
+	constexpr float DotTolerance = 0.05f; // Increased from 0.01f to reduce sliding sensitivity
+	constexpr float MinSlidingVelocity = 50.0f; // Minimum velocity to consider sliding
 
-	UE_LOG(LogTemp, Warning, TEXT("bMultiHit: %d, PreviousHitNormal: %s, Normal: %s, VelocityNormal: %s, Dot: %.3f, bIsSliding: %d"),
+	UE_LOG(LogTemp, Warning, TEXT("HandleDeflection: bMultiHit: %d, PreviousHitNormal: %s, Normal: %s, VelocityNormal: %s, Dot: %.3f, VelMag: %.1f, bIsSliding: %d, Friction: %.3f"),
 	       bMultiHit, *PreviousHitNormal.ToString(), *Normal.ToString(),
-	       *Velocity.GetSafeNormal().ToString(), (Velocity.GetSafeNormal() | Normal), bIsSliding);
+	       *Velocity.GetSafeNormal().ToString(), (Velocity.GetSafeNormal() | Normal), Velocity.Size(), bIsSliding, Friction);
 	
 	const bool bIsGroundSurface = FMath::Abs(Normal.Z) > 0.7f;
 
 	// If the previous hit normal is not valid, or if the current hit normal is not parallel to the previous hit normal,
 	const bool bShouldResumeSliding = !bIsSliding && bMultiHit && FVector::Coincident(PreviousHitNormal, Normal) && bIsGroundSurface;
-	const bool bVelocityParallelToSurface = (Velocity.GetSafeNormal() | Normal) <= DotTolerance;
-	bIsSliding = bShouldResumeSliding || bVelocityParallelToSurface;
+	const bool bVelocityParallelToSurface = (Velocity.GetSafeNormal() | Normal) <= DotTolerance && Velocity.Size() >= MinSlidingVelocity;
+	bool bNewSlidingState = bShouldResumeSliding || bVelocityParallelToSurface;
+	
+	// Apply hysteresis to prevent rapid sliding state changes
+	const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	const float TimeSinceLastChange = CurrentTime - LastSlidingStateChangeTime;
+	
+	if (bNewSlidingState != bPreviousSlidingState)
+	{
+		// Only change state if enough time has passed since last change
+		if (TimeSinceLastChange >= SlidingHysteresisTime)
+		{
+			bIsSliding = bNewSlidingState;
+			LastSlidingStateChangeTime = CurrentTime;
+			bPreviousSlidingState = bNewSlidingState;
+			UE_LOG(LogTemp, Warning, TEXT("Sliding state changed from %d to %d (hysteresis applied)"), 
+			       !bNewSlidingState, bNewSlidingState);
+		}
+		else
+		{
+			// Keep previous state due to hysteresis
+			bIsSliding = bPreviousSlidingState;
+			UE_LOG(LogTemp, Verbose, TEXT("Sliding state change suppressed by hysteresis (%.3fs since last change)"), 
+			       TimeSinceLastChange);
+		}
+	}
+	else
+	{
+		// State hasn't changed, just update current state
+		bIsSliding = bNewSlidingState;
+	}
 
 	UE_LOG(LogTemp, Warning, TEXT("Set bIsSliding to %d for %s, PreviousHitNormal: %s, Normal: %s, VelocityNormal: %s, Dot: %.3f"),
 	       bIsSliding, *GetNameSafe(UpdatedComponent->GetOwner()), *PreviousHitNormal.ToString(),
@@ -346,9 +392,10 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 
 	if (bIsSliding)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Sliding Projectile %s: (Role: %d) Sliding along surface, Velocity: %s, Hit Normal: %s"),
+		const float FrameTime = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f;
+		UE_LOG(LogTemp, Warning, TEXT("SLIDING: Projectile %s: (Role: %d) Velocity: %s, Normal: %s, Friction: %.3f, FrameTime: %.3fms"),
 		       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
-		       *Velocity.ToString(), *Normal.ToString());
+		       *Velocity.ToString(), *Normal.ToString(), Friction, FrameTime * 1000.0f);
 		// Disable multihit testing for now. but it might cause issues with sliding along corners.
 		// for angle < 80 degrees, slide along wall. Cos 80 degrees = 0.173648f
 		if (bMultiHit && (PreviousHitNormal | Normal) < 0.173648f)
@@ -470,6 +517,43 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 	FHitResult InitialHit(Hit);
 	const FVector OldHitNormal = ConstrainDirectionToPlane(Hit.Normal);
 
+	// Fast path for zero-friction sliding - skip async sweeps for better performance
+	if (FMath::IsNearlyZero(Friction))
+	{
+		const float StartTime = GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.0f;
+		UE_LOG(LogTemp, Warning, TEXT("SLIDING FAST PATH: Zero-friction sliding for %s at %.3fms"), 
+		       *GetNameSafe(ActorOwner), StartTime * 1000.0f);
+		
+		// Direct position update without async sweep
+		FVector MoveDelta = Velocity * SubTickTimeRemaining;
+		FTransform NewTransform = ActorOwner->GetActorTransform();
+		NewTransform.SetLocation(NewTransform.GetLocation() + MoveDelta);
+		ActorOwner->SetActorTransform(NewTransform);
+		
+		// Apply zero-friction sliding physics immediately
+		const FVector HorizontalVelocity = FVector(Velocity.X, Velocity.Y, 0.0f);
+		const FVector VerticalAcceleration = FVector(0.0f, 0.0f, GetGravityZ() * SubTickTimeRemaining);
+		Velocity = HorizontalVelocity + FVector(0.0f, 0.0f, Velocity.Z) + VerticalAcceleration;
+		Velocity = ConstrainDirectionToPlane(Velocity);
+		
+		const float EndTime = GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.0f;
+		const float ProcessingTime = (EndTime - StartTime) * 1000.0f;
+		UE_LOG(LogTemp, Warning, TEXT("FAST PATH COMPLETE: Processing time %.3fms, new velocity %s"), 
+		       ProcessingTime, *Velocity.ToString());
+		
+		// Check min velocity
+		if (IsVelocityUnderSimulationThreshold())
+		{
+			StopSimulating(Hit);
+			return false;
+		}
+		
+		SubTickTimeRemaining = 0.f;
+		UpdateComponentVelocity();
+		return true;
+	}
+
+	// Standard async sweep path for non-zero friction
 	// Velocity is now parallel to the impact surface.
 	// Perform the move now, before adding gravity/accel again, so we don't just keep hitting the surface.
 	// SafeMoveUpdatedComponent(Velocity * SubTickTimeRemaining, UpdatedComponent->GetComponentQuat(), bSweepCollision,
@@ -612,6 +696,10 @@ void UPawProjectileMovementComponent::StopSimulating(const FHitResult& HitResult
 	Velocity = FVector::ZeroVector;
 	PendingForce = FVector::ZeroVector;
 	PendingForceThisUpdate = FVector::ZeroVector;
+	
+	// Clear any queued movement updates when stopping simulation
+	ClearMovementQueue();
+	
 	UpdateComponentVelocity();
 	SetUpdatedComponent(NULL);
 	OnProjectileStop.Broadcast(HitResult);
@@ -1322,32 +1410,51 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 		NewTransform.SetRotation(NewRotation);
 		ActorOwner->SetActorTransform(NewTransform);
 		
-		// Find velocity after elapsed time
-		const FVector PostTickVelocity = ComputeVelocity(Velocity, SubTickTimeRemaining);
-
-		// If pointing back into surface, apply friction and acceleration.
-		const FVector Force = (PostTickVelocity - Velocity);
-		const float ForceDotN = (Force | OldHitNormal);
-		if (ForceDotN < 0.f)
+		// Handle sliding physics based on friction value
+		if (FMath::IsNearlyZero(Friction))
 		{
-			const FVector ProjectedForce = FVector::VectorPlaneProject(Force, OldHitNormal);
-			const FVector NewVelocity = Velocity + ProjectedForce;
-
-			const FVector FrictionForce = -NewVelocity.GetSafeNormal() * FMath::Min(
-				-ForceDotN * Friction, NewVelocity.Size());
-			Velocity = ConstrainDirectionToPlane(NewVelocity + FrictionForce);
-			UE_LOG(LogProjectileMovement, Warning,
-			       TEXT("Projectile %s: (Role: %d) Sliding along surface with friction, new velocity: %s"),
+			// Zero friction - preserve horizontal sliding velocity, only apply gravity to vertical component
+			const FVector HorizontalVelocity = FVector(Velocity.X, Velocity.Y, 0.0f);
+			const FVector VerticalAcceleration = FVector(0.0f, 0.0f, GetGravityZ() * SubTickTimeRemaining);
+			
+			// Maintain horizontal sliding momentum, only apply gravity to vertical
+			Velocity = HorizontalVelocity + FVector(0.0f, 0.0f, Velocity.Z) + VerticalAcceleration;
+			Velocity = ConstrainDirectionToPlane(Velocity);
+			
+			UE_LOG(LogTemp, Warning,
+			       TEXT("Projectile %s: (Role: %d) Zero-friction sliding, preserved horizontal velocity: %s"),
 			       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
 			       *Velocity.ToString());
 		}
 		else
 		{
-			Velocity = PostTickVelocity;
-			UE_LOG(LogTemp, Warning,
-			       TEXT(" Projectile %s: (Role: %d) Sliding along surface without friction, new velocity: %s"),
-			       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
-			       *Velocity.ToString());
+			// Non-zero friction - use complex physics calculation
+			const FVector PostTickVelocity = ComputeVelocity(Velocity, SubTickTimeRemaining);
+
+			// If pointing back into surface, apply friction and acceleration.
+			const FVector Force = (PostTickVelocity - Velocity);
+			const float ForceDotN = (Force | OldHitNormal);
+			if (ForceDotN < 0.f)
+			{
+				const FVector ProjectedForce = FVector::VectorPlaneProject(Force, OldHitNormal);
+				const FVector NewVelocity = Velocity + ProjectedForce;
+
+				const FVector FrictionForce = -NewVelocity.GetSafeNormal() * FMath::Min(
+					-ForceDotN * Friction, NewVelocity.Size());
+				Velocity = ConstrainDirectionToPlane(NewVelocity + FrictionForce);
+				UE_LOG(LogProjectileMovement, Warning,
+				       TEXT("Projectile %s: (Role: %d) Sliding along surface with friction %.3f, new velocity: %s"),
+				       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
+				       Friction, *Velocity.ToString());
+			}
+			else
+			{
+				Velocity = PostTickVelocity;
+				UE_LOG(LogTemp, Warning,
+				       TEXT("Projectile %s: (Role: %d) Sliding along surface with friction %.3f (no surface force), new velocity: %s"),
+				       *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
+				       Friction, *Velocity.ToString());
+			}
 		}
 
 		// Check min velocity
@@ -1647,4 +1754,83 @@ bool UPawProjectileMovementComponent::FindCornerEscapeDirection(const FVector& C
 	// No clear escape direction found
 	UE_LOG(LogTemp, Warning, TEXT("Failed to find clear escape direction from %s"), *CurrentLocation.ToString());
 	return false;
+}
+
+void UPawProjectileMovementComponent::AddMovementToQueue(float DeltaTime)
+{
+	if (!UpdatedComponent)
+	{
+		return;
+	}
+
+	const UWorld* World = GetWorld();
+	if (!IsValid(World))
+	{
+		return;
+	}
+
+	const float CurrentTime = World->GetTimeSeconds();
+	
+	// Clean up old entries before adding new ones
+	QueuedUpdates.RemoveAll([CurrentTime](const FQueuedMovementUpdate& Update)
+	{
+		return (CurrentTime - Update.TimeStamp) > MaxQueueTime;
+	});
+
+	// Enforce queue size limit
+	if (QueuedUpdates.Num() >= MaxQueuedUpdates)
+	{
+		// Remove oldest entry to make room
+		QueuedUpdates.RemoveAt(0);
+		UE_LOG(LogTemp, Verbose, TEXT("Queue overflow, removed oldest movement update"));
+	}
+
+	// Add new movement update to queue
+	FQueuedMovementUpdate NewUpdate(DeltaTime, Velocity, CurrentTime);
+	QueuedUpdates.Add(NewUpdate);
+	
+	UE_LOG(LogTemp, Verbose, TEXT("Added movement to queue: DeltaTime=%.4f, Velocity=%s, QueueSize=%d"), 
+	       DeltaTime, *Velocity.ToString(), QueuedUpdates.Num());
+}
+
+void UPawProjectileMovementComponent::ProcessQueuedMovements()
+{
+	if (QueuedUpdates.Num() == 0)
+	{
+		return;
+	}
+
+	UE_LOG(LogTemp, Verbose, TEXT("Processing %d queued movement updates"), QueuedUpdates.Num());
+	
+	// Accumulate all queued delta times and apply movement
+	float AccumulatedDeltaTime = 0.0f;
+	FVector AccumulatedVelocityChange = FVector::ZeroVector;
+	
+	for (const FQueuedMovementUpdate& Update : QueuedUpdates)
+	{
+		AccumulatedDeltaTime += Update.DeltaTime;
+		
+		// Apply physics updates (gravity, acceleration) for each queued frame
+		const FVector VelocityChange = ComputeAcceleration(Update.StartVelocity, Update.DeltaTime) * Update.DeltaTime;
+		AccumulatedVelocityChange += VelocityChange;
+	}
+	
+	// Apply accumulated velocity changes
+	Velocity += AccumulatedVelocityChange;
+	Velocity = LimitVelocity(Velocity);
+	
+	UE_LOG(LogTemp, Verbose, TEXT("Processed queued movements: AccumulatedDeltaTime=%.4f, FinalVelocity=%s"), 
+	       AccumulatedDeltaTime, *Velocity.ToString());
+	
+	// Clear the queue after processing
+	ClearMovementQueue();
+}
+
+void UPawProjectileMovementComponent::ClearMovementQueue()
+{
+	if (QueuedUpdates.Num() > 0)
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("Clearing movement queue (%d entries)"), QueuedUpdates.Num());
+		QueuedUpdates.Empty();
+	}
 }
