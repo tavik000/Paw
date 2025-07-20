@@ -5,6 +5,7 @@
 
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Components/SphereComponent.h"
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
 #include "Kismet/GameplayStatics.h"
 #include "Paw/Character/Player/PawFPSPlayer.h"
@@ -178,6 +179,8 @@ void UPawGunComponent::ServerSpawnProjectile_Implementation(FVector SpawnLocatio
 			ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 		APawProjectileBase* SpawnProjectile = World->SpawnActor<APawProjectileBase>(
 			ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+		SpawnProjectile->SetOwner(FPSPlayer);
+		SpawnProjectile->SetInstigator(FPSPlayer);
 	}
 }
 
