@@ -78,6 +78,9 @@ void UPawGunComponent::Fire()
 	{
 		return;
 	}
+
+	// Clear log
+	UE_LOG(LogTemp, Warning, TEXT("UPawGunComponent::Fire() called by %s"), *Character->GetName());
 	
 	// Try and fire a projectile
 	AActor* ActorOwner = GetOwner();

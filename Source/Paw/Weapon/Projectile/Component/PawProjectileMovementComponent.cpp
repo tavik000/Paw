@@ -353,7 +353,7 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 	const bool bMultiHit = (PreviousHitTime < 1.f && Hit.Time <= UE_KINDA_SMALL_NUMBER);
 
 	// if velocity still into wall (after HandleBlockingHit() had a chance to adjust), slide along wall
-	constexpr float DotTolerance = 0.05f; // Increased from 0.01f to reduce sliding sensitivity
+	constexpr float DotTolerance = 0.01f; 
 	constexpr float MinSlidingVelocity = 50.0f; // Minimum velocity to consider sliding
 
 	// UE_LOG(LogTemp, Warning, TEXT("HandleDeflection: bMultiHit: %d, PreviousHitNormal: %s, Normal: %s, VelocityNormal: %s, Dot: %.3f, VelMag: %.1f, bIsSliding: %d, Friction: %.3f"),
