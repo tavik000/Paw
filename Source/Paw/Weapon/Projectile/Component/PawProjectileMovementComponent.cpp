@@ -356,18 +356,20 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 	constexpr float DotTolerance = 0.01f; 
 	constexpr float MinSlidingVelocity = 50.0f; // Minimum velocity to consider sliding
 
-	// UE_LOG(LogTemp, Warning, TEXT("HandleDeflection: bMultiHit: %d, PreviousHitNormal: %s, Normal: %s, VelocityNormal: %s, Dot: %.3f, VelMag: %.1f, bIsSliding: %d, Friction: %.3f"),
-	//        bMultiHit, *PreviousHitNormal.ToString(), *Normal.ToString(),
-	//        *Velocity.GetSafeNormal().ToString(), (Velocity.GetSafeNormal() | Normal), Velocity.Size(), bIsSliding, Friction);
 
 	const bool bIsGroundSurface = FMath::Abs(Normal.Z) > 0.7f;
 
 	// If the previous hit normal is not valid, or if the current hit normal is not parallel to the previous hit normal,
-	const bool bShouldResumeSliding = !bIsSliding && bMultiHit && FVector::Coincident(PreviousHitNormal, Normal) &&
-		bIsGroundSurface;
 	const bool bVelocityParallelToSurface = (Velocity.GetSafeNormal() | Normal) <= DotTolerance && Velocity.Size() >=
 		MinSlidingVelocity;
-	bool bNewSlidingState = bShouldResumeSliding || bVelocityParallelToSurface;
+	const bool bShouldResumeSliding = !bIsSliding && bMultiHit && FVector::Coincident(PreviousHitNormal, Normal) &&
+		bIsGroundSurface && bVelocityParallelToSurface;
+	bool bNewSlidingState = bShouldResumeSliding;
+
+	UE_LOG(LogTemp, Warning, TEXT("bIsGroundSurface: %d, bMultiHit: %d, bVelocityParallelToSurface: %d, "
+		"bShouldResumeSliding: %d, PreviousHitNormal: %s, Normal: %s, Velocity: %s"),
+		bIsGroundSurface, bMultiHit, bVelocityParallelToSurface, bShouldResumeSliding,
+		*PreviousHitNormal.ToString(), *Normal.ToString(), *Velocity.ToString());
 
 	// Apply hysteresis to prevent rapid sliding state changes
 	const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
@@ -1539,7 +1541,10 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 	NewTransform.SetLocation(NewLocation);
 	NewTransform.SetRotation(NewRotation);
 
-	if (BounceData.HitCount == 0)
+	AActor* HitActor = BounceData.HitResult.GetActor();
+	const bool bHitProjectile = HitActor && HitActor->IsA<APawProjectileBase>();
+	
+	if (BounceData.HitCount == 0 || bHitProjectile)
 	{
 		// No hits during bounce movement, safe to move
 		ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
@@ -1555,11 +1560,6 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Hit during bounce sweep: HitCount: %d, HitMinDistance: %f, Direction: %s"),
 		       BounceData.HitCount, BounceData.HitMinDistance, *BounceData.Direction.ToString());
-
-
-		// Check if we hit another projectile - don't trigger corner bounce for projectile-projectile collisions
-		AActor* HitActor = BounceData.HitResult.GetActor();
-		const bool bHitProjectile = HitActor && HitActor->IsA<APawProjectileBase>();
 		
 		// Detect corner bounce (immediate hit during bounce movement) - but exclude projectile collisions
 		if (constexpr float CornerDetectionDistance = 5.0f; BounceData.HitMinDistance < CornerDetectionDistance && !bHitProjectile)
@@ -1603,110 +1603,6 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 			NewTransform.SetRotation(NewRotation);
 
 			ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
-			UpdateComponentVelocity();
-		}
-		else if (bHitProjectile)
-		{
-			// Check collision cooldown to prevent immediate re-collision
-			if (IsProjectileCollisionOnCooldown(HitActor))
-			{
-				UE_LOG(LogTemp, Warning, TEXT("Projectile-projectile collision on cooldown, ignoring collision with %s"), 
-				       *GetNameSafe(HitActor));
-				
-				// Treat as no collision - continue movement without applying collision physics
-				ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
-				UpdateComponentVelocity();
-				return;
-			}
-			
-			// Enhanced logging for projectile-projectile collision
-			UE_LOG(LogTemp, Warning, TEXT("=== PROJECTILE-PROJECTILE COLLISION ==="));
-			UE_LOG(LogTemp, Warning, TEXT("This projectile: %s, Velocity: %s"), 
-			       *GetNameSafe(ActorOwner), *Velocity.ToString());
-			UE_LOG(LogTemp, Warning, TEXT("Other projectile: %s"), *GetNameSafe(HitActor));
-			UE_LOG(LogTemp, Warning, TEXT("Collision distance: %.6f, Normal: %s"), 
-			       BounceData.HitMinDistance, *BounceData.HitResult.Normal.ToString());
-			
-			// Projectile-projectile collision - apply momentum exchange physics
-			UE_LOG(LogTemp, Warning, TEXT("Applying momentum exchange physics..."));
-			
-			// Move to collision point
-			NewLocation = ActorOwner->GetActorLocation() + BounceData.Direction * BounceData.HitMinDistance;
-			NewTransform.SetLocation(NewLocation);
-			ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
-			
-			// Apply momentum exchange between projectiles
-			if (APawProjectileBase* OtherProjectile = Cast<APawProjectileBase>(HitActor))
-			{
-				if (UPawProjectileMovementComponent* OtherMovement = OtherProjectile->GetProjectileMovement())
-				{
-					// Simple elastic collision physics - exchange velocities
-					const FVector ThisVelocity = Velocity;
-					const FVector OtherVelocity = OtherMovement->Velocity;
-					
-					// Apply collision normal for realistic bounce direction
-					const FVector CollisionNormal = BounceData.HitResult.Normal;
-					
-					// Calculate relative velocity
-					const FVector RelativeVelocity = ThisVelocity - OtherVelocity;
-					const float VelAlongNormal = FVector::DotProduct(RelativeVelocity, CollisionNormal);
-					
-					// Don't resolve if velocities are separating
-					if (VelAlongNormal > 0)
-					{
-						// Assuming equal mass, apply simple elastic collision
-						const float Restitution = 0.8f; // Slight energy loss
-						const FVector VelocityChange = -(1 + Restitution) * VelAlongNormal * CollisionNormal;
-						
-						Velocity = ThisVelocity + VelocityChange;
-						OtherMovement->Velocity = OtherVelocity - VelocityChange;
-						
-						// Ensure both projectiles maintain minimum velocities
-						Velocity = LimitVelocity(Velocity);
-						OtherMovement->Velocity = OtherMovement->LimitVelocity(OtherMovement->Velocity);
-						
-						UE_LOG(LogTemp, Warning, TEXT("Momentum exchange successful:"));
-						UE_LOG(LogTemp, Warning, TEXT("  This projectile: %s -> %s"), 
-						       *ThisVelocity.ToString(), *Velocity.ToString());
-						UE_LOG(LogTemp, Warning, TEXT("  Other projectile: %s -> %s"), 
-						       *OtherVelocity.ToString(), *OtherMovement->Velocity.ToString());
-						UE_LOG(LogTemp, Warning, TEXT("  Relative velocity along normal: %.3f"), VelAlongNormal);
-						UE_LOG(LogTemp, Warning, TEXT("  Restitution applied: %.3f"), Restitution);
-					}
-					else
-					{
-						UE_LOG(LogTemp, Warning, TEXT("Projectiles already separating (VelAlongNormal: %.3f), no momentum exchange needed"), VelAlongNormal);
-					}
-					
-					// CRITICAL: Physically separate overlapping projectiles to prevent infinite collision loops
-					if (BounceData.HitMinDistance <= 0.001f) // Overlapping or extremely close
-					{
-						const FVector BounceCollisionNormal = BounceData.HitResult.Normal;
-						const float MinSeparationDistance = 10.0f; // Minimum separation in Unreal units
-						
-						// Calculate separation positions
-						const FVector ThisNewLocation = ActorOwner->GetActorLocation() - BounceCollisionNormal * (MinSeparationDistance * 0.5f);
-						const FVector OtherNewLocation = OtherProjectile->GetActorLocation() + BounceCollisionNormal * (MinSeparationDistance * 0.5f);
-						
-						// Apply separation
-						ActorOwner->SetActorLocation(ThisNewLocation, false, nullptr, ETeleportType::TeleportPhysics);
-						OtherProjectile->SetActorLocation(OtherNewLocation, false, nullptr, ETeleportType::TeleportPhysics);
-						
-						UE_LOG(LogTemp, Warning, TEXT("Applied physical separation:"));
-						UE_LOG(LogTemp, Warning, TEXT("  This projectile moved to: %s"), *ThisNewLocation.ToString());
-						UE_LOG(LogTemp, Warning, TEXT("  Other projectile moved to: %s"), *OtherNewLocation.ToString());
-						UE_LOG(LogTemp, Warning, TEXT("  Separation distance: %.3f"), MinSeparationDistance);
-					}
-					
-					// Add collision cooldown to prevent immediate re-collision between these same projectiles
-					AddProjectileCollisionCooldown(OtherProjectile);
-					UE_LOG(LogTemp, Log, TEXT("Added collision cooldown between projectiles %s and %s"), 
-					       *GetNameSafe(ActorOwner), *GetNameSafe(OtherProjectile));
-				}
-			}
-			
-			// Reset corner bounce counter since this was a projectile collision
-			ConsecutiveCornerBounces = 0;
 			UpdateComponentVelocity();
 		}
 		else
