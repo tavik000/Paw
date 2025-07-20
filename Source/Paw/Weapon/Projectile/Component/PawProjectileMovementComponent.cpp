@@ -65,12 +65,12 @@ UPawProjectileMovementComponent::UPawProjectileMovementComponent(const FObjectIn
 	bIsSliding = false;
 	PreviousHitTime = 1.f;
 	PreviousHitNormal = FVector::UpVector;
-	
+
 	// Initialize anti-infinite-bounce protection
 	ConsecutiveCornerBounces = 0;
 	LastCornerBounceTime = 0.0f;
 	TotalBounceCount = 0;
-	
+
 	// Initialize sliding hysteresis system
 	LastSlidingStateChangeTime = 0.0f;
 	bPreviousSlidingState = false;
@@ -208,7 +208,7 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 		AddMovementToQueue(DeltaTime);
 		// UE_LOG(LogTemp, Verbose, TEXT("Queued movement update for %s (DeltaTime: %.4f, Queue size: %d, bIsSliding: %d)"),
 		//        *GetNameSafe(UpdatedComponent->GetOwner()), DeltaTime, QueuedUpdates.Num(), bIsSliding);
-		
+
 		// During sliding with zero friction, process queue more aggressively to reduce lag
 		if (bIsSliding && FMath::IsNearlyZero(Friction) && QueuedUpdates.Num() >= 2)
 		{
@@ -217,11 +217,10 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 		}
 		return;
 	}
-	
+
 	// Process any queued movement updates first
 	ProcessQueuedMovements();
 
-	
 
 	FVector::FReal VelocityTolerance = 0.0;
 	switch (ActorOwner->GetReplicatedMovement().VelocityQuantizationLevel)
@@ -309,7 +308,7 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
-		
+
 		if (!AsyncSweepDelegate.IsBound())
 		{
 			AsyncSweepDelegate.BindUObject(this, &ThisClass::HandleMovementAsyncSweepResult);
@@ -317,9 +316,10 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 		FVector StartLocation = ActorLocation;
 		FVector EndLocation = StartLocation + MoveDelta;
 		MovementAsyncSweepData.SweepCount += AsyncSweepByObjectType(ActorOwner, EAsyncTraceType::Single,
-		                                                    StartLocation, EndLocation,
-		                                                    NewRotation,
-		                                                    ObjectQueryParams, QueryParams, &AsyncSweepDelegate);
+		                                                            StartLocation, EndLocation,
+		                                                            NewRotation,
+		                                                            ObjectQueryParams, QueryParams,
+		                                                            &AsyncSweepDelegate);
 	}
 	else
 	{
@@ -349,18 +349,20 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 	// UE_LOG(LogTemp, Warning, TEXT("HandleDeflection: bMultiHit: %d, PreviousHitNormal: %s, Normal: %s, VelocityNormal: %s, Dot: %.3f, VelMag: %.1f, bIsSliding: %d, Friction: %.3f"),
 	//        bMultiHit, *PreviousHitNormal.ToString(), *Normal.ToString(),
 	//        *Velocity.GetSafeNormal().ToString(), (Velocity.GetSafeNormal() | Normal), Velocity.Size(), bIsSliding, Friction);
-	
+
 	const bool bIsGroundSurface = FMath::Abs(Normal.Z) > 0.7f;
 
 	// If the previous hit normal is not valid, or if the current hit normal is not parallel to the previous hit normal,
-	const bool bShouldResumeSliding = !bIsSliding && bMultiHit && FVector::Coincident(PreviousHitNormal, Normal) && bIsGroundSurface;
-	const bool bVelocityParallelToSurface = (Velocity.GetSafeNormal() | Normal) <= DotTolerance && Velocity.Size() >= MinSlidingVelocity;
+	const bool bShouldResumeSliding = !bIsSliding && bMultiHit && FVector::Coincident(PreviousHitNormal, Normal) &&
+		bIsGroundSurface;
+	const bool bVelocityParallelToSurface = (Velocity.GetSafeNormal() | Normal) <= DotTolerance && Velocity.Size() >=
+		MinSlidingVelocity;
 	bool bNewSlidingState = bShouldResumeSliding || bVelocityParallelToSurface;
-	
+
 	// Apply hysteresis to prevent rapid sliding state changes
 	const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	const float TimeSinceLastChange = CurrentTime - LastSlidingStateChangeTime;
-	
+
 	if (bNewSlidingState != bPreviousSlidingState)
 	{
 		// Only change state if enough time has passed since last change
@@ -396,7 +398,7 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 		// UE_LOG(LogTemp, Warning, TEXT("SLIDING: Projectile %s: (Role: %d) Velocity: %s, Normal: %s, Friction: %.3f, FrameTime: %.3fms"),
 		//        *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
 		//        *Velocity.ToString(), *Normal.ToString(), Friction, FrameTime * 1000.0f);
-		
+
 		// Disable multihit testing for now. but it might cause issues with sliding along corners.
 		// for angle < 80 degrees, slide along wall. Cos 80 degrees = 0.173648f
 		if (bMultiHit && (PreviousHitNormal | Normal) < 0.173648f)
@@ -451,7 +453,7 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 	else
 	{
 		// If we are not sliding, we are bouncing.
-		
+
 		AActor* ActorOwner = UpdatedComponent ? UpdatedComponent->GetOwner() : NULL;
 		// If we hit a trigger that destroyed us, abort.
 		if (!CheckStillInWorld() || !IsValid(ActorOwner) || HasStoppedSimulation())
@@ -485,7 +487,7 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
-		
+
 		const FVector StartLocation = ActorOwner->GetActorLocation();
 		const FVector EndLocation = StartLocation + MoveDelta;
 		const FQuat NewRotation = ActorOwner->GetActorQuat() * MovementAsyncSweepData.RelativeQuat;
@@ -524,31 +526,31 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 		const float StartTime = GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.0f;
 		// UE_LOG(LogTemp, Warning, TEXT("SLIDING FAST PATH: Zero-friction sliding for %s at %.3fms"), 
 		//        *GetNameSafe(ActorOwner), StartTime * 1000.0f);
-		
+
 		// Direct position update without async sweep
 		FVector MoveDelta = Velocity * SubTickTimeRemaining;
 		FTransform NewTransform = ActorOwner->GetActorTransform();
 		NewTransform.SetLocation(NewTransform.GetLocation() + MoveDelta);
 		ActorOwner->SetActorTransform(NewTransform);
-		
+
 		// Apply zero-friction sliding physics immediately
 		const FVector HorizontalVelocity = FVector(Velocity.X, Velocity.Y, 0.0f);
 		const FVector VerticalAcceleration = FVector(0.0f, 0.0f, GetGravityZ() * SubTickTimeRemaining);
 		Velocity = HorizontalVelocity + FVector(0.0f, 0.0f, Velocity.Z) + VerticalAcceleration;
 		Velocity = ConstrainDirectionToPlane(Velocity);
-		
+
 		const float EndTime = GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.0f;
 		const float ProcessingTime = (EndTime - StartTime) * 1000.0f;
 		// UE_LOG(LogTemp, Warning, TEXT("FAST PATH COMPLETE: Processing time %.3fms, new velocity %s"), 
 		//        ProcessingTime, *Velocity.ToString());
-		
+
 		// Check min velocity
 		if (IsVelocityUnderSimulationThreshold())
 		{
 			StopSimulating(Hit);
 			return false;
 		}
-		
+
 		SubTickTimeRemaining = 0.f;
 		UpdateComponentVelocity();
 		return true;
@@ -583,7 +585,7 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
-	
+
 	const FVector StartLocation = ActorOwner->GetActorLocation();
 	const FVector EndLocation = StartLocation + MoveDelta;
 
@@ -697,10 +699,10 @@ void UPawProjectileMovementComponent::StopSimulating(const FHitResult& HitResult
 	Velocity = FVector::ZeroVector;
 	PendingForce = FVector::ZeroVector;
 	PendingForceThisUpdate = FVector::ZeroVector;
-	
+
 	// Clear any queued movement updates when stopping simulation
 	ClearMovementQueue();
-	
+
 	UpdateComponentVelocity();
 	SetUpdatedComponent(NULL);
 	OnProjectileStop.Broadcast(HitResult);
@@ -1396,12 +1398,12 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 			return;
 		}
 
-		UE_LOG(LogTemp, Warning, TEXT(" SlidingAsyncSweepCompleted but not stopped simulation, Hit: %s, Time: %.3f, RemainingTime: %.3f"),
+		UE_LOG(LogTemp, Warning,
+		       TEXT(" SlidingAsyncSweepCompleted but not stopped simulation, Hit: %s, Time: %.3f, RemainingTime: %.3f"),
 		       *Hit.ToString(), Hit.Time, SubTickTimeRemaining);
 	}
 	else
 	{
-
 		auto& MovementSweepAsyncData = MovementAsyncSweepData;
 		auto NewTransform = ActorOwner->GetActorTransform();
 		auto NewLocation = NewTransform.GetLocation() + SlideAsyncData.Direction * SlideAsyncData.HitMinDistance;
@@ -1409,18 +1411,18 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 		NewTransform.SetLocation(NewLocation);
 		NewTransform.SetRotation(NewRotation);
 		ActorOwner->SetActorTransform(NewTransform);
-		
+
 		// Handle sliding physics based on friction value
 		if (FMath::IsNearlyZero(Friction))
 		{
 			// Zero friction - preserve horizontal sliding velocity, only apply gravity to vertical component
 			const FVector HorizontalVelocity = FVector(Velocity.X, Velocity.Y, 0.0f);
 			const FVector VerticalAcceleration = FVector(0.0f, 0.0f, GetGravityZ() * SubTickTimeRemaining);
-			
+
 			// Maintain horizontal sliding momentum, only apply gravity to vertical
 			Velocity = HorizontalVelocity + FVector(0.0f, 0.0f, Velocity.Z) + VerticalAcceleration;
 			Velocity = ConstrainDirectionToPlane(Velocity);
-			
+
 			// UE_LOG(LogTemp, Warning,
 			//        TEXT("Projectile %s: (Role: %d) Zero-friction sliding, preserved horizontal velocity: %s"),
 			//        *GetNameSafe(UpdatedComponent->GetOwner()), (int32)UpdatedComponent->GetOwner()->GetLocalRole(),
@@ -1465,7 +1467,7 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 		}
 
 		SubTickTimeRemaining = 0.f;
-		
+
 		UpdateComponentVelocity();
 	}
 }
@@ -1522,10 +1524,10 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 		// No hits during bounce movement, safe to move
 		ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
 		UpdateComponentVelocity();
-		
+
 		// Reset consecutive corner bounce counter on successful movement
 		ConsecutiveCornerBounces = 0;
-		
+
 		// UE_LOG(LogTemp, Warning, TEXT(" Bounce Projectile %s: (Role: %d) No hits, safe movement to %s"),
 		//        *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), *NewLocation.ToString());
 	}
@@ -1533,8 +1535,8 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Hit during bounce sweep: HitCount: %d, HitMinDistance: %f, Direction: %s"),
 		       BounceData.HitCount, BounceData.HitMinDistance, *BounceData.Direction.ToString());
-		
-		
+
+
 		// Detect corner bounce (immediate hit during bounce movement) - but exclude projectile collisions
 		if (constexpr float CornerDetectionDistance = 5.0f; BounceData.HitMinDistance < CornerDetectionDistance)
 		{
@@ -1550,18 +1552,21 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 				// Reset counter if enough time has passed
 				ConsecutiveCornerBounces = 1;
 			}
-			
+
 			LastCornerBounceTime = CurrentTime;
-			
+
 			// Check if we've exceeded the maximum consecutive bounces
 			if (ConsecutiveCornerBounces > MaxConsecutiveCornerBounces)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("Projectile %s exceeded max consecutive corner bounces (%d), stopping simulation to prevent infinite loop"), 
+				UE_LOG(LogTemp, Warning,
+				       TEXT(
+					       "Projectile %s exceeded max consecutive corner bounces (%d), stopping simulation to prevent infinite loop"
+				       ),
 				       *GetNameSafe(ActorOwner), MaxConsecutiveCornerBounces);
 				StopSimulating(BounceData.HitResult);
 				return;
 			}
-			
+
 			// Corner bounce detected - use intelligent escape logic
 			UE_LOG(LogTemp, Warning, TEXT("Corner bounce detected (distance: %.3f, bounce #%d) "),
 			       BounceData.HitMinDistance, ConsecutiveCornerBounces);
@@ -1580,37 +1585,38 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 		{
 			// Check if this is a normal bounce (reasonable distance) vs far hit that should stop
 			constexpr float MaxNormalBounceDistance = 50.0f;
-			
+
 			if (BounceData.HitMinDistance < MaxNormalBounceDistance)
 			{
 				// Check bounce limits to prevent infinite bouncing
 				TotalBounceCount++;
 				if (TotalBounceCount > MaxTotalBounces)
 				{
-					UE_LOG(LogTemp, Warning, TEXT("Projectile %s exceeded max total bounces (%d), stopping simulation"), 
+					UE_LOG(LogTemp, Warning, TEXT("Projectile %s exceeded max total bounces (%d), stopping simulation"),
 					       *GetNameSafe(ActorOwner), MaxTotalBounces);
 					StopSimulating(BounceData.HitResult);
 					return;
 				}
-				
+
 				// Normal bounce case - apply proper bounce physics
-				UE_LOG(LogTemp, Warning, TEXT("Normal bounce detected (distance: %.3f, bounce #%d), applying bounce physics"), 
+				UE_LOG(LogTemp, Warning,
+				       TEXT("Normal bounce detected (distance: %.3f, bounce #%d), applying bounce physics"),
 				       BounceData.HitMinDistance, TotalBounceCount);
-				
+
 				// Move to the hit location
 				NewLocation = ActorOwner->GetActorLocation() + BounceData.Direction * BounceData.HitMinDistance;
 				NewTransform.SetLocation(NewLocation);
 				ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
-				
+
 				// Apply bounce physics using the existing ComputeBounceResult method
 				const FVector MoveDelta = BounceData.Direction * BounceData.HitMinDistance;
 				Velocity = ComputeBounceResult(BounceData.HitResult, CurrentTimeTick, MoveDelta);
-				
+
 				// Reset corner bounce counter on normal bounce
 				ConsecutiveCornerBounces = 0;
-				
+
 				UpdateComponentVelocity();
-				
+
 				// Check if velocity is still above simulation threshold after bounce
 				if (IsVelocityUnderSimulationThreshold())
 				{
@@ -1618,14 +1624,14 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 					StopSimulating(BounceData.HitResult);
 					return;
 				}
-				
-				UE_LOG(LogTemp, Warning, TEXT("Normal bounce applied, new velocity: %s, total bounces: %d"), 
+
+				UE_LOG(LogTemp, Warning, TEXT("Normal bounce applied, new velocity: %s, total bounces: %d"),
 				       *Velocity.ToString(), TotalBounceCount);
 			}
 			else
 			{
 				// Far hit - likely missed intended target, stop simulation
-				UE_LOG(LogTemp, Warning, TEXT("Far hit during bounce movement (distance: %.3f), stopping simulation"), 
+				UE_LOG(LogTemp, Warning, TEXT("Far hit during bounce movement (distance: %.3f), stopping simulation"),
 				       BounceData.HitMinDistance);
 				StopSimulating(BounceData.HitResult);
 			}
@@ -1635,7 +1641,8 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 
 bool UPawProjectileMovementComponent::IsAllAsyncSweepingCompleted() const
 {
-	return (MovementAsyncSweepData.SweepCount <= 0 && SlidingAsyncData.SweepCount <= 0 && BounceAsyncData.SweepCount <= 0);
+	return (MovementAsyncSweepData.SweepCount <= 0 && SlidingAsyncData.SweepCount <= 0 && BounceAsyncData.SweepCount <=
+		0);
 }
 
 void UPawProjectileMovementComponent::AddMovementToQueue(float DeltaTime)
@@ -1652,7 +1659,7 @@ void UPawProjectileMovementComponent::AddMovementToQueue(float DeltaTime)
 	}
 
 	const float CurrentTime = World->GetTimeSeconds();
-	
+
 	// Clean up old entries before adding new ones
 	QueuedUpdates.RemoveAll([CurrentTime](const FQueuedMovementUpdate& Update)
 	{
@@ -1670,8 +1677,8 @@ void UPawProjectileMovementComponent::AddMovementToQueue(float DeltaTime)
 	// Add new movement update to queue
 	FQueuedMovementUpdate NewUpdate(DeltaTime, Velocity, CurrentTime);
 	QueuedUpdates.Add(NewUpdate);
-	
-	UE_LOG(LogTemp, Verbose, TEXT("Added movement to queue: DeltaTime=%.4f, Velocity=%s, QueueSize=%d"), 
+
+	UE_LOG(LogTemp, Verbose, TEXT("Added movement to queue: DeltaTime=%.4f, Velocity=%s, QueueSize=%d"),
 	       DeltaTime, *Velocity.ToString(), QueuedUpdates.Num());
 }
 
@@ -1683,27 +1690,27 @@ void UPawProjectileMovementComponent::ProcessQueuedMovements()
 	}
 
 	UE_LOG(LogTemp, Verbose, TEXT("Processing %d queued movement updates"), QueuedUpdates.Num());
-	
+
 	// Accumulate all queued delta times and apply movement
 	float AccumulatedDeltaTime = 0.0f;
 	FVector AccumulatedVelocityChange = FVector::ZeroVector;
-	
+
 	for (const FQueuedMovementUpdate& Update : QueuedUpdates)
 	{
 		AccumulatedDeltaTime += Update.DeltaTime;
-		
+
 		// Apply physics updates (gravity, acceleration) for each queued frame
 		const FVector VelocityChange = ComputeAcceleration(Update.StartVelocity, Update.DeltaTime) * Update.DeltaTime;
 		AccumulatedVelocityChange += VelocityChange;
 	}
-	
+
 	// Apply accumulated velocity changes
 	Velocity += AccumulatedVelocityChange;
 	Velocity = LimitVelocity(Velocity);
-	
-	UE_LOG(LogTemp, Verbose, TEXT("Processed queued movements: AccumulatedDeltaTime=%.4f, FinalVelocity=%s"), 
+
+	UE_LOG(LogTemp, Verbose, TEXT("Processed queued movements: AccumulatedDeltaTime=%.4f, FinalVelocity=%s"),
 	       AccumulatedDeltaTime, *Velocity.ToString());
-	
+
 	// Clear the queue after processing
 	ClearMovementQueue();
 }
