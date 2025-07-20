@@ -221,7 +221,7 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 
 	// Process any queued movement updates first
 	ProcessQueuedMovements();
-	
+
 	// Clean up expired collision cooldowns periodically
 	static float LastCooldownCleanupTime = 0.0f;
 	const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
@@ -345,15 +345,17 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 
 bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& SubTickTimeRemaining)
 {
-	// UE_LOG(LogTemp, Warning, TEXT(" HandleDeflection called for %s, SubTickTimeRemaining: %.3f"),
-	//        *GetNameSafe(UpdatedComponent->GetOwner()), SubTickTimeRemaining);
+	UE_LOG(LogTemp, Warning,
+	       TEXT(" HandleDeflection Hit Actor Label or name : %s, Hit Component: %s, Hit Time: %.3f, Hit Normal: %s"),
+	       *GetNameSafe(Hit.GetActor()), *GetNameSafe(Hit.GetComponent()), Hit.Time, *Hit.Normal.ToString());
+
 	const FVector Normal = ConstrainNormalToPlane(Hit.Normal);
 
 	// Multiple hits within very short time period?
 	const bool bMultiHit = (PreviousHitTime < 1.f && Hit.Time <= UE_KINDA_SMALL_NUMBER);
 
 	// if velocity still into wall (after HandleBlockingHit() had a chance to adjust), slide along wall
-	constexpr float DotTolerance = 0.01f; 
+	constexpr float DotTolerance = 0.01f;
 	constexpr float MinSlidingVelocity = 50.0f; // Minimum velocity to consider sliding
 
 
@@ -367,9 +369,9 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 	bool bNewSlidingState = bShouldResumeSliding;
 
 	UE_LOG(LogTemp, Warning, TEXT("bIsGroundSurface: %d, bMultiHit: %d, bVelocityParallelToSurface: %d, "
-		"bShouldResumeSliding: %d, PreviousHitNormal: %s, Normal: %s, Velocity: %s"),
-		bIsGroundSurface, bMultiHit, bVelocityParallelToSurface, bShouldResumeSliding,
-		*PreviousHitNormal.ToString(), *Normal.ToString(), *Velocity.ToString());
+		       "bShouldResumeSliding: %d, PreviousHitNormal: %s, Normal: %s, Velocity: %s"),
+	       bIsGroundSurface, bMultiHit, bVelocityParallelToSurface, bShouldResumeSliding,
+	       *PreviousHitNormal.ToString(), *Normal.ToString(), *Velocity.ToString());
 
 	// Apply hysteresis to prevent rapid sliding state changes
 	const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
@@ -383,21 +385,16 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 			bIsSliding = bNewSlidingState;
 			LastSlidingStateChangeTime = CurrentTime;
 			bPreviousSlidingState = bNewSlidingState;
-			// UE_LOG(LogTemp, Warning, TEXT("Sliding state changed from %d to %d (hysteresis applied)"), 
-			//        !bNewSlidingState, bNewSlidingState);
+			UE_LOG(LogTemp, Warning, TEXT("Sliding state changed from %d to %d (hysteresis applied)"),
+			       !bNewSlidingState, bNewSlidingState);
 		}
 		else
 		{
 			// Keep previous state due to hysteresis
 			bIsSliding = bPreviousSlidingState;
-			// UE_LOG(LogTemp, Verbose, TEXT("Sliding state change suppressed by hysteresis (%.3fs since last change)"), 
-			//        TimeSinceLastChange);
+			UE_LOG(LogTemp, Verbose, TEXT("Sliding state change suppressed by hysteresis (%.3fs since last change)"),
+			       TimeSinceLastChange);
 		}
-	}
-	else
-	{
-		// State hasn't changed, just update current state
-		bIsSliding = bNewSlidingState;
 	}
 
 	// UE_LOG(LogTemp, Warning, TEXT("Set bIsSliding to %d for %s, PreviousHitNormal: %s, Normal: %s, VelocityNormal: %s, Dot: %.3f"),
@@ -433,21 +430,55 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 		else
 		{
 			//adjust to move along new wall with improved Z velocity preservation
+
+
 			const FVector OriginalVelocity = Velocity;
-			Velocity = ComputeSlideVector(Velocity, 1.f, Normal, Hit);
-			
 			// Preserve more Z velocity when sliding, especially for projectile-projectile collisions
 			const bool bIsHorizontalSurface = FMath::Abs(Normal.Z) > 0.7f; // Ground/ceiling surface
 			if (bIsHorizontalSurface && FMath::Abs(OriginalVelocity.Z) > 0.1f)
 			{
+				// VELOCITY CHANGE LOG: Before ComputeSlideVector
+				UE_LOG(LogTemp, Warning,
+				       TEXT(
+					       "VELOCITY CHANGE - ComputeSlideVector: %s - BEFORE: X=%.3f Y=%.3f Z=%.3f (Total: %.3f) | Normal: %s"
+				       ),
+				       *GetNameSafe(UpdatedComponent->GetOwner()),
+				       OriginalVelocity.X, OriginalVelocity.Y, OriginalVelocity.Z, OriginalVelocity.Size(),
+				       *Normal.ToString());
+
+				Velocity = ComputeSlideVector(Velocity, 1.f, Normal, Hit);
+
+				// VELOCITY CHANGE LOG: After ComputeSlideVector 
+				const FVector SlideVectorResult = Velocity;
+				const FVector SlideVectorDelta = SlideVectorResult - OriginalVelocity;
+				UE_LOG(LogTemp, Warning,
+				       TEXT(
+					       "VELOCITY CHANGE - ComputeSlideVector: %s - AFTER: X=%.3f Y=%.3f Z=%.3f (Total: %.3f) | DELTA: X=%.3f Y=%.3f Z=%.3f"
+				       ),
+				       *GetNameSafe(UpdatedComponent->GetOwner()),
+				       SlideVectorResult.X, SlideVectorResult.Y, SlideVectorResult.Z, SlideVectorResult.Size(),
+				       SlideVectorDelta.X, SlideVectorDelta.Y, SlideVectorDelta.Z);
+
 				// For horizontal surfaces, preserve some vertical momentum to prevent complete flattening
 				const float ZPreservationFactor = FMath::IsNearlyZero(Friction) ? 0.9f : 0.5f;
+				const FVector BeforeZPreservation = Velocity;
 				Velocity.Z = FMath::Lerp(Velocity.Z, OriginalVelocity.Z, ZPreservationFactor);
+
+				// VELOCITY CHANGE LOG: Z Preservation
+				const FVector ZPreservationDelta = Velocity - BeforeZPreservation;
+				UE_LOG(LogTemp, Warning,
+				       TEXT(
+					       "VELOCITY CHANGE - Z Preservation: %s - Factor=%.3f, BEFORE: Z=%.3f, AFTER: Z=%.3f, DELTA: Z=%.3f"
+				       ),
+				       *GetNameSafe(UpdatedComponent->GetOwner()),
+				       ZPreservationFactor, BeforeZPreservation.Z, Velocity.Z, ZPreservationDelta.Z);
 			}
-			
-			// UE_LOG(LogTemp, Warning,
-			//        TEXT("Slide vector: Original %s -> Final %s (Z preservation applied: %d)"),
-			//        *OriginalVelocity.ToString(), *Velocity.ToString(), bIsHorizontalSurface);
+
+			UE_LOG(LogTemp, Warning,
+			       TEXT("VELOCITY CHANGE - Slide Summary: %s - Original: %s -> Final: %s (Surface: %s, Friction: %.3f)"
+			       ),
+			       *GetNameSafe(UpdatedComponent->GetOwner()), *OriginalVelocity.ToString(), *Velocity.ToString(),
+			       bIsHorizontalSurface ? TEXT("Horizontal") : TEXT("Vertical"), Friction);
 		}
 
 		// Check min velocity.
@@ -556,10 +587,34 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 		ActorOwner->SetActorTransform(NewTransform);
 
 		// Apply zero-friction sliding physics immediately
+		const FVector BeforeZeroFriction = Velocity;
 		const FVector HorizontalVelocity = FVector(Velocity.X, Velocity.Y, 0.0f);
 		const FVector VerticalAcceleration = FVector(0.0f, 0.0f, GetGravityZ() * SubTickTimeRemaining);
+
+		// VELOCITY CHANGE LOG: Before zero-friction reconstruction
+		UE_LOG(LogTemp, Warning,
+		       TEXT("VELOCITY CHANGE - Zero Friction: %s - BEFORE: X=%.3f Y=%.3f Z=%.3f | Gravity: %.3f"),
+		       *GetNameSafe(ActorOwner), BeforeZeroFriction.X, BeforeZeroFriction.Y, BeforeZeroFriction.Z,
+		       GetGravityZ());
+
 		Velocity = HorizontalVelocity + FVector(0.0f, 0.0f, Velocity.Z) + VerticalAcceleration;
+
+		// VELOCITY CHANGE LOG: Before ConstrainDirectionToPlane
+		const FVector BeforeConstrain = Velocity;
+		UE_LOG(LogTemp, Warning,
+		       TEXT("VELOCITY CHANGE - ConstrainDirectionToPlane (Zero Friction): %s - BEFORE: X=%.3f Y=%.3f Z=%.3f"),
+		       *GetNameSafe(ActorOwner), BeforeConstrain.X, BeforeConstrain.Y, BeforeConstrain.Z);
+
 		Velocity = ConstrainDirectionToPlane(Velocity);
+
+		// VELOCITY CHANGE LOG: After ConstrainDirectionToPlane
+		const FVector ConstrainDelta = Velocity - BeforeConstrain;
+		UE_LOG(LogTemp, Warning,
+		       TEXT(
+			       "VELOCITY CHANGE - ConstrainDirectionToPlane (Zero Friction): %s - AFTER: X=%.3f Y=%.3f Z=%.3f | DELTA: X=%.3f Y=%.3f Z=%.3f"
+		       ),
+		       *GetNameSafe(ActorOwner), Velocity.X, Velocity.Y, Velocity.Z, ConstrainDelta.X, ConstrainDelta.Y,
+		       ConstrainDelta.Z);
 
 		const float EndTime = GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.0f;
 		const float ProcessingTime = (EndTime - StartTime) * 1000.0f;
@@ -1543,7 +1598,7 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 
 	AActor* HitActor = BounceData.HitResult.GetActor();
 	const bool bHitProjectile = HitActor && HitActor->IsA<APawProjectileBase>();
-	
+
 	if (BounceData.HitCount == 0 || bHitProjectile)
 	{
 		// No hits during bounce movement, safe to move
@@ -1560,9 +1615,10 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Hit during bounce sweep: HitCount: %d, HitMinDistance: %f, Direction: %s"),
 		       BounceData.HitCount, BounceData.HitMinDistance, *BounceData.Direction.ToString());
-		
+
 		// Detect corner bounce (immediate hit during bounce movement) - but exclude projectile collisions
-		if (constexpr float CornerDetectionDistance = 5.0f; BounceData.HitMinDistance < CornerDetectionDistance && !bHitProjectile)
+		if (constexpr float CornerDetectionDistance = 5.0f; BounceData.HitMinDistance < CornerDetectionDistance && !
+			bHitProjectile)
 		{
 			// Check for infinite bounce protection
 			const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
@@ -1754,19 +1810,19 @@ void UPawProjectileMovementComponent::AddProjectileCollisionCooldown(AActor* Oth
 	{
 		return;
 	}
-	
+
 	const UWorld* World = GetWorld();
 	if (!IsValid(World))
 	{
 		return;
 	}
-	
+
 	const float CurrentTime = World->GetTimeSeconds();
 	const float CooldownEndTime = CurrentTime + ProjectileCollisionCooldownTime;
-	
+
 	// Clean up expired cooldowns before adding new ones
 	CleanupExpiredCollisionCooldowns();
-	
+
 	// Check if this projectile already has a cooldown entry
 	for (FProjectileCollisionCooldown& Cooldown : ProjectileCollisionCooldowns)
 	{
@@ -1774,12 +1830,12 @@ void UPawProjectileMovementComponent::AddProjectileCollisionCooldown(AActor* Oth
 		{
 			// Update existing cooldown
 			Cooldown.CooldownEndTime = CooldownEndTime;
-			UE_LOG(LogTemp, Verbose, TEXT("Updated collision cooldown for projectile %s, ends at %.3f"), 
+			UE_LOG(LogTemp, Verbose, TEXT("Updated collision cooldown for projectile %s, ends at %.3f"),
 			       *GetNameSafe(OtherProjectile), CooldownEndTime);
 			return;
 		}
 	}
-	
+
 	// Enforce memory limits
 	if (ProjectileCollisionCooldowns.Num() >= MaxCollisionCooldowns)
 	{
@@ -1787,10 +1843,10 @@ void UPawProjectileMovementComponent::AddProjectileCollisionCooldown(AActor* Oth
 		ProjectileCollisionCooldowns.RemoveAt(0);
 		UE_LOG(LogTemp, Verbose, TEXT("Collision cooldown overflow, removed oldest entry"));
 	}
-	
+
 	// Add new cooldown entry
 	ProjectileCollisionCooldowns.Add(FProjectileCollisionCooldown(OtherProjectile, CooldownEndTime));
-	UE_LOG(LogTemp, Verbose, TEXT("Added collision cooldown for projectile %s, ends at %.3f (array size: %d)"), 
+	UE_LOG(LogTemp, Verbose, TEXT("Added collision cooldown for projectile %s, ends at %.3f (array size: %d)"),
 	       *GetNameSafe(OtherProjectile), CooldownEndTime, ProjectileCollisionCooldowns.Num());
 }
 
@@ -1800,15 +1856,15 @@ bool UPawProjectileMovementComponent::IsProjectileCollisionOnCooldown(AActor* Ot
 	{
 		return false;
 	}
-	
+
 	const UWorld* World = GetWorld();
 	if (!IsValid(World))
 	{
 		return false;
 	}
-	
+
 	const float CurrentTime = World->GetTimeSeconds();
-	
+
 	// Check if this projectile has an active cooldown
 	for (const FProjectileCollisionCooldown& Cooldown : ProjectileCollisionCooldowns)
 	{
@@ -1818,13 +1874,13 @@ bool UPawProjectileMovementComponent::IsProjectileCollisionOnCooldown(AActor* Ot
 			if (bOnCooldown)
 			{
 				const float TimeRemaining = Cooldown.CooldownEndTime - CurrentTime;
-				UE_LOG(LogTemp, Verbose, TEXT("Projectile %s collision on cooldown, %.3f seconds remaining"), 
+				UE_LOG(LogTemp, Verbose, TEXT("Projectile %s collision on cooldown, %.3f seconds remaining"),
 				       *GetNameSafe(OtherProjectile), TimeRemaining);
 			}
 			return bOnCooldown;
 		}
 	}
-	
+
 	return false;
 }
 
@@ -1835,21 +1891,21 @@ void UPawProjectileMovementComponent::CleanupExpiredCollisionCooldowns()
 	{
 		return;
 	}
-	
+
 	const float CurrentTime = World->GetTimeSeconds();
 	const int32 InitialCount = ProjectileCollisionCooldowns.Num();
-	
+
 	// Remove expired cooldowns
 	ProjectileCollisionCooldowns.RemoveAll([CurrentTime](const FProjectileCollisionCooldown& Cooldown)
 	{
 		const bool bExpired = CurrentTime >= Cooldown.CooldownEndTime || !Cooldown.OtherProjectile.IsValid();
 		return bExpired;
 	});
-	
+
 	const int32 RemovedCount = InitialCount - ProjectileCollisionCooldowns.Num();
 	if (RemovedCount > 0)
 	{
-		UE_LOG(LogTemp, Verbose, TEXT("Cleaned up %d expired collision cooldowns (remaining: %d)"), 
+		UE_LOG(LogTemp, Verbose, TEXT("Cleaned up %d expired collision cooldowns (remaining: %d)"),
 		       RemovedCount, ProjectileCollisionCooldowns.Num());
 	}
 }
