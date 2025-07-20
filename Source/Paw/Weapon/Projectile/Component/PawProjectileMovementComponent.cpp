@@ -7,6 +7,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "GameFramework/WorldSettings.h"
 #include "ProfilingDebugging/CsvProfiler.h"
+#include "EngineUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PawProjectileMovementComponent)
 
@@ -64,6 +65,11 @@ UPawProjectileMovementComponent::UPawProjectileMovementComponent(const FObjectIn
 	bIsSliding = false;
 	PreviousHitTime = 1.f;
 	PreviousHitNormal = FVector::UpVector;
+	
+	// Initialize anti-infinite-bounce protection
+	ConsecutiveCornerBounces = 0;
+	LastCornerBounceTime = 0.0f;
+	TotalBounceCount = 0;
 }
 
 
@@ -1405,6 +1411,10 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 		// No hits during bounce movement, safe to move
 		ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
 		UpdateComponentVelocity();
+		
+		// Reset consecutive corner bounce counter on successful movement
+		ConsecutiveCornerBounces = 0;
+		
 		UE_LOG(LogTemp, Warning, TEXT(" Bounce Projectile %s: (Role: %d) No hits, safe movement to %s"),
 		       *GetNameSafe(ActorOwner), (int32)ActorOwner->GetLocalRole(), *NewLocation.ToString());
 	}
@@ -1416,14 +1426,79 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 		// Detect corner bounce (immediate hit during bounce movement)
 		if (constexpr float CornerDetectionDistance = 5.0f; BounceData.HitMinDistance < CornerDetectionDistance)
 		{
-			// Corner bounce detected - reverse velocity with energy loss
-			UE_LOG(LogTemp, Warning, TEXT("Corner bounce detected (distance: %.3f), reversing velocity"), BounceData.HitMinDistance);
+			// Check for infinite bounce protection
+			const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+			const bool bRecentCornerBounce = (CurrentTime - LastCornerBounceTime) < CornerBounceTimeoutWindow;
 			
-			// Reverse velocity direction with bounciness factor (natural energy loss)
-			Velocity = -Velocity * Bounciness;
+			if (bRecentCornerBounce)
+			{
+				ConsecutiveCornerBounces++;
+			}
+			else
+			{
+				// Reset counter if enough time has passed
+				ConsecutiveCornerBounces = 1;
+			}
 			
-			// Apply friction for additional energy loss
-			Velocity *= (1.0f - Friction);
+			LastCornerBounceTime = CurrentTime;
+			
+			// Check if we've exceeded the maximum consecutive bounces
+			if (ConsecutiveCornerBounces > MaxConsecutiveCornerBounces)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Projectile %s exceeded max consecutive corner bounces (%d), stopping simulation to prevent infinite loop"), 
+				       *GetNameSafe(ActorOwner), MaxConsecutiveCornerBounces);
+				StopSimulating(BounceData.HitResult);
+				return;
+			}
+			
+			// Corner bounce detected - use intelligent escape logic
+			UE_LOG(LogTemp, Warning, TEXT("Corner bounce detected (distance: %.3f, bounce #%d), attempting intelligent escape"), 
+			       BounceData.HitMinDistance, ConsecutiveCornerBounces);
+			
+			// Try to find a clear escape direction
+			FVector EscapeDirection;
+			float EscapeDistance;
+			if (FindCornerEscapeDirection(NewLocation, EscapeDirection, EscapeDistance))
+			{
+				// Successfully found escape direction
+				NewLocation += EscapeDirection * EscapeDistance;
+				NewTransform.SetLocation(NewLocation);
+				ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
+				
+				// Adjust velocity to point away from collision
+				Velocity = EscapeDirection.GetSafeNormal() * Velocity.Size() * Bounciness;
+				
+				// Apply friction for energy loss
+				Velocity *= (1.0f - Friction);
+				
+				UpdateComponentVelocity();
+				UE_LOG(LogTemp, Warning, TEXT("Corner escape successful: direction=%s, distance=%.3f, new velocity=%s"), 
+				       *EscapeDirection.ToString(), EscapeDistance, *Velocity.ToString());
+			}
+			else
+			{
+				// Fallback: use original logic with larger distance
+				UE_LOG(LogTemp, Warning, TEXT("No clear escape direction found, using fallback escape"));
+				
+				// Reverse velocity direction with bounciness factor
+				Velocity = -Velocity * Bounciness;
+				Velocity *= (1.0f - Friction);
+				
+				// Move away with larger distance
+				FVector AwayDirection = -BounceData.Direction.GetSafeNormal();
+				if (AwayDirection.IsNearlyZero())
+				{
+					AwayDirection = FVector::UpVector; // Default to upward escape
+				}
+				
+				NewLocation += AwayDirection * 15.0f; // Increased from 3.0f
+				NewTransform.SetLocation(NewLocation);
+				ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
+				
+				UpdateComponentVelocity();
+				UE_LOG(LogTemp, Warning, TEXT("Fallback corner escape applied, moved away by: %s"), 
+				       *(AwayDirection * 15.0f).ToString());
+			}
 			
 			// Check if velocity is still above simulation threshold
 			if (IsVelocityUnderSimulationThreshold())
@@ -1432,24 +1507,60 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 				StopSimulating(BounceData.HitResult);
 				return;
 			}
-			
-			// Move slightly away from hit point to prevent immediate re-collision
-			FVector AwayDirection = -BounceData.Direction;
-			NewLocation += AwayDirection * 3.0f; // Small offset
-			NewTransform.SetLocation(NewLocation);
-			ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
-			
-			UpdateComponentVelocity();
-			UE_LOG(LogTemp, Warning, TEXT("Corner bounce applied, new velocity: %s, moved away by: %s"), 
-			       *Velocity.ToString(), *(AwayDirection * 3.0f).ToString());
 		}
 		else
 		{
-			// Not a corner bounce - handle as normal collision would require the full collision handling
-			// For now, stop simulation for non-corner hits during bounce movement
-			UE_LOG(LogTemp, Warning, TEXT("Non-corner hit during bounce movement (distance: %.3f), stopping simulation"), 
-			       BounceData.HitMinDistance);
-			StopSimulating(BounceData.HitResult);
+			// Check if this is a normal bounce (reasonable distance) vs far hit that should stop
+			constexpr float MaxNormalBounceDistance = 50.0f;
+			
+			if (BounceData.HitMinDistance < MaxNormalBounceDistance)
+			{
+				// Check bounce limits to prevent infinite bouncing
+				TotalBounceCount++;
+				if (TotalBounceCount > MaxTotalBounces)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Projectile %s exceeded max total bounces (%d), stopping simulation"), 
+					       *GetNameSafe(ActorOwner), MaxTotalBounces);
+					StopSimulating(BounceData.HitResult);
+					return;
+				}
+				
+				// Normal bounce case - apply proper bounce physics
+				UE_LOG(LogTemp, Warning, TEXT("Normal bounce detected (distance: %.3f, bounce #%d), applying bounce physics"), 
+				       BounceData.HitMinDistance, TotalBounceCount);
+				
+				// Move to the hit location
+				NewLocation = ActorOwner->GetActorLocation() + BounceData.Direction * BounceData.HitMinDistance;
+				NewTransform.SetLocation(NewLocation);
+				ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
+				
+				// Apply bounce physics using the existing ComputeBounceResult method
+				const FVector MoveDelta = BounceData.Direction * BounceData.HitMinDistance;
+				Velocity = ComputeBounceResult(BounceData.HitResult, CurrentTimeTick, MoveDelta);
+				
+				// Reset corner bounce counter on normal bounce
+				ConsecutiveCornerBounces = 0;
+				
+				UpdateComponentVelocity();
+				
+				// Check if velocity is still above simulation threshold after bounce
+				if (IsVelocityUnderSimulationThreshold())
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Normal bounce velocity too low, stopping simulation"));
+					StopSimulating(BounceData.HitResult);
+					return;
+				}
+				
+				UE_LOG(LogTemp, Warning, TEXT("Normal bounce applied, new velocity: %s, total bounces: %d"), 
+				       *Velocity.ToString(), TotalBounceCount);
+			}
+			else
+			{
+				// Far hit - likely missed intended target, stop simulation
+				UE_LOG(LogTemp, Warning, TEXT("Far hit during bounce movement (distance: %.3f), stopping simulation"), 
+				       BounceData.HitMinDistance);
+				StopSimulating(BounceData.HitResult);
+			}
 		}
 	}
 }
@@ -1457,4 +1568,79 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 bool UPawProjectileMovementComponent::IsAllAsyncSweepingCompleted() const
 {
 	return (MovementAsyncSweepData.SweepCount <= 0 && SlidingAsyncData.SweepCount <= 0 && BounceAsyncData.SweepCount <= 0);
+}
+
+bool UPawProjectileMovementComponent::FindCornerEscapeDirection(const FVector& CurrentLocation, FVector& OutEscapeDirection, float& OutEscapeDistance)
+{
+	if (!UpdatedComponent)
+	{
+		return false;
+	}
+
+	AActor* ActorOwner = UpdatedComponent->GetOwner();
+	if (!IsValid(ActorOwner))
+	{
+		return false;
+	}
+
+	// Set up collision query parameters - exclude other projectiles
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(ActorOwner);
+	QueryParams.bTraceComplex = false;
+	
+	// Add all other projectiles to ignore list
+	UWorld* World = GetWorld();
+	if (!IsValid(World))
+	{
+		return false;
+	}
+
+	const float ProjectileRadius = 5.0f; // Match projectile collision radius
+	
+	// Test escape directions in order of preference
+	TArray<FVector> TestDirections = {
+		FVector::UpVector,                    // Straight up (preferred)
+		FVector(0, 0, 0.7f).GetSafeNormal(), // Slight upward angle
+		FVector(1, 0, 0.5f).GetSafeNormal(), // Forward-up diagonal
+		FVector(-1, 0, 0.5f).GetSafeNormal(),// Backward-up diagonal
+		FVector(0, 1, 0.5f).GetSafeNormal(), // Right-up diagonal
+		FVector(0, -1, 0.5f).GetSafeNormal(),// Left-up diagonal
+		FVector::ForwardVector,               // Forward
+		FVector::BackwardVector,              // Backward
+		FVector::RightVector,                 // Right
+		FVector::LeftVector                   // Left
+	};
+
+	// Test progressively larger escape distances
+	TArray<float> TestDistances = { 15.0f, 25.0f, 35.0f, 50.0f };
+
+	for (float TestDistance : TestDistances)
+	{
+		for (const FVector& Direction : TestDirections)
+		{
+			FVector TestLocation = CurrentLocation + Direction * TestDistance;
+			
+			// Check if this location is clear
+			bool bLocationClear = !World->OverlapAnyTestByChannel(
+				TestLocation,
+				FQuat::Identity,
+				ECC_WorldStatic,
+				FCollisionShape::MakeSphere(ProjectileRadius),
+				QueryParams
+			);
+
+			if (bLocationClear)
+			{
+				OutEscapeDirection = Direction;
+				OutEscapeDistance = TestDistance;
+				UE_LOG(LogTemp, Log, TEXT("Found clear escape direction: %s at distance %.3f"), 
+				       *Direction.ToString(), TestDistance);
+				return true;
+			}
+		}
+	}
+
+	// No clear escape direction found
+	UE_LOG(LogTemp, Warning, TEXT("Failed to find clear escape direction from %s"), *CurrentLocation.ToString());
+	return false;
 }

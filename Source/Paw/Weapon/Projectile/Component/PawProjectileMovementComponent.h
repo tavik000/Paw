@@ -524,6 +524,16 @@ protected: // Internal Helper Methods
 
 private: // Internal Helpers
 
+	/**
+	 * Attempts to find a clear escape direction from a corner collision.
+	 * Tests multiple directions to find one that doesn't have obstacles.
+	 * @param CurrentLocation Current projectile location
+	 * @param OutEscapeDirection The direction to escape (normalized)
+	 * @param OutEscapeDistance The distance to move in that direction
+	 * @return true if a clear escape direction was found
+	 */
+	bool FindCornerEscapeDirection(const FVector& CurrentLocation, FVector& OutEscapeDirection, float& OutEscapeDistance);
+
 	static int AsyncSweepByObjectType(
 		AActor* Actor,
 		EAsyncTraceType InTraceType,
@@ -661,4 +671,14 @@ private: // Cached State
 
 	FBounceAsyncSweepData BounceAsyncData;
 	FTraceDelegate AsyncBounceDelegate;
+
+	// Anti-infinite-bounce protection
+	int32 ConsecutiveCornerBounces;
+	float LastCornerBounceTime;
+	static constexpr int32 MaxConsecutiveCornerBounces = 5;
+	static constexpr float CornerBounceTimeoutWindow = 2.0f; // seconds
+	
+	// Normal bounce limits
+	int32 TotalBounceCount;
+	static constexpr int32 MaxTotalBounces = 10;
 };
