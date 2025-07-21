@@ -306,25 +306,27 @@ void UPawActorPoolSubsystem::ActivatePooledActor(AActor* Actor, const FVector& L
 	{
 		return;
 	}
-	Actor->SetActorLocation(Location);
-	Actor->SetActorRotation(Rotation);
-	if (SpawnParameters.Owner)
-	{
-		Actor->SetOwner(SpawnParameters.Owner);
-	}
-	if (SpawnParameters.Instigator)
-	{
-		Actor->SetInstigator(SpawnParameters.Instigator);
-	}
+
+	// Cache root component lookup to avoid repeated virtual calls
+	UPrimitiveComponent* RootPrimitive = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+
+	// Batch actor transform and ownership changes
+	Actor->SetActorLocationAndRotation(Location, Rotation);
+	Actor->SetOwner(SpawnParameters.Owner);
+	Actor->SetInstigator(SpawnParameters.Instigator);
+
+	// Batch actor state changes
 	Actor->SetActorHiddenInGame(false);
 	Actor->SetActorEnableCollision(true);
 	Actor->SetActorTickEnabled(true);
 
-	if (UPrimitiveComponent* RootPrimitive = Cast<UPrimitiveComponent>(Actor->GetRootComponent()))
+	// Reset physics state if primitive component exists
+	if (RootPrimitive)
 	{
 		RootPrimitive->SetAllPhysicsLinearVelocity(FVector::ZeroVector);
 		RootPrimitive->SetAllPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
 	}
+
 	Actor->Reset();
 
 	// Call poolable interface if implemented
@@ -341,22 +343,28 @@ void UPawActorPoolSubsystem::DeactivatePooledActor(AActor* Actor)
 		return;
 	}
 
-	// Call poolable interface if implemented
+	// Call poolable interface first to allow cleanup before state changes
 	if (IPawPoolableInterface* PoolableInterface = Cast<IPawPoolableInterface>(Actor))
 	{
 		PoolableInterface->OnPoolDeactivate();
 	}
 
+	// Cache root component lookup to avoid repeated virtual calls
+	UPrimitiveComponent* RootPrimitive = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+
+	// Batch actor state changes
 	Actor->SetActorHiddenInGame(true);
 	Actor->SetActorEnableCollision(false);
 	Actor->SetActorTickEnabled(false);
 
-	if (UPrimitiveComponent* RootPrimitive = Cast<UPrimitiveComponent>(Actor->GetRootComponent()))
+	// Reset physics state if primitive component exists
+	if (RootPrimitive)
 	{
 		RootPrimitive->SetAllPhysicsLinearVelocity(FVector::ZeroVector);
 		RootPrimitive->SetAllPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
 	}
 
+	// Clear ownership references
 	Actor->SetOwner(nullptr);
 	Actor->SetInstigator(nullptr);
 }
