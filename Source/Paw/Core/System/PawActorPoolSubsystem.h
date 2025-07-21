@@ -70,9 +70,32 @@ private: // Internal Helper Methods
 	                         const FActorSpawnParameters& SpawnParameters);
 	void DeactivatePooledActor(AActor* Actor);
 
+	// Dynamic Scaling Methods
+	void UpdatePoolStatistics(UClass* PoolClass, bool bActorTaken);
+	bool ShouldExpandPool(UClass* PoolClass) const;
+	bool ShouldShrinkPool(UClass* PoolClass) const;
+	void ExpandPool(UClass* PoolClass, int32 AdditionalActors);
+	void ShrinkPool(UClass* PoolClass, int32 ActorsToRemove);
+
 private: // Cached State
 	TArray<TSharedPtr<FStreamableHandle>> StreamableHandles;
 	TArray<FActorPoolConfig> PendingPoolConfigs;
 	mutable TMap<TObjectPtr<UClass>, TObjectPtr<UClass>> ClassToPoolCache;
 	TMap<EPoolLoadingPriority, TArray<FActorPoolConfig>> PriorityLoadingQueues;
+
+	// Pool Usage Statistics
+	struct FPoolStats
+	{
+		int32 PeakUsage = 0;           // Maximum actors taken from pool simultaneously
+		int32 CurrentUsage = 0;        // Current actors in use (out of pool)
+		int32 TotalRequests = 0;       // Total number of actor requests
+		int32 PoolMisses = 0;          // Times pool was empty and had to fallback spawn
+		float LastShrinkTime = 0.0f;   // Last time pool was considered for shrinking
+		int32 OriginalSize = 0;        // Initial pool size for reference
+		
+		FPoolStats() = default;
+		FPoolStats(int32 InitialSize) : OriginalSize(InitialSize) {}
+	};
+	
+	TMap<TObjectPtr<UClass>, FPoolStats> PoolStatistics;
 };

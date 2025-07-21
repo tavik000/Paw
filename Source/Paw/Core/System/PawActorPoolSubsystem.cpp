@@ -327,6 +327,9 @@ void UPawActorPoolSubsystem::CreatePoolsFromConfigs(const TArray<FActorPoolConfi
 				}
 				
 				UE_LOG(LogPawActorPool, Log, TEXT("Pool created successfully: %s with %d actors"), *ActorClass->GetName(), SpawnedActors.Num());
+				
+				// Initialize pool statistics
+				PoolStatistics.Add(ActorClass, FPoolStats(SpawnedActors.Num()));
 			}
 			
 			// Release strong reference to loaded class to reduce memory pressure
@@ -386,9 +389,42 @@ AActor* UPawActorPoolSubsystem::GetActorFromPool(UClass* ActorClass)
 
 	if (TArray<TObjectPtr<AActor>>* Pool = ActorPools.Find(PoolClass))
 	{
+		// Update statistics
+		UpdatePoolStatistics(PoolClass, true);
+		
 		if (Pool->Num() > 0)
 		{
 			return Pool->Pop();
+		}
+		// Pool is empty - record miss and check if we should expand
+		if (FPoolStats* Stats = PoolStatistics.Find(PoolClass))
+		{
+			Stats->PoolMisses++;
+			UE_LOG(LogPawActorPool, Warning, TEXT("Pool miss for class: %s (Total misses: %d)"), *PoolClass->GetName(), Stats->PoolMisses);
+		}
+			
+		// Check if we should expand the pool
+		if (ShouldExpandPool(PoolClass))
+		{
+			const UPawActorPoolSettings* Settings = GetDefault<UPawActorPoolSettings>();
+			if (Settings && Settings->bEnableDynamicScaling)
+			{
+				int32 CurrentSize = Pool->Num();
+				int32 NewActors = FMath::Max(1, FMath::RoundToInt(CurrentSize * Settings->GrowthFactor));
+				NewActors = FMath::Min(NewActors, Settings->MaxPoolSize - CurrentSize);
+					
+				if (NewActors > 0)
+				{
+					ExpandPool(PoolClass, NewActors);
+					UE_LOG(LogPawActorPool, Log, TEXT("Expanded pool for class: %s by %d actors"), *PoolClass->GetName(), NewActors);
+						
+					// Try to get actor from newly expanded pool
+					if (Pool->Num() > 0)
+					{
+						return Pool->Pop();
+					}
+				}
+			}
 		}
 	}
 	return nullptr;
@@ -412,6 +448,27 @@ void UPawActorPoolSubsystem::ReturnActorToPool(AActor* Actor)
 	{
 		DeactivatePooledActor(Actor);
 		Pool->Add(Actor);
+		
+		// Update statistics
+		UpdatePoolStatistics(PoolClass, false);
+		
+		// Check if we should shrink the pool
+		if (ShouldShrinkPool(PoolClass))
+		{
+			const UPawActorPoolSettings* Settings = GetDefault<UPawActorPoolSettings>();
+			if (Settings && Settings->bEnableDynamicScaling)
+			{
+				int32 CurrentSize = Pool->Num();
+				int32 ActorsToRemove = FMath::RoundToInt(CurrentSize * Settings->ShrinkFactor);
+				ActorsToRemove = FMath::Min(ActorsToRemove, CurrentSize - Settings->MinPoolSize);
+				
+				if (ActorsToRemove > 0)
+				{
+					ShrinkPool(PoolClass, ActorsToRemove);
+					UE_LOG(LogPawActorPool, Log, TEXT("Shrunk pool for class: %s by %d actors"), *PoolClass->GetName(), ActorsToRemove);
+				}
+			}
+		}
 	}
 }
 
@@ -483,4 +540,128 @@ void UPawActorPoolSubsystem::DeactivatePooledActor(AActor* Actor)
 	// Clear ownership references
 	Actor->SetOwner(nullptr);
 	Actor->SetInstigator(nullptr);
+}
+
+void UPawActorPoolSubsystem::UpdatePoolStatistics(UClass* PoolClass, bool bActorTaken)
+{
+	if (FPoolStats* Stats = PoolStatistics.Find(PoolClass))
+	{
+		Stats->TotalRequests++;
+		
+		if (bActorTaken)
+		{
+			Stats->CurrentUsage++;
+			Stats->PeakUsage = FMath::Max(Stats->PeakUsage, Stats->CurrentUsage);
+		}
+		else
+		{
+			Stats->CurrentUsage = FMath::Max(0, Stats->CurrentUsage - 1);
+		}
+	}
+}
+
+bool UPawActorPoolSubsystem::ShouldExpandPool(UClass* PoolClass) const
+{
+	const UPawActorPoolSettings* Settings = GetDefault<UPawActorPoolSettings>();
+	if (!Settings || !Settings->bEnableDynamicScaling)
+	{
+		return false;
+	}
+
+	if (const TArray<TObjectPtr<AActor>>* Pool = ActorPools.Find(PoolClass))
+	{
+		// Don't expand if already at max size
+		if (Pool->Num() >= Settings->MaxPoolSize)
+		{
+			return false;
+		}
+
+		// Expand if we've had multiple recent misses
+		if (const FPoolStats* Stats = PoolStatistics.Find(PoolClass))
+		{
+			return Stats->PoolMisses > 0 && Stats->CurrentUsage > Pool->Num() * 0.8f;
+		}
+	}
+	
+	return false;
+}
+
+bool UPawActorPoolSubsystem::ShouldShrinkPool(UClass* PoolClass) const
+{
+	const UPawActorPoolSettings* Settings = GetDefault<UPawActorPoolSettings>();
+	if (!Settings || !Settings->bEnableDynamicScaling)
+	{
+		return false;
+	}
+
+	if (const TArray<TObjectPtr<AActor>>* Pool = ActorPools.Find(PoolClass))
+	{
+		// Don't shrink if already at min size
+		if (Pool->Num() <= Settings->MinPoolSize)
+		{
+			return false;
+		}
+
+		// Only consider shrinking if usage is consistently low
+		if (const FPoolStats* Stats = PoolStatistics.Find(PoolClass))
+		{
+			float UsageRatio = Pool->Num() > 0 ? float(Stats->CurrentUsage) / float(Pool->Num()) : 0.0f;
+			float TimeSinceLastShrink = GetWorld()->GetTimeSeconds() - Stats->LastShrinkTime;
+			
+			return UsageRatio < Settings->ShrinkUsageThreshold && TimeSinceLastShrink > 30.0f; // 30 seconds cooldown
+		}
+	}
+	
+	return false;
+}
+
+void UPawActorPoolSubsystem::ExpandPool(UClass* PoolClass, int32 AdditionalActors)
+{
+	UWorld* World = GetWorld();
+	if (!IsValid(World) || AdditionalActors <= 0)
+	{
+		return;
+	}
+
+	if (TArray<TObjectPtr<AActor>>* Pool = ActorPools.Find(PoolClass))
+	{
+		Pool->Reserve(Pool->Num() + AdditionalActors);
+		
+		for (int32 i = 0; i < AdditionalActors; ++i)
+		{
+			AActor* NewActor = World->SpawnActor(PoolClass, &FVector::ZeroVector, &FRotator::ZeroRotator);
+			if (IsValid(NewActor))
+			{
+				DeactivatePooledActor(NewActor);
+				Pool->Add(NewActor);
+			}
+		}
+	}
+}
+
+void UPawActorPoolSubsystem::ShrinkPool(UClass* PoolClass, int32 ActorsToRemove)
+{
+	if (ActorsToRemove <= 0)
+	{
+		return;
+	}
+
+	if (TArray<TObjectPtr<AActor>>* Pool = ActorPools.Find(PoolClass))
+	{
+		int32 ActorsRemoved = 0;
+		while (ActorsRemoved < ActorsToRemove && Pool->Num() > 0)
+		{
+			if (AActor* Actor = Pool->Pop())
+			{
+				Actor->Destroy();
+				ActorsRemoved++;
+			}
+		}
+		
+		// Update shrink time
+		if (FPoolStats* Stats = PoolStatistics.Find(PoolClass))
+		{
+			Stats->LastShrinkTime = GetWorld()->GetTimeSeconds();
+		}
+	}
 }

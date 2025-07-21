@@ -52,6 +52,25 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category="Actor Pools", meta=(DisplayName="Actor Pool Configuration"))
 	TArray<FActorPoolConfig> ActorPools;
 
+	// Dynamic Scaling Settings
+	UPROPERTY(Config, EditAnywhere, Category="Dynamic Scaling", meta=(DisplayName="Enable Dynamic Scaling"))
+	bool bEnableDynamicScaling = true;
+
+	UPROPERTY(Config, EditAnywhere, Category="Dynamic Scaling", meta=(DisplayName="Minimum Pool Size", ClampMin=1, ClampMax=100))
+	int32 MinPoolSize = 10;
+
+	UPROPERTY(Config, EditAnywhere, Category="Dynamic Scaling", meta=(DisplayName="Maximum Pool Size", ClampMin=10, ClampMax=1000))
+	int32 MaxPoolSize = 200;
+
+	UPROPERTY(Config, EditAnywhere, Category="Dynamic Scaling", meta=(DisplayName="Growth Factor", ClampMin=0.1, ClampMax=2.0))
+	float GrowthFactor = 0.25f;
+
+	UPROPERTY(Config, EditAnywhere, Category="Dynamic Scaling", meta=(DisplayName="Shrink Factor", ClampMin=0.05, ClampMax=0.5))
+	float ShrinkFactor = 0.1f;
+
+	UPROPERTY(Config, EditAnywhere, Category="Dynamic Scaling", meta=(DisplayName="Usage Threshold for Shrinking", ClampMin=0.1, ClampMax=0.9))
+	float ShrinkUsageThreshold = 0.2f;
+
 	// UDeveloperSettings interface
 	virtual FName GetCategoryName() const override { return FName("Game"); }
 	virtual FName GetSectionName() const override { return FName("Actor Pool Settings"); }
