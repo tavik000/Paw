@@ -5,9 +5,6 @@
 
 UPawActorPoolSettings::UPawActorPoolSettings()
 {
-	// Set default configuration with bubble projectile
-	DefaultPoolSize = 50;
-	
 	// Add default projectile to the pool configuration
 	FActorPoolConfig DefaultProjectileConfig;
 	DefaultProjectileConfig.ActorClass = TSoftClassPtr<AActor>(FSoftObjectPath("/Game/Main/Characters/Players/Seekers/Weapons/BP_Projectile_Bubble.BP_Projectile_Bubble_C"));

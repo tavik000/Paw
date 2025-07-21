@@ -3,6 +3,7 @@
 
 #include "PawActorPoolSubsystem.h"
 
+#include "Engine/AssetManager.h"
 #include "Interface/IPawPoolableInterface.h"
 #include "Paw/Weapon/Projectile/PawProjectile_Bubble.h"
 
@@ -16,6 +17,14 @@ void UPawActorPoolSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UPawActorPoolSubsystem::Deinitialize()
 {
+	// Cancel any pending async loading
+	if (StreamableHandle.IsValid())
+	{
+		StreamableHandle->CancelHandle();
+		StreamableHandle.Reset();
+	}
+
+	// Clean up pools
 	for (auto& PoolPair : ActorPools)
 	{
 		for (AActor* Actor : PoolPair.Value)
@@ -28,6 +37,8 @@ void UPawActorPoolSubsystem::Deinitialize()
 	}
 	ActorPools.Empty();
 	PooledActors.Empty();
+	PendingPoolConfigs.Empty();
+	
 	Super::Deinitialize();
 	UE_LOG(LogPawActorPool, Log, TEXT("PawActorPoolSubsystem Deinitialized"));
 }
@@ -135,15 +146,55 @@ void UPawActorPoolSubsystem::InitializeActorPools()
 		return;
 	}
 
-	// Initialize pools from settings configuration
-	for (const FActorPoolConfig& PoolConfig : Settings->ActorPools)
+	// Store pending pool configs for use in callback
+	PendingPoolConfigs = Settings->ActorPools;
+
+	// Collect all asset paths for async loading
+	TArray<FSoftObjectPath> AssetsToLoad;
+	for (const FActorPoolConfig& PoolConfig : PendingPoolConfigs)
 	{
-		if (UClass* ActorClass = PoolConfig.ActorClass.LoadSynchronous())
+		if (!PoolConfig.ActorClass.IsNull())
+		{
+			AssetsToLoad.Add(PoolConfig.ActorClass.ToSoftObjectPath());
+		}
+	}
+
+	if (AssetsToLoad.Num() == 0)
+	{
+		UE_LOG(LogPawActorPool, Warning, TEXT("No valid actor classes found in pool configuration"));
+		return;
+	}
+
+	// Start async loading
+	UE_LOG(LogPawActorPool, Log, TEXT("Starting async load of %d actor classes for pools"), AssetsToLoad.Num());
+	
+	FStreamableManager& StreamableManager = UAssetManager::GetStreamableManager();
+	StreamableHandle = StreamableManager.RequestAsyncLoad(
+		AssetsToLoad,
+		FStreamableDelegate::CreateUObject(this, &UPawActorPoolSubsystem::OnAssetsLoaded)
+	);
+}
+
+void UPawActorPoolSubsystem::OnAssetsLoaded()
+{
+	UWorld* World = GetWorld();
+	if (!IsValid(World))
+	{
+		UE_LOG(LogPawActorPool, Warning, TEXT("World is not valid when assets loaded, cannot create pools"));
+		return;
+	}
+
+	UE_LOG(LogPawActorPool, Log, TEXT("Assets loaded, creating actor pools"));
+
+	// Create pools for each loaded asset
+	for (const FActorPoolConfig& PoolConfig : PendingPoolConfigs)
+	{
+		if (UClass* ActorClass = PoolConfig.ActorClass.Get())
 		{
 			if (!IsActorClassPooled(ActorClass))
 			{
 				const int32 PoolSize = FMath::Max(1, PoolConfig.PoolSize); // Ensure valid pool size
-				UE_LOG(LogPawActorPool, Log, TEXT("Initialized pool for actor class: %s (Size: %d)"), *ActorClass->GetName(), PoolSize);
+				UE_LOG(LogPawActorPool, Log, TEXT("Creating pool for actor class: %s (Size: %d)"), *ActorClass->GetName(), PoolSize);
 				
 				TArray<TObjectPtr<AActor>>& Pool = ActorPools.Add(ActorClass);
 				Pool.Reserve(PoolSize);
@@ -161,10 +212,15 @@ void UPawActorPoolSubsystem::InitializeActorPools()
 		}
 		else
 		{
-			UE_LOG(LogPawActorPool, Warning, TEXT("Failed to load actor class from settings: %s"), *PoolConfig.ActorClass.ToString());
+			UE_LOG(LogPawActorPool, Warning, TEXT("Failed to get loaded actor class: %s"), *PoolConfig.ActorClass.ToString());
 		}
 	}
-	UE_LOG(LogPawActorPool, Log, TEXT("Actor pools initialized from project settings"));
+
+	// Clear pending configs and streamable handle
+	PendingPoolConfigs.Empty();
+	StreamableHandle.Reset();
+
+	UE_LOG(LogPawActorPool, Log, TEXT("Actor pools created successfully via async loading"));
 }
 
 bool UPawActorPoolSubsystem::IsActorClassPooled(UClass* ActorClass) const

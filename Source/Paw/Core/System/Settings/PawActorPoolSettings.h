@@ -14,7 +14,7 @@ struct PAW_API FActorPoolConfig
 	UPROPERTY(EditAnywhere, meta=(DisplayName="Actor Class"))
 	TSoftClassPtr<AActor> ActorClass;
 
-	UPROPERTY(EditAnywhere, meta=(DisplayName="Pool Size", ClampMin=1, ClampMax=200))
+	UPROPERTY(EditAnywhere, meta=(DisplayName="Pool Size", ClampMin=1, ClampMax=500))
 	int32 PoolSize = 50;
 
 	FActorPoolConfig()
@@ -38,9 +38,6 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category="Actor Pools", meta=(DisplayName="Actor Pool Configuration"))
 	TArray<FActorPoolConfig> ActorPools;
-
-	UPROPERTY(Config, EditAnywhere, Category="Actor Pools", meta=(DisplayName="Default Pool Size", ClampMin=1, ClampMax=200))
-	int32 DefaultPoolSize = 50;
 
 	// UDeveloperSettings interface
 	virtual FName GetCategoryName() const override { return FName("Game"); }

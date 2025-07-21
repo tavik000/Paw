@@ -6,6 +6,7 @@
 #include "Engine/World.h"
 #include "Engine/Engine.h"
 #include "Engine/EngineTypes.h"
+#include "Engine/StreamableManager.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Settings/PawActorPoolSettings.h"
 #include "PawActorPoolSubsystem.generated.h"
@@ -60,10 +61,15 @@ protected: // Properties
 
 private: // Internal Helper Methods
 	void InitializeActorPools();
+	void OnAssetsLoaded();
 	bool IsActorClassPooled(UClass* ActorClass) const;
 	AActor* GetActorFromPool(UClass* ActorClass);
 	void ReturnActorToPool(AActor* Actor);
 	void ActivatePooledActor(AActor* Actor, const FVector& Location, const FRotator& Rotation,
 	                         const FActorSpawnParameters& SpawnParameters);
 	void DeactivatePooledActor(AActor* Actor);
+
+private: // Cached State
+	TSharedPtr<FStreamableHandle> StreamableHandle;
+	TArray<FActorPoolConfig> PendingPoolConfigs;
 };
