@@ -123,31 +123,33 @@ void UPawActorPoolSubsystem::InitializeActorPools()
 	UWorld* World = GetWorld();
 	if (!IsValid(World))
 	{
+		UE_LOG(LogPawActorPool, Warning, TEXT("World is not valid, cannot initialize actor pools"));
 		return;
 	}
 
-	// If no config provided, fallback to hardcoded projectile class
-	if (ActorPoolConfig.IsEmpty())
+	// Get pool configuration from project settings
+	const UPawActorPoolSettings* Settings = GetDefault<UPawActorPoolSettings>();
+	if (!IsValid(Settings))
 	{
-		UClass* ProjectileClass = APawProjectile_Bubble::StaticClass();
-		ActorPoolConfig.Add(TSoftClassPtr<AActor>(ProjectileClass));
-		UE_LOG(LogPawActorPool, Log, TEXT("No pool config found, using default projectile class"));
+		UE_LOG(LogPawActorPool, Error, TEXT("Unable to get PawActorPoolSettings, cannot initialize pools"));
+		return;
 	}
 
-	// Initialize pools from configuration
-	for (const TSoftClassPtr<AActor>& ClassPtr : ActorPoolConfig)
+	// Initialize pools from settings configuration
+	for (const FActorPoolConfig& PoolConfig : Settings->ActorPools)
 	{
-		if (UClass* ActorClass = ClassPtr.LoadSynchronous())
+		if (UClass* ActorClass = PoolConfig.ActorClass.LoadSynchronous())
 		{
 			if (!IsActorClassPooled(ActorClass))
 			{
-				UE_LOG(LogPawActorPool, Log, TEXT("Initialized pool for actor class: %s"), *ActorClass->GetName());
+				const int32 PoolSize = FMath::Max(1, PoolConfig.PoolSize); // Ensure valid pool size
+				UE_LOG(LogPawActorPool, Log, TEXT("Initialized pool for actor class: %s (Size: %d)"), *ActorClass->GetName(), PoolSize);
+				
 				TArray<TObjectPtr<AActor>>& Pool = ActorPools.Add(ActorClass);
-				Pool.Reserve(DefaultPoolSize);
-				for (int32 i = 0; i < DefaultPoolSize; ++i)
+				Pool.Reserve(PoolSize);
+				for (int32 i = 0; i < PoolSize; ++i)
 				{
-					AActor* NewActor = World->SpawnActor<
-						AActor>(ActorClass, FVector::ZeroVector, FRotator::ZeroRotator);
+					AActor* NewActor = World->SpawnActor<AActor>(ActorClass, FVector::ZeroVector, FRotator::ZeroRotator);
 					if (IsValid(NewActor))
 					{
 						DeactivatePooledActor(NewActor);
@@ -159,10 +161,10 @@ void UPawActorPoolSubsystem::InitializeActorPools()
 		}
 		else
 		{
-			UE_LOG(LogPawActorPool, Warning, TEXT("Failed to load actor class from config: %s"), *ClassPtr.ToString());
+			UE_LOG(LogPawActorPool, Warning, TEXT("Failed to load actor class from settings: %s"), *PoolConfig.ActorClass.ToString());
 		}
 	}
-	UE_LOG(LogPawActorPool, Log, TEXT("Actor pools initialized"));
+	UE_LOG(LogPawActorPool, Log, TEXT("Actor pools initialized from project settings"));
 }
 
 bool UPawActorPoolSubsystem::IsActorClassPooled(UClass* ActorClass) const

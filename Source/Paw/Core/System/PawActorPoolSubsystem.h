@@ -7,6 +7,7 @@
 #include "Engine/Engine.h"
 #include "Engine/EngineTypes.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "Settings/PawActorPoolSettings.h"
 #include "PawActorPoolSubsystem.generated.h"
 
 /**
@@ -57,10 +58,6 @@ protected: // Properties
 
 	TSet<TObjectPtr<AActor>> PooledActors;
 
-	// TODO
-	UPROPERTY(Config)
-	TArray<TSoftClassPtr<AActor>> ActorPoolConfig;
-
 private: // Internal Helper Methods
 	void InitializeActorPools();
 	bool IsActorClassPooled(UClass* ActorClass) const;
@@ -69,7 +66,4 @@ private: // Internal Helper Methods
 	void ActivatePooledActor(AActor* Actor, const FVector& Location, const FRotator& Rotation,
 	                         const FActorSpawnParameters& SpawnParameters);
 	void DeactivatePooledActor(AActor* Actor);
-
-private: // Cached State
-	static constexpr int32 DefaultPoolSize = 50; // Temp value
 };
