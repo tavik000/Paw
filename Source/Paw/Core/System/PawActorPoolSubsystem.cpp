@@ -46,7 +46,6 @@ void UPawActorPoolSubsystem::Deinitialize()
 void UPawActorPoolSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
-	UE_LOG(LogPawActorPool, Warning, TEXT(" PawActorPoolSubsystem OnWorldBeginPlay called"));
 
 	if (ActorPools.Num() == 0)
 	{
@@ -87,7 +86,6 @@ AActor* UPawActorPoolSubsystem::TrySpawnPooledActor(UClass* ActorClass, const FV
 		if (AActor* PooledActor = GetActorFromPool(ActorClass))
 		{
 			ActivatePooledActor(PooledActor, Location, Rotation, SpawnParameters);
-			UE_LOG(LogPawActorPool, Warning, TEXT(" Spawned from pool: %s"), *ActorClass->GetName());
 			return PooledActor;
 		}
 		UE_LOG(LogPawActorPool, Log, TEXT("Pool empty for class: %s, falling back to spawn new actor."),
@@ -95,7 +93,6 @@ AActor* UPawActorPoolSubsystem::TrySpawnPooledActor(UClass* ActorClass, const FV
 	}
 
 	AActor* NewActor = World->SpawnActor<AActor>(ActorClass, Location, Rotation, SpawnParameters);
-	UE_LOG(LogPawActorPool, Log, TEXT("Spawned new actor: %s"), *ActorClass->GetName());
 	return NewActor;
 }
 
@@ -109,7 +106,6 @@ void UPawActorPoolSubsystem::ReturnToPool(AActor* Actor)
 	if (PooledActors.Contains(Actor))
 	{
 		ReturnActorToPool(Actor);
-		UE_LOG(LogPawActorPool, Log, TEXT("Returned actor to pool: %s"), *Actor->GetName());
 	}
 	else
 	{
