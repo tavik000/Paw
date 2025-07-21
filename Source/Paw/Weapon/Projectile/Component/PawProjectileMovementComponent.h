@@ -539,12 +539,12 @@ protected: // Protected Helper Methods
 	virtual void ResetThrottleInterpolation(float DeltaTime);
 
 private: // Internal Helper Methods
-	
+
 	// Movement Queue Management
 	void AddMovementToQueue(float DeltaTime);
 	void ProcessQueuedMovements();
 	void ClearMovementQueue();
-	
+
 	// Projectile Collision Cooldown Management
 	void AddProjectileCollisionCooldown(AActor* OtherProjectile);
 	bool IsProjectileCollisionOnCooldown(AActor* OtherProjectile) const;
@@ -565,13 +565,14 @@ private: // Internal Helper Methods
 	// Unified Async Handlers (new system)
 	void HandleUnifiedAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
 	void HandleUnifiedAsyncSweepCompleted();
-	bool StartUnifiedAsyncSweep(EAsyncSweepType SweepType, const FVector& Start, const FVector& End, const FQuat& Rotation);
-	
+	bool StartUnifiedAsyncSweep(EAsyncSweepType SweepType, const FVector& Start, const FVector& End,
+	                            const FQuat& Rotation);
+
 	// Type-specific completion handlers
 	void HandleUnifiedMovementCompleted(AActor* ActorOwner);
 	void HandleUnifiedSlidingCompleted(AActor* ActorOwner);
 	void HandleUnifiedBounceCompleted(AActor* ActorOwner);
-	
+
 	// Error handling and validation
 	bool ValidateAsyncSweepState() const;
 	void HandleAsyncSweepError(const FString& ErrorMessage, EAsyncSweepType SweepType);
@@ -621,13 +622,13 @@ private: // Cached State & Internal Data
 			MoveDistance = 0.0;
 			HitMinDistance = 0.0;
 			SubTickTimeRemaining = 0.0f;
-			
+
 			// Reset vectors together for cache locality
 			Direction = FVector::ZeroVector;
 			MoveDelta = FVector::ZeroVector;
 			OldHitNormal = FVector::ZeroVector;
 			HitImpactNormal = FVector::ZeroVector;
-			
+
 			// Reset quaternion and hit results last
 			RelativeQuat = FQuat::Identity;
 			HitResult = FHitResult();
@@ -635,30 +636,30 @@ private: // Cached State & Internal Data
 		}
 
 		// Memory layout optimized for cache efficiency (frequently accessed fields first)
-		
+
 		// Type and counters (most frequently accessed - 16 bytes)
 		EAsyncSweepType SweepType;
 		int32 SweepCount;
 		int32 HitCount;
 		float SubTickTimeRemaining; // Moved up for better packing
-		
+
 		// Distance fields (frequently accessed together - 16 bytes)
 		double MoveDistance;
 		double HitMinDistance;
-		
+
 		// Vector fields (accessed together - 48 bytes)
 		FVector Direction;
 		FVector MoveDelta;
 		FVector OldHitNormal;
 		FVector HitImpactNormal;
-		
+
 		// Quaternion (16 bytes)
 		FQuat RelativeQuat;
-		
+
 		// Hit results (large structures, accessed less frequently)
 		FHitResult HitResult;
 		FHitResult InitialHit;
-		
+
 		// Helper methods for common operations
 		FORCEINLINE bool HasHits() const { return HitCount > 0; }
 		FORCEINLINE bool IsMovementType() const { return SweepType == EAsyncSweepType::Movement; }
@@ -690,11 +691,11 @@ private: // Cached State & Internal Data
 		FVector HitImpactNormal;
 		FHitResult HitResult;
 	};
-	
+
 	// Unified async sweep data (new system)
 	FUnifiedAsyncSweepData UnifiedAsyncSweepData;
 	FTraceDelegate UnifiedAsyncSweepDelegate;
-	
+
 	// Async operation tracking
 	bool bUnifiedAsyncOperationActive;
 	float UnifiedAsyncOperationStartTime;
@@ -703,7 +704,7 @@ private: // Cached State & Internal Data
 	// Legacy data (for backward compatibility during transition)
 	FMovementAsyncSweepData MovementAsyncSweepData;
 	FTraceDelegate AsyncSweepDelegate;
-	
+
 	float CurrentTimeTick;
 	FVector OldVelocity;
 	int32 NumImpacts;
@@ -776,42 +777,52 @@ private: // Cached State & Internal Data
 	float LastCornerBounceTime;
 	static constexpr int32 MaxConsecutiveCornerBounces = 5;
 	static constexpr float CornerBounceTimeoutWindow = 2.0f; // seconds
-	
+
 	int32 TotalBounceCount;
 	static constexpr int32 MaxTotalBounces = 10;
-	
+
 	// Sliding Hysteresis System
 	float LastSlidingStateChangeTime;
 	bool bPreviousSlidingState;
 	static constexpr float SlidingHysteresisTime = 0.1f; // 100ms hysteresis to prevent rapid state changes
-	
+
 	// Movement Update Queuing System
 	struct FQueuedMovementUpdate
 	{
 		float DeltaTime;
 		FVector StartVelocity;
 		float TimeStamp;
-		
-		FQueuedMovementUpdate() : DeltaTime(0.0f), StartVelocity(FVector::ZeroVector), TimeStamp(0.0f) {}
+
+		FQueuedMovementUpdate() : DeltaTime(0.0f), StartVelocity(FVector::ZeroVector), TimeStamp(0.0f)
+		{
+		}
+
 		FQueuedMovementUpdate(float InDeltaTime, const FVector& InVelocity, float InTimeStamp)
-			: DeltaTime(InDeltaTime), StartVelocity(InVelocity), TimeStamp(InTimeStamp) {}
+			: DeltaTime(InDeltaTime), StartVelocity(InVelocity), TimeStamp(InTimeStamp)
+		{
+		}
 	};
-	
+
 	TArray<FQueuedMovementUpdate> QueuedUpdates;
 	static constexpr int32 MaxQueuedUpdates = 5;
 	static constexpr float MaxQueueTime = 0.033f; // 33ms max queue time (2 frames at 60fps)
-	
+
 	// Projectile Collision Cooldown System
 	struct FProjectileCollisionCooldown
 	{
 		TWeakObjectPtr<AActor> OtherProjectile;
 		float CooldownEndTime;
-		
-		FProjectileCollisionCooldown() : CooldownEndTime(0.0f) {}
+
+		FProjectileCollisionCooldown() : CooldownEndTime(0.0f)
+		{
+		}
+
 		FProjectileCollisionCooldown(AActor* InOtherProjectile, float InCooldownEndTime)
-			: OtherProjectile(InOtherProjectile), CooldownEndTime(InCooldownEndTime) {}
+			: OtherProjectile(InOtherProjectile), CooldownEndTime(InCooldownEndTime)
+		{
+		}
 	};
-	
+
 	TArray<FProjectileCollisionCooldown> ProjectileCollisionCooldowns;
 	static constexpr float ProjectileCollisionCooldownTime = 0.1f; // 100ms cooldown between same projectile pairs
 	static constexpr int32 MaxCollisionCooldowns = 10; // Limit memory usage
