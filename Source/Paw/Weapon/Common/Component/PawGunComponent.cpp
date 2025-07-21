@@ -9,6 +9,7 @@
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
 #include "Kismet/GameplayStatics.h"
 #include "Paw/Character/Player/PawFPSPlayer.h"
+#include "Paw/Core/System/PawActorPoolSubsystem.h"
 #include "Paw/Weapon/Projectile/PawProjectileBase.h"
 
 UPawGunComponent::UPawGunComponent()
@@ -174,10 +175,13 @@ void UPawGunComponent::ServerSpawnProjectile_Implementation(FVector SpawnLocatio
 		FActorSpawnParameters ActorSpawnParams;
 		ActorSpawnParams.SpawnCollisionHandlingOverride =
 			ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-		APawProjectileBase* SpawnProjectile = World->SpawnActor<APawProjectileBase>(
-			ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
-		SpawnProjectile->SetOwner(FPSPlayer);
-		SpawnProjectile->SetInstigator(FPSPlayer);
+		UPawActorPoolSubsystem* ActorPoolSubsystem = World->GetSubsystem<UPawActorPoolSubsystem>();
+		if (IsValid(ActorPoolSubsystem))
+		{
+			AActor* SpawnProjectile = ActorPoolSubsystem->TrySpawnPooledActor(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+			SpawnProjectile->SetOwner(FPSPlayer);
+			SpawnProjectile->SetInstigator(FPSPlayer);
+		}
 	}
 }
 

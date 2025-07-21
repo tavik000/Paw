@@ -6,6 +6,7 @@
 #include "Component/PawProjectileMovementComponent.h"
 #include "Components/SphereComponent.h"
 #include "Misc/MapErrors.h"
+#include "Paw/Core/System/PawActorPoolSubsystem.h"
 
 
 APawProjectileBase::APawProjectileBase()
@@ -87,7 +88,13 @@ void APawProjectileBase::BeginPlay()
 			{
 				if (AActor* HitActor = Hit.GetActor(); HitActor && HitActor != this && HitActor->IsA(StaticClass()))
 				{
-					HitActor->Destroy();
+					APawProjectileBase* HitProjectile = Cast<APawProjectileBase>(HitActor);
+					if (!IsValid(HitProjectile))
+					{
+						continue;
+					}
+					HitProjectile->ReturnToPoolOrDestroy();
+					
 				}
 			}
 		}	
@@ -100,6 +107,22 @@ void APawProjectileBase::PostNetReceiveLocationAndRotation()
 	if (ProjectileMovement && GetLocalRole() == ROLE_SimulatedProxy)
 	{
 		ProjectileMovement->MoveInterpolationTarget(GetActorLocation(), GetActorRotation());
+	}
+}
+
+void APawProjectileBase::ReturnToPoolOrDestroy()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+	if (UWorld* World = GetWorld(); IsValid(World))
+	{
+		UPawActorPoolSubsystem* ActorPoolSubsystem = World->GetSubsystem<UPawActorPoolSubsystem>();
+		if (IsValid(ActorPoolSubsystem))
+		{
+			ActorPoolSubsystem->ReturnToPool(this);
+		}
 	}
 }
 

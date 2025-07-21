@@ -37,7 +37,7 @@ void APawProjectile_Bubble::Break_Implementation()
 	IPawCollideBreakableInterface::Break_Implementation();
 	MulticastSpawnBreakEffect();
 
-	SelfDestroy();
+	ReturnToPoolOrDestroy();
 }
 
 bool APawProjectile_Bubble::CanBeBreakByHider_Implementation() const
@@ -152,12 +152,3 @@ void APawProjectile_Bubble::SpawnMasterField_Implementation(FVector SpawnLocatio
 {
 }
 
-
-void APawProjectile_Bubble::SelfDestroy()
-{
-	if (!HasAuthority())
-	{
-		return;
-	}
-	Destroy();
-}

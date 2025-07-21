@@ -23,8 +23,11 @@ public:
 	                   FVector NormalImpulse,
 	                   const FHitResult& Hit);
 
+public: 
 	USphereComponent* GetCollisionComp() const { return CollisionComp; }
 	UPawProjectileMovementComponent* GetProjectileMovement() const { return ProjectileMovement; }
+	
+	void ReturnToPoolOrDestroy();
 
 protected:
 	virtual void BeginPlay() override;
@@ -41,4 +44,6 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	UPawProjectileMovementComponent* ProjectileMovement;
+
+private:
 };

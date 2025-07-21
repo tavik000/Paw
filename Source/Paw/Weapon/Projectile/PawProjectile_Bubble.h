@@ -64,9 +64,6 @@ private:
 	void OnBreakEffectLoaded();
 	void LoadBreakEffect();
 
-	UFUNCTION()
-	void SelfDestroy();
-
 private:
 	FTimerHandle LifeCycleTimerHandle;
 };
