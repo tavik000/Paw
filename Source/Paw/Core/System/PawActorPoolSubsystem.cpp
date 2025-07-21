@@ -32,9 +32,26 @@ void UPawActorPoolSubsystem::Deinitialize()
 	UE_LOG(LogPawActorPool, Log, TEXT("PawActorPoolSubsystem Deinitialized"));
 }
 
+void UPawActorPoolSubsystem::OnWorldBeginPlay(UWorld& InWorld)
+{
+	Super::OnWorldBeginPlay(InWorld);
+	UE_LOG(LogPawActorPool, Warning, TEXT(" PawActorPoolSubsystem OnWorldBeginPlay called"));
+
+	if (ActorPools.Num() == 0)
+	{
+		InitializeActorPools();
+	}
+}
+
 bool UPawActorPoolSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
-	return Super::ShouldCreateSubsystem(Outer);
+	const UWorld* World = Cast<UWorld>(Outer);
+	if (!IsValid(World))
+	{
+		return false;
+	}
+
+	return Super::ShouldCreateSubsystem(Outer) && World->GetNetMode() != NM_Client;
 }
 
 AActor* UPawActorPoolSubsystem::TrySpawnPooledActor(UClass* ActorClass, const FVector& Location,
@@ -52,11 +69,6 @@ AActor* UPawActorPoolSubsystem::TrySpawnPooledActor(UClass* ActorClass, const FV
 	{
 		UE_LOG(LogPawActorPool, Warning, TEXT("TrySpawnPooledActor: Invalid World"));
 		return nullptr;
-	}
-
-	if (ActorPools.Num() == 0)
-	{
-		InitializeActorPools();
 	}
 
 	if (IsActorClassPooled(ActorClass))
@@ -109,7 +121,7 @@ bool UPawActorPoolSubsystem::IsActorPooled(AActor* Actor) const
 void UPawActorPoolSubsystem::InitializeActorPools()
 {
 	UWorld* World = GetWorld();
-	if (!IsValid(World) || !World->HasBegunPlay())
+	if (!IsValid(World))
 	{
 		return;
 	}
@@ -134,7 +146,8 @@ void UPawActorPoolSubsystem::InitializeActorPools()
 				Pool.Reserve(DefaultPoolSize);
 				for (int32 i = 0; i < DefaultPoolSize; ++i)
 				{
-					AActor* NewActor = World->SpawnActor<AActor>(ActorClass, FVector::ZeroVector, FRotator::ZeroRotator);
+					AActor* NewActor = World->SpawnActor<
+						AActor>(ActorClass, FVector::ZeroVector, FRotator::ZeroRotator);
 					if (IsValid(NewActor))
 					{
 						DeactivatePooledActor(NewActor);
@@ -244,13 +257,13 @@ void UPawActorPoolSubsystem::DeactivatePooledActor(AActor* Actor)
 	{
 		return;
 	}
-	
+
 	// Call poolable interface if implemented
 	if (IPawPoolableInterface* PoolableInterface = Cast<IPawPoolableInterface>(Actor))
 	{
 		PoolableInterface->OnPoolDeactivate();
 	}
-	
+
 	Actor->SetActorHiddenInGame(true);
 	Actor->SetActorEnableCollision(false);
 	Actor->SetActorTickEnabled(false);
