@@ -26,8 +26,8 @@ void UPawActorPoolSubsystem::Deinitialize()
 	}
 	StreamableHandles.Empty();
 
-	// Clean up pools
-	for (auto& PoolPair : ActorPools)
+	// Clean up dynamic pools
+	for (auto& PoolPair : DynamicPools)
 	{
 		for (AActor* Actor : PoolPair.Value)
 		{
@@ -37,7 +37,9 @@ void UPawActorPoolSubsystem::Deinitialize()
 			}
 		}
 	}
-	ActorPools.Empty();
+	DynamicPools.Empty();
+	
+	// Clean up optimized pools (they'll clean themselves up automatically)
 	PendingPoolConfigs.Empty();
 	ClassToPoolCache.Empty();
 	PriorityLoadingQueues.Empty();
@@ -50,7 +52,7 @@ void UPawActorPoolSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
 
-	if (ActorPools.Num() == 0)
+	if (DynamicPools.Num() == 0)
 	{
 		InitializeActorPools();
 	}
@@ -128,9 +130,13 @@ void UPawActorPoolSubsystem::ReturnToPool(AActor* Actor)
 	{
 		Actor->Destroy();
 		UE_LOG(LogPawActorPool, Warning, TEXT("Actor not poolable, destroyed: %s (class: %s). Available pools:"), *Actor->GetName(), *ActorClass->GetName());
-		for (const auto& PoolPair : ActorPools)
+		for (const auto& PoolPair : DynamicPools)
 		{
-			UE_LOG(LogPawActorPool, Warning, TEXT("  - Pool class: %s"), *PoolPair.Key->GetName());
+			UE_LOG(LogPawActorPool, Warning, TEXT("  - Dynamic Pool class: %s"), *PoolPair.Key->GetName());
+		}
+		for (const auto& PoolTypePair : OptimizedPools.PoolTypes)
+		{
+			UE_LOG(LogPawActorPool, Warning, TEXT("  - Optimized Pool class: %s"), *PoolTypePair.Key->GetName());
 		}
 	}
 }
@@ -301,10 +307,13 @@ void UPawActorPoolSubsystem::CreatePoolsFromConfigs(const TArray<FActorPoolConfi
 			if (!IsActorClassPooled(ActorClass))
 			{
 				const int32 PoolSize = FMath::Max(1, PoolConfig.PoolSize);
-				UE_LOG(LogPawActorPool, Log, TEXT("Creating pool for actor class: %s (Size: %d)"), *ActorClass->GetName(), PoolSize);
 				
-				TArray<TObjectPtr<AActor>>& Pool = ActorPools.Add(ActorClass);
-				Pool.Reserve(PoolSize);
+				// Determine optimal pool type
+				EPoolStorageType StorageType = DetermineOptimalPoolType(ActorClass, PoolSize);
+				
+				UE_LOG(LogPawActorPool, Log, TEXT("Creating %s pool for actor class: %s (Size: %d)"), 
+					StorageType == EPoolStorageType::Circular ? TEXT("circular") : TEXT("dynamic"),
+					*ActorClass->GetName(), PoolSize);
 				
 				// Batch spawn actors for better performance
 				TArray<AActor*> SpawnedActors;
@@ -319,14 +328,41 @@ void UPawActorPoolSubsystem::CreatePoolsFromConfigs(const TArray<FActorPoolConfi
 					}
 				}
 				
-				// Batch deactivate all spawned actors
-				for (AActor* Actor : SpawnedActors)
+				// Add to appropriate pool type
+				if (StorageType == EPoolStorageType::Circular)
 				{
-					DeactivatePooledActor(Actor);
-					Pool.Add(Actor);
+					// Store in optimized circular pool
+					OptimizedPools.PoolTypes.Add(ActorClass, StorageType);
+					if (TCircularPool<TObjectPtr<AActor>, 128>* CircularPool = GetCircularPool(ActorClass))
+					{
+						for (AActor* Actor : SpawnedActors)
+						{
+							DeactivatePooledActor(Actor);
+							if (!CircularPool->Push(Actor))
+							{
+								// Pool is full, destroy excess actors
+								Actor->Destroy();
+								break;
+							}
+						}
+					}
+				}
+				else
+				{
+					// Store in dynamic pool
+					TArray<TObjectPtr<AActor>>& Pool = DynamicPools.Add(ActorClass);
+					Pool.Reserve(PoolSize);
+					
+					for (AActor* Actor : SpawnedActors)
+					{
+						DeactivatePooledActor(Actor);
+						Pool.Add(Actor);
+					}
 				}
 				
-				UE_LOG(LogPawActorPool, Log, TEXT("Pool created successfully: %s with %d actors"), *ActorClass->GetName(), SpawnedActors.Num());
+				UE_LOG(LogPawActorPool, Log, TEXT("Pool created successfully: %s with %d actors (Type: %s)"), 
+					*ActorClass->GetName(), SpawnedActors.Num(),
+					StorageType == EPoolStorageType::Circular ? TEXT("Circular") : TEXT("Dynamic"));
 				
 				// Initialize pool statistics
 				PoolStatistics.Add(ActorClass, FPoolStats(SpawnedActors.Num()));
@@ -360,12 +396,23 @@ UClass* UPawActorPoolSubsystem::FindPoolClassForActorClass(UClass* ActorClass) c
 	}
 
 	// Cache miss - perform class equality and inheritance check, then cache the result
-	for (const auto& PoolPair : ActorPools)
+	// Check both dynamic and optimized pools
+	for (const auto& PoolPair : DynamicPools)
 	{
 		if (ActorClass == PoolPair.Key || ActorClass->IsChildOf(PoolPair.Key))
 		{
 			ClassToPoolCache.Add(ActorClass, PoolPair.Key);
 			return PoolPair.Key;
+		}
+	}
+	
+	// Check optimized pools
+	for (const auto& PoolTypePair : OptimizedPools.PoolTypes)
+	{
+		if (ActorClass == PoolTypePair.Key || ActorClass->IsChildOf(PoolTypePair.Key))
+		{
+			ClassToPoolCache.Add(ActorClass, PoolTypePair.Key);
+			return PoolTypePair.Key;
 		}
 	}
 
@@ -387,15 +434,24 @@ AActor* UPawActorPoolSubsystem::GetActorFromPool(UClass* ActorClass)
 		return nullptr;
 	}
 
-	if (TArray<TObjectPtr<AActor>>* Pool = ActorPools.Find(PoolClass))
+	// Update statistics
+	UpdatePoolStatistics(PoolClass, true);
+	
+	// Try optimized pool first
+	AActor* OptimizedActor = GetActorFromOptimizedPool(PoolClass);
+	if (OptimizedActor)
 	{
-		// Update statistics
-		UpdatePoolStatistics(PoolClass, true);
-		
+		return OptimizedActor;
+	}
+	
+	// Fallback to dynamic pool
+	if (TArray<TObjectPtr<AActor>>* Pool = DynamicPools.Find(PoolClass))
+	{
 		if (Pool->Num() > 0)
 		{
-			return Pool->Pop();
+			return Pool->Pop().Get();
 		}
+		
 		// Pool is empty - record miss and check if we should expand
 		if (FPoolStats* Stats = PoolStatistics.Find(PoolClass))
 		{
@@ -403,7 +459,7 @@ AActor* UPawActorPoolSubsystem::GetActorFromPool(UClass* ActorClass)
 			UE_LOG(LogPawActorPool, Warning, TEXT("Pool miss for class: %s (Total misses: %d)"), *PoolClass->GetName(), Stats->PoolMisses);
 		}
 			
-		// Check if we should expand the pool
+		// Check if we should expand the pool (only for dynamic pools)
 		if (ShouldExpandPool(PoolClass))
 		{
 			const UPawActorPoolSettings* Settings = GetDefault<UPawActorPoolSettings>();
@@ -421,7 +477,7 @@ AActor* UPawActorPoolSubsystem::GetActorFromPool(UClass* ActorClass)
 					// Try to get actor from newly expanded pool
 					if (Pool->Num() > 0)
 					{
-						return Pool->Pop();
+						return Pool->Pop().Get();
 					}
 				}
 			}
@@ -444,15 +500,18 @@ void UPawActorPoolSubsystem::ReturnActorToPool(AActor* Actor)
 		return;
 	}
 
-	if (TArray<TObjectPtr<AActor>>* Pool = ActorPools.Find(PoolClass))
+	DeactivatePooledActor(Actor);
+	
+	// Update statistics
+	UpdatePoolStatistics(PoolClass, false);
+	
+	// Return to optimized pool first
+	ReturnActorToOptimizedPool(Actor, PoolClass);
+	
+	// If not handled by optimized pool, check dynamic pool shrinking
+	if (TArray<TObjectPtr<AActor>>* Pool = DynamicPools.Find(PoolClass))
 	{
-		DeactivatePooledActor(Actor);
-		Pool->Add(Actor);
-		
-		// Update statistics
-		UpdatePoolStatistics(PoolClass, false);
-		
-		// Check if we should shrink the pool
+		// Check if we should shrink the pool (only for dynamic pools)
 		if (ShouldShrinkPool(PoolClass))
 		{
 			const UPawActorPoolSettings* Settings = GetDefault<UPawActorPoolSettings>();
@@ -568,7 +627,7 @@ bool UPawActorPoolSubsystem::ShouldExpandPool(UClass* PoolClass) const
 		return false;
 	}
 
-	if (const TArray<TObjectPtr<AActor>>* Pool = ActorPools.Find(PoolClass))
+	if (const TArray<TObjectPtr<AActor>>* Pool = DynamicPools.Find(PoolClass))
 	{
 		// Don't expand if already at max size
 		if (Pool->Num() >= Settings->MaxPoolSize)
@@ -594,7 +653,7 @@ bool UPawActorPoolSubsystem::ShouldShrinkPool(UClass* PoolClass) const
 		return false;
 	}
 
-	if (const TArray<TObjectPtr<AActor>>* Pool = ActorPools.Find(PoolClass))
+	if (const TArray<TObjectPtr<AActor>>* Pool = DynamicPools.Find(PoolClass))
 	{
 		// Don't shrink if already at min size
 		if (Pool->Num() <= Settings->MinPoolSize)
@@ -623,7 +682,8 @@ void UPawActorPoolSubsystem::ExpandPool(UClass* PoolClass, int32 AdditionalActor
 		return;
 	}
 
-	if (TArray<TObjectPtr<AActor>>* Pool = ActorPools.Find(PoolClass))
+	// Expand dynamic pools only (circular pools have fixed capacity)
+	if (TArray<TObjectPtr<AActor>>* Pool = DynamicPools.Find(PoolClass))
 	{
 		Pool->Reserve(Pool->Num() + AdditionalActors);
 		
@@ -646,12 +706,13 @@ void UPawActorPoolSubsystem::ShrinkPool(UClass* PoolClass, int32 ActorsToRemove)
 		return;
 	}
 
-	if (TArray<TObjectPtr<AActor>>* Pool = ActorPools.Find(PoolClass))
+	// Shrink dynamic pools only (circular pools have fixed capacity)
+	if (TArray<TObjectPtr<AActor>>* Pool = DynamicPools.Find(PoolClass))
 	{
 		int32 ActorsRemoved = 0;
 		while (ActorsRemoved < ActorsToRemove && Pool->Num() > 0)
 		{
-			if (AActor* Actor = Pool->Pop())
+			if (AActor* Actor = Pool->Pop().Get())
 			{
 				Actor->Destroy();
 				ActorsRemoved++;
@@ -663,5 +724,116 @@ void UPawActorPoolSubsystem::ShrinkPool(UClass* PoolClass, int32 ActorsToRemove)
 		{
 			Stats->LastShrinkTime = GetWorld()->GetTimeSeconds();
 		}
+	}
+}
+
+EPoolStorageType UPawActorPoolSubsystem::DetermineOptimalPoolType(UClass* ActorClass, int32 PoolSize) const
+{
+	// High-frequency pools benefit from circular buffers
+	if (IsHighFrequencyPool(ActorClass))
+	{
+		// Use circular buffers for predictable, high-frequency access patterns
+		return EPoolStorageType::Circular;
+	}
+	
+	// Large or variable pools benefit from dynamic arrays
+	if (PoolSize > 128 || PoolSize <= 0)
+	{
+		return EPoolStorageType::Dynamic;
+	}
+	
+	// Default to dynamic for flexibility
+	return EPoolStorageType::Dynamic;
+}
+
+bool UPawActorPoolSubsystem::IsHighFrequencyPool(UClass* ActorClass) const
+{
+	if (!ActorClass)
+	{
+		return false;
+	}
+	
+	// Check class name patterns for projectile actors (our primary high-frequency use case)
+	FString ClassName = ActorClass->GetName();
+	
+	// Projectiles are our high-frequency actors in this game
+	return ClassName.Contains(TEXT("Projectile")) || ClassName.Contains(TEXT("Bullet"));
+}
+
+TCircularPool<TObjectPtr<AActor>, 128>* UPawActorPoolSubsystem::GetCircularPool(UClass* ActorClass)
+{
+	if (!ActorClass)
+	{
+		return nullptr;
+	}
+	
+	// All circular pools use the projectile pool (simplified routing)
+	return &OptimizedPools.ProjectilePool;
+}
+
+TArray<TObjectPtr<AActor>>* UPawActorPoolSubsystem::GetDynamicPool(UClass* ActorClass)
+{
+	return DynamicPools.Find(ActorClass);
+}
+
+AActor* UPawActorPoolSubsystem::GetActorFromOptimizedPool(UClass* ActorClass)
+{
+	// Check pool type for this class
+	if (EPoolStorageType* StorageType = OptimizedPools.PoolTypes.Find(ActorClass))
+	{
+		if (*StorageType == EPoolStorageType::Circular)
+		{
+			if (TCircularPool<TObjectPtr<AActor>, 128>* CircularPool = GetCircularPool(ActorClass))
+			{
+				TObjectPtr<AActor> Actor;
+				if (CircularPool->Pop(Actor))
+				{
+					return Actor.Get();
+				}
+			}
+		}
+	}
+	
+	// Fallback to dynamic pool
+	if (TArray<TObjectPtr<AActor>>* DynamicPool = GetDynamicPool(ActorClass))
+	{
+		if (DynamicPool->Num() > 0)
+		{
+			return DynamicPool->Pop().Get();
+		}
+	}
+	
+	return nullptr;
+}
+
+void UPawActorPoolSubsystem::ReturnActorToOptimizedPool(AActor* Actor, UClass* PoolClass)
+{
+	if (!IsValid(Actor) || !PoolClass)
+	{
+		return;
+	}
+	
+	// Check pool type for this class
+	if (EPoolStorageType* StorageType = OptimizedPools.PoolTypes.Find(PoolClass))
+	{
+		if (*StorageType == EPoolStorageType::Circular)
+		{
+			if (TCircularPool<TObjectPtr<AActor>, 128>* CircularPool = GetCircularPool(PoolClass))
+			{
+				if (!CircularPool->Push(Actor))
+				{
+					// Circular pool is full - destroy excess actor
+					UE_LOG(LogPawActorPool, Warning, TEXT("Circular pool full for class: %s, destroying excess actor"), *PoolClass->GetName());
+					Actor->Destroy();
+				}
+				return;
+			}
+		}
+	}
+	
+	// Fallback to dynamic pool
+	if (TArray<TObjectPtr<AActor>>* DynamicPool = GetDynamicPool(PoolClass))
+	{
+		DynamicPool->Add(Actor);
 	}
 }

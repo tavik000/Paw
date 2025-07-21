@@ -12,7 +12,120 @@
 #include "PawActorPoolSubsystem.generated.h"
 
 /**
- * 
+ * High-performance circular buffer for pool storage
+ * Optimized for cache performance and O(1) operations
+ */
+template<typename T, int32 Capacity>
+class TCircularPool
+{
+public:
+	TCircularPool()
+	{
+		static_assert(Capacity > 0, "Pool capacity must be greater than 0");
+		Pool.SetNumUninitialized(Capacity);
+		Clear();
+	}
+
+	FORCEINLINE bool IsEmpty() const { return Count == 0; }
+	FORCEINLINE bool IsFull() const { return Count == Capacity; }
+	FORCEINLINE int32 Num() const { return Count; }
+	FORCEINLINE int32 GetCapacity() const { return Capacity; }
+	FORCEINLINE float GetUsageRatio() const { return Capacity > 0 ? float(Count) / float(Capacity) : 0.0f; }
+
+	// O(1) operations for optimal performance
+	FORCEINLINE bool Push(const T& Item)
+	{
+		if (IsFull())
+		{
+			return false;
+		}
+		
+		Pool[Tail] = Item;
+		Tail = (Tail + 1) % Capacity;
+		++Count;
+		return true;
+	}
+
+	FORCEINLINE bool Pop(T& OutItem)
+	{
+		if (IsEmpty())
+		{
+			return false;
+		}
+		
+		OutItem = Pool[Head];
+		Head = (Head + 1) % Capacity;
+		--Count;
+		return true;
+	}
+
+	FORCEINLINE T* PopPtr()
+	{
+		if (IsEmpty())
+		{
+			return nullptr;
+		}
+		
+		T* Result = &Pool[Head];
+		Head = (Head + 1) % Capacity;
+		--Count;
+		return Result;
+	}
+
+	void Clear()
+	{
+		Head = 0;
+		Tail = 0;
+		Count = 0;
+	}
+
+	// Reserve capacity for efficiency (pre-allocates fixed size)
+	void Reserve(int32 NewCapacity)
+	{
+		// Fixed capacity - no dynamic allocation for performance
+		checkf(NewCapacity <= Capacity, TEXT("Cannot reserve more than fixed capacity"));
+	}
+
+private:
+	// Cache-friendly contiguous storage
+	TArray<T> Pool;
+	int32 Head = 0;
+	int32 Tail = 0;
+	int32 Count = 0;
+};
+
+/**
+ * Pool storage types for different usage patterns
+ */
+UENUM()
+enum class EPoolStorageType : uint8
+{
+	Dynamic,     // TArray - for variable size pools with dynamic scaling
+	Circular,    // TCircularPool - for high-frequency fixed-size pools
+	Auto         // Automatically select based on usage patterns
+};
+
+/**
+ * Cache-aligned pool container for high-performance projectile pooling
+ */
+struct alignas(64) FOptimizedPoolContainer
+{
+	// High-frequency circular pool for projectiles (cache-aligned)
+	TCircularPool<TObjectPtr<AActor>, 128> ProjectilePool;
+	
+	// Pool type tracking
+	TMap<TObjectPtr<UClass>, EPoolStorageType> PoolTypes;
+	
+	FOptimizedPoolContainer()
+	{
+		// Pre-clear projectile pool
+		ProjectilePool.Clear();
+	}
+};
+
+/**
+ * High-performance Actor Pool Subsystem
+ * Supports both dynamic arrays and circular buffers for optimal performance
  */
 UCLASS(Config=Game)
 class PAW_API UPawActorPoolSubsystem : public UWorldSubsystem
@@ -55,7 +168,11 @@ public: // C++ Public Helpers
 	}
 
 protected: // Properties
-	TMap<TObjectPtr<UClass>, TArray<TObjectPtr<AActor>>> ActorPools;
+	// Traditional dynamic pools
+	TMap<TObjectPtr<UClass>, TArray<TObjectPtr<AActor>>> DynamicPools;
+	
+	// High-performance optimized pools
+	FOptimizedPoolContainer OptimizedPools;
 
 private: // Internal Helper Methods
 	void InitializeActorPools();
@@ -76,6 +193,14 @@ private: // Internal Helper Methods
 	bool ShouldShrinkPool(UClass* PoolClass) const;
 	void ExpandPool(UClass* PoolClass, int32 AdditionalActors);
 	void ShrinkPool(UClass* PoolClass, int32 ActorsToRemove);
+
+	// Memory Optimization Methods
+	EPoolStorageType DetermineOptimalPoolType(UClass* ActorClass, int32 PoolSize) const;
+	bool IsHighFrequencyPool(UClass* ActorClass) const;
+	TCircularPool<TObjectPtr<AActor>, 128>* GetCircularPool(UClass* ActorClass);
+	TArray<TObjectPtr<AActor>>* GetDynamicPool(UClass* ActorClass);
+	AActor* GetActorFromOptimizedPool(UClass* ActorClass);
+	void ReturnActorToOptimizedPool(AActor* Actor, UClass* PoolClass);
 
 private: // Cached State
 	TArray<TSharedPtr<FStreamableHandle>> StreamableHandles;
