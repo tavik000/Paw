@@ -38,6 +38,7 @@ void UPawActorPoolSubsystem::Deinitialize()
 	ActorPools.Empty();
 	PooledActors.Empty();
 	PendingPoolConfigs.Empty();
+	ClassToPoolCache.Empty();
 	
 	Super::Deinitialize();
 	UE_LOG(LogPawActorPool, Log, TEXT("PawActorPoolSubsystem Deinitialized"));
@@ -219,34 +220,52 @@ void UPawActorPoolSubsystem::OnAssetsLoaded()
 	UE_LOG(LogPawActorPool, Log, TEXT("Actor pools created successfully via async loading"));
 }
 
-bool UPawActorPoolSubsystem::IsActorClassPooled(UClass* ActorClass) const
+UClass* UPawActorPoolSubsystem::FindPoolClassForActorClass(UClass* ActorClass) const
 {
 	if (!ActorClass)
 	{
-		return false;
+		return nullptr;
 	}
+
+	// Check cache first for O(1) lookup
+	if (UClass* const* CachedResult = ClassToPoolCache.Find(ActorClass))
+	{
+		return *CachedResult;
+	}
+
+	// Cache miss - perform inheritance check and cache the result
 	for (const auto& PoolPair : ActorPools)
 	{
 		if (ActorClass->IsChildOf(PoolPair.Key))
 		{
-			return true;
+			ClassToPoolCache.Add(ActorClass, PoolPair.Key);
+			return PoolPair.Key;
 		}
 	}
-	return false;
+
+	// No pool found - cache null result to avoid future searches
+	ClassToPoolCache.Add(ActorClass, nullptr);
+	return nullptr;
+}
+
+bool UPawActorPoolSubsystem::IsActorClassPooled(UClass* ActorClass) const
+{
+	return FindPoolClassForActorClass(ActorClass) != nullptr;
 }
 
 AActor* UPawActorPoolSubsystem::GetActorFromPool(UClass* ActorClass)
 {
-	for (auto& PoolPair : ActorPools)
+	UClass* PoolClass = FindPoolClassForActorClass(ActorClass);
+	if (!PoolClass)
 	{
-		if (ActorClass->IsChildOf(PoolPair.Key))
+		return nullptr;
+	}
+
+	if (TArray<TObjectPtr<AActor>>* Pool = ActorPools.Find(PoolClass))
+	{
+		if (Pool->Num() > 0)
 		{
-			TArray<TObjectPtr<AActor>>& Pool = PoolPair.Value;
-			if (Pool.Num() > 0)
-			{
-				AActor* PooledActor = Pool.Pop();
-				return PooledActor;
-			}
+			return Pool->Pop();
 		}
 	}
 	return nullptr;
@@ -258,15 +277,18 @@ void UPawActorPoolSubsystem::ReturnActorToPool(AActor* Actor)
 	{
 		return;
 	}
+	
 	UClass* ActorClass = Actor->GetClass();
-	for (auto& PoolPair : ActorPools)
+	UClass* PoolClass = FindPoolClassForActorClass(ActorClass);
+	if (!PoolClass)
 	{
-		if (ActorClass->IsChildOf(PoolPair.Key))
-		{
-			DeactivatePooledActor(Actor);
-			PoolPair.Value.Add(Actor);
-			return;
-		}
+		return;
+	}
+
+	if (TArray<TObjectPtr<AActor>>* Pool = ActorPools.Find(PoolClass))
+	{
+		DeactivatePooledActor(Actor);
+		Pool->Add(Actor);
 	}
 }
 
