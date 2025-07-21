@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "PawProjectileBase.h"
+#include "Paw/Core/System/Interface/IPawPoolableInterface.h"
 #include "Paw/Environment/GameplayElement/Common/Interface/PawCollideBreakableInterface.h"
 #include "PawProjectile_Bubble.generated.h"
 
@@ -12,7 +13,7 @@ class UNiagaraSystem;
 class APawBubbleHiderCapture;
 
 UCLASS()
-class PAW_API APawProjectile_Bubble : public APawProjectileBase, public IPawCollideBreakableInterface
+class PAW_API APawProjectile_Bubble : public APawProjectileBase, public IPawCollideBreakableInterface, public IPawPoolableInterface
 {
 	GENERATED_BODY()
 
@@ -24,6 +25,10 @@ public:
 
 	UFUNCTION(BlueprintNativeEvent)
 	void SpawnMasterField(FVector SpawnLocation, FRotator SpawnRotation);
+
+	// IPawPoolableInterface
+	virtual void OnPoolActivate(const FVector& Location, const FRotator& Rotation, const FActorSpawnParameters& SpawnParameters) override;
+	virtual void OnPoolDeactivate() override;
 
 protected:
 	virtual void BeginPlay() override;

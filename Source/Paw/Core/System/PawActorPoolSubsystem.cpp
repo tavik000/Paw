@@ -2,6 +2,8 @@
 
 
 #include "PawActorPoolSubsystem.h"
+
+#include "Interface/IPawPoolableInterface.h"
 #include "Paw/Weapon/Projectile/PawProjectile_Bubble.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogPawActorPool, Log, All);
@@ -228,6 +230,12 @@ void UPawActorPoolSubsystem::ActivatePooledActor(AActor* Actor, const FVector& L
 		RootPrimitive->SetAllPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
 	}
 	Actor->Reset();
+
+	// Call poolable interface if implemented
+	if (IPawPoolableInterface* PoolableInterface = Cast<IPawPoolableInterface>(Actor))
+	{
+		PoolableInterface->OnPoolActivate(Location, Rotation, SpawnParameters);
+	}
 }
 
 void UPawActorPoolSubsystem::DeactivatePooledActor(AActor* Actor)
@@ -236,6 +244,13 @@ void UPawActorPoolSubsystem::DeactivatePooledActor(AActor* Actor)
 	{
 		return;
 	}
+	
+	// Call poolable interface if implemented
+	if (IPawPoolableInterface* PoolableInterface = Cast<IPawPoolableInterface>(Actor))
+	{
+		PoolableInterface->OnPoolDeactivate();
+	}
+	
 	Actor->SetActorHiddenInGame(true);
 	Actor->SetActorEnableCollision(false);
 	Actor->SetActorTickEnabled(false);

@@ -19,12 +19,6 @@ APawProjectile_Bubble::APawProjectile_Bubble()
 void APawProjectile_Bubble::BeginPlay()
 {
 	Super::BeginPlay();
-	if (HasAuthority())
-	{
-		FTimerHandle TimerHandle;
-		GetWorld()->GetTimerManager().SetTimer(TimerHandle, this, &APawProjectile_Bubble::SelfBreak, BubbleLifeTime,
-		                                       false);
-	}
 	LoadBreakEffect();
 }
 
@@ -150,5 +144,27 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 
 void APawProjectile_Bubble::SpawnMasterField_Implementation(FVector SpawnLocation, FRotator SpawnRotation)
 {
+}
+
+void APawProjectile_Bubble::OnPoolActivate(const FVector& Location, const FRotator& Rotation, const FActorSpawnParameters& SpawnParameters)
+{
+	if (HasAuthority())
+	{
+		// Clear any existing timer before setting a new one
+		GetWorld()->GetTimerManager().ClearTimer(LifeCycleTimerHandle);
+		GetWorld()->GetTimerManager().SetTimer(LifeCycleTimerHandle, this, &APawProjectile_Bubble::SelfBreak, BubbleLifeTime, false);
+	}
+}
+
+void APawProjectile_Bubble::OnPoolDeactivate()
+{
+	if (HasAuthority())
+	{
+		// Clear the lifecycle timer to prevent timer conflicts when reused
+		if (UWorld* World = GetWorld(); IsValid(World))
+		{
+			World->GetTimerManager().ClearTimer(LifeCycleTimerHandle);
+		}
+	}
 }
 
