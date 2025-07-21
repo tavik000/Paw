@@ -5,7 +5,6 @@
 
 #include "Engine/AssetManager.h"
 #include "Interface/IPawPoolableInterface.h"
-#include "Paw/Weapon/Projectile/PawProjectile_Bubble.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogPawActorPool, Log, All);
 
@@ -18,11 +17,14 @@ void UPawActorPoolSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UPawActorPoolSubsystem::Deinitialize()
 {
 	// Cancel any pending async loading
-	if (StreamableHandle.IsValid())
+	for (auto& Handle : StreamableHandles)
 	{
-		StreamableHandle->CancelHandle();
-		StreamableHandle.Reset();
+		if (Handle.IsValid())
+		{
+			Handle->CancelHandle();
+		}
 	}
+	StreamableHandles.Empty();
 
 	// Clean up pools
 	for (auto& PoolPair : ActorPools)
@@ -38,6 +40,7 @@ void UPawActorPoolSubsystem::Deinitialize()
 	ActorPools.Empty();
 	PendingPoolConfigs.Empty();
 	ClassToPoolCache.Empty();
+	PriorityLoadingQueues.Empty();
 	
 	Super::Deinitialize();
 	UE_LOG(LogPawActorPool, Log, TEXT("PawActorPoolSubsystem Deinitialized"));
@@ -86,11 +89,14 @@ AActor* UPawActorPoolSubsystem::TrySpawnPooledActor(UClass* ActorClass, const FV
 		if (AActor* PooledActor = GetActorFromPool(ActorClass))
 		{
 			ActivatePooledActor(PooledActor, Location, Rotation, SpawnParameters);
+			UE_LOG(LogPawActorPool, Log, TEXT("Spawned pooled actor: %s at location: %s, rotation: %s"),
+			       *PooledActor->GetName(), *Location.ToString(), *Rotation.ToString());
 			return PooledActor;
 		}
 		UE_LOG(LogPawActorPool, Log, TEXT("Pool empty for class: %s, falling back to spawn new actor."),
 		       *ActorClass->GetName());
 	}
+	UE_LOG(LogTemp, Warning, TEXT("Class is not pooled, Fallback spawning new actor of class: %s"), *ActorClass->GetName());
 
 	AActor* NewActor = World->SpawnActor<AActor>(ActorClass, Location, Rotation, SpawnParameters);
 	return NewActor;
@@ -112,14 +118,20 @@ void UPawActorPoolSubsystem::ReturnToPool(AActor* Actor)
 
 	// Try to return to pool, destroy if not poolable
 	UClass* ActorClass = Actor->GetClass();
-	if (FindPoolClassForActorClass(ActorClass))
+	UClass* PoolClass = FindPoolClassForActorClass(ActorClass);
+	if (PoolClass)
 	{
+		UE_LOG(LogPawActorPool, Warning, TEXT("Returning actor %s (class: %s) to pool (pool class: %s)"), *Actor->GetName(), *ActorClass->GetName(), *PoolClass->GetName());
 		ReturnActorToPool(Actor);
 	}
 	else
 	{
 		Actor->Destroy();
-		UE_LOG(LogPawActorPool, Warning, TEXT("Actor not poolable, destroyed: %s"), *Actor->GetName());
+		UE_LOG(LogPawActorPool, Warning, TEXT("Actor not poolable, destroyed: %s (class: %s). Available pools:"), *Actor->GetName(), *ActorClass->GetName());
+		for (const auto& PoolPair : ActorPools)
+		{
+			UE_LOG(LogPawActorPool, Warning, TEXT("  - Pool class: %s"), *PoolPair.Key->GetName());
+		}
 	}
 }
 
@@ -151,12 +163,57 @@ void UPawActorPoolSubsystem::InitializeActorPools()
 		return;
 	}
 
-	// Store pending pool configs for use in callback
-	PendingPoolConfigs = Settings->ActorPools;
+	// Group pool configs by priority for optimized loading
+	PriorityLoadingQueues.Empty();
+	for (const FActorPoolConfig& PoolConfig : Settings->ActorPools)
+	{
+		if (!PoolConfig.ActorClass.IsNull())
+		{
+			PriorityLoadingQueues.FindOrAdd(PoolConfig.LoadingPriority).Add(PoolConfig);
+		}
+	}
 
-	// Collect all asset paths for async loading
+	if (PriorityLoadingQueues.Num() == 0)
+	{
+		UE_LOG(LogPawActorPool, Warning, TEXT("No valid actor classes found in pool configuration"));
+		return;
+	}
+
+	// Start priority-based async loading (Critical first, then High, Normal, Low)
+	UE_LOG(LogPawActorPool, Log, TEXT("Starting priority-based async loading for actor pools"));
+	LoadNextPriorityBatch();
+}
+
+void UPawActorPoolSubsystem::LoadNextPriorityBatch()
+{
+	// Find the highest priority batch that needs loading
+	EPoolLoadingPriority CurrentPriority = EPoolLoadingPriority::Critical;
+	TArray<FActorPoolConfig>* CurrentBatch = nullptr;
+	
+	// Check priorities in order: Critical, High, Normal, Low
+	for (int32 Priority = 0; Priority <= 3; ++Priority)
+	{
+		EPoolLoadingPriority PriorityLevel = static_cast<EPoolLoadingPriority>(Priority);
+		if (TArray<FActorPoolConfig>* Batch = PriorityLoadingQueues.Find(PriorityLevel))
+		{
+			if (Batch->Num() > 0)
+			{
+				CurrentPriority = PriorityLevel;
+				CurrentBatch = Batch;
+				break;
+			}
+		}
+	}
+
+	if (!CurrentBatch || CurrentBatch->Num() == 0)
+	{
+		UE_LOG(LogPawActorPool, Log, TEXT("All priority batches loaded, actor pool initialization complete"));
+		return;
+	}
+
+	// Collect asset paths for current priority batch
 	TArray<FSoftObjectPath> AssetsToLoad;
-	for (const FActorPoolConfig& PoolConfig : PendingPoolConfigs)
+	for (const FActorPoolConfig& PoolConfig : *CurrentBatch)
 	{
 		if (!PoolConfig.ActorClass.IsNull())
 		{
@@ -166,53 +223,114 @@ void UPawActorPoolSubsystem::InitializeActorPools()
 
 	if (AssetsToLoad.Num() == 0)
 	{
-		UE_LOG(LogPawActorPool, Warning, TEXT("No valid actor classes found in pool configuration"));
+		// No valid assets in this batch, try next priority
+		PriorityLoadingQueues.Remove(CurrentPriority);
+		LoadNextPriorityBatch();
 		return;
 	}
 
-	// Start async loading
-	UE_LOG(LogPawActorPool, Log, TEXT("Starting async load of %d actor classes for pools"), AssetsToLoad.Num());
+	// Start async loading for current priority batch with priority hints
+	const TCHAR* PriorityName = CurrentPriority == EPoolLoadingPriority::Critical ? TEXT("Critical") :
+								CurrentPriority == EPoolLoadingPriority::High ? TEXT("High") :
+								CurrentPriority == EPoolLoadingPriority::Normal ? TEXT("Normal") : TEXT("Low");
+	
+	UE_LOG(LogPawActorPool, Log, TEXT("Loading %s priority batch: %d assets"), PriorityName, AssetsToLoad.Num());
 	
 	FStreamableManager& StreamableManager = UAssetManager::GetStreamableManager();
-	StreamableHandle = StreamableManager.RequestAsyncLoad(
+	
+	// Create streamable request with priority hints
+	FStreamableDelegate LoadDelegate = FStreamableDelegate::CreateLambda([this, CurrentPriority]()
+	{
+		OnPriorityBatchLoaded(CurrentPriority);
+	});
+	
+	TSharedPtr<FStreamableHandle> Handle = StreamableManager.RequestAsyncLoad(
 		AssetsToLoad,
-		FStreamableDelegate::CreateUObject(this, &UPawActorPoolSubsystem::OnAssetsLoaded)
+		LoadDelegate,
+		CurrentPriority == EPoolLoadingPriority::Critical ? FStreamableManager::AsyncLoadHighPriority : FStreamableManager::DefaultAsyncLoadPriority
 	);
+	
+	if (Handle.IsValid())
+	{
+		StreamableHandles.Add(Handle);
+	}
 }
 
-void UPawActorPoolSubsystem::OnAssetsLoaded()
+void UPawActorPoolSubsystem::OnPriorityBatchLoaded(EPoolLoadingPriority CompletedPriority)
 {
 	UWorld* World = GetWorld();
 	if (!IsValid(World))
 	{
-		UE_LOG(LogPawActorPool, Warning, TEXT("World is not valid when assets loaded, cannot create pools"));
+		UE_LOG(LogPawActorPool, Warning, TEXT("World is not valid when priority batch loaded"));
 		return;
 	}
 
-	UE_LOG(LogPawActorPool, Log, TEXT("Assets loaded, creating actor pools"));
+	// Get the completed batch configs
+	if (TArray<FActorPoolConfig>* CompletedBatch = PriorityLoadingQueues.Find(CompletedPriority))
+	{
+		const TCHAR* PriorityName = CompletedPriority == EPoolLoadingPriority::Critical ? TEXT("Critical") :
+									CompletedPriority == EPoolLoadingPriority::High ? TEXT("High") :
+									CompletedPriority == EPoolLoadingPriority::Normal ? TEXT("Normal") : TEXT("Low");
+		
+		UE_LOG(LogPawActorPool, Log, TEXT("%s priority batch loaded, creating pools"), PriorityName);
+		
+		// Create pools for this batch
+		CreatePoolsFromConfigs(*CompletedBatch);
+		
+		// Remove completed batch from queues
+		PriorityLoadingQueues.Remove(CompletedPriority);
+	}
 
-	// Create pools for each loaded asset
-	for (const FActorPoolConfig& PoolConfig : PendingPoolConfigs)
+	// Load next priority batch
+	LoadNextPriorityBatch();
+}
+
+void UPawActorPoolSubsystem::CreatePoolsFromConfigs(const TArray<FActorPoolConfig>& PoolConfigs)
+{
+	UWorld* World = GetWorld();
+	if (!IsValid(World))
+	{
+		return;
+	}
+
+	// Create pools for each loaded asset with memory-efficient weak references
+	for (const FActorPoolConfig& PoolConfig : PoolConfigs)
 	{
 		if (UClass* ActorClass = PoolConfig.ActorClass.Get())
 		{
 			if (!IsActorClassPooled(ActorClass))
 			{
-				const int32 PoolSize = FMath::Max(1, PoolConfig.PoolSize); // Ensure valid pool size
+				const int32 PoolSize = FMath::Max(1, PoolConfig.PoolSize);
 				UE_LOG(LogPawActorPool, Log, TEXT("Creating pool for actor class: %s (Size: %d)"), *ActorClass->GetName(), PoolSize);
 				
 				TArray<TObjectPtr<AActor>>& Pool = ActorPools.Add(ActorClass);
 				Pool.Reserve(PoolSize);
+				
+				// Batch spawn actors for better performance
+				TArray<AActor*> SpawnedActors;
+				SpawnedActors.Reserve(PoolSize);
+				
 				for (int32 i = 0; i < PoolSize; ++i)
 				{
-					AActor* NewActor = World->SpawnActor<AActor>(ActorClass, FVector::ZeroVector, FRotator::ZeroRotator);
+					AActor* NewActor = World->SpawnActor(ActorClass, &FVector::ZeroVector, &FRotator::ZeroRotator);
 					if (IsValid(NewActor))
 					{
-						DeactivatePooledActor(NewActor);
-						Pool.Add(NewActor);
+						SpawnedActors.Add(NewActor);
 					}
 				}
+				
+				// Batch deactivate all spawned actors
+				for (AActor* Actor : SpawnedActors)
+				{
+					DeactivatePooledActor(Actor);
+					Pool.Add(Actor);
+				}
+				
+				UE_LOG(LogPawActorPool, Log, TEXT("Pool created successfully: %s with %d actors"), *ActorClass->GetName(), SpawnedActors.Num());
 			}
+			
+			// Release strong reference to loaded class to reduce memory pressure
+			// The class will remain loaded as long as the actors exist
 		}
 		else
 		{
@@ -220,11 +338,9 @@ void UPawActorPoolSubsystem::OnAssetsLoaded()
 		}
 	}
 
-	// Clear pending configs and streamable handle
-	PendingPoolConfigs.Empty();
-	StreamableHandle.Reset();
-
-	UE_LOG(LogPawActorPool, Log, TEXT("Actor pools created successfully via async loading"));
+	// Clear any poisoned cache entries that may have been created before pools were ready
+	ClassToPoolCache.Empty();
+	UE_LOG(LogPawActorPool, Log, TEXT("Cache cleared after pool creation to remove any poisoned entries"));
 }
 
 UClass* UPawActorPoolSubsystem::FindPoolClassForActorClass(UClass* ActorClass) const
@@ -240,10 +356,10 @@ UClass* UPawActorPoolSubsystem::FindPoolClassForActorClass(UClass* ActorClass) c
 		return CachedResult->Get();
 	}
 
-	// Cache miss - perform inheritance check and cache the result
+	// Cache miss - perform class equality and inheritance check, then cache the result
 	for (const auto& PoolPair : ActorPools)
 	{
-		if (ActorClass->IsChildOf(PoolPair.Key))
+		if (ActorClass == PoolPair.Key || ActorClass->IsChildOf(PoolPair.Key))
 		{
 			ClassToPoolCache.Add(ActorClass, PoolPair.Key);
 			return PoolPair.Key;

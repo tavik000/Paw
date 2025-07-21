@@ -6,6 +6,15 @@
 #include "Engine/DeveloperSettings.h"
 #include "PawActorPoolSettings.generated.h"
 
+UENUM()
+enum class EPoolLoadingPriority : uint8
+{
+	Critical = 0 UMETA(DisplayName="Critical (Load First)"),
+	High = 1 UMETA(DisplayName="High Priority"),
+	Normal = 2 UMETA(DisplayName="Normal Priority"),
+	Low = 3 UMETA(DisplayName="Low Priority")
+};
+
 USTRUCT()
 struct PAW_API FActorPoolConfig
 {
@@ -17,13 +26,17 @@ struct PAW_API FActorPoolConfig
 	UPROPERTY(EditAnywhere, meta=(DisplayName="Pool Size", ClampMin=1, ClampMax=500))
 	int32 PoolSize = 50;
 
+	UPROPERTY(EditAnywhere, meta=(DisplayName="Loading Priority"))
+	EPoolLoadingPriority LoadingPriority = EPoolLoadingPriority::Normal;
+
 	FActorPoolConfig()
 	{
 		PoolSize = 50;
+		LoadingPriority = EPoolLoadingPriority::Normal;
 	}
 
-	FActorPoolConfig(TSoftClassPtr<AActor> InActorClass, int32 InPoolSize = 50)
-		: ActorClass(InActorClass), PoolSize(InPoolSize)
+	FActorPoolConfig(TSoftClassPtr<AActor> InActorClass, int32 InPoolSize = 50, EPoolLoadingPriority InLoadingPriority = EPoolLoadingPriority::Normal)
+		: ActorClass(InActorClass), PoolSize(InPoolSize), LoadingPriority(InLoadingPriority)
 	{
 	}
 };

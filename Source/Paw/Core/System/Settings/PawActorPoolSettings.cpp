@@ -5,10 +5,11 @@
 
 UPawActorPoolSettings::UPawActorPoolSettings()
 {
-	// Add default projectile to the pool configuration
+	// Add default projectile to the pool configuration with critical priority
 	FActorPoolConfig DefaultProjectileConfig;
 	DefaultProjectileConfig.ActorClass = TSoftClassPtr<AActor>(FSoftObjectPath("/Game/Main/Characters/Players/Seekers/Weapons/BP_Projectile_Bubble.BP_Projectile_Bubble_C"));
 	DefaultProjectileConfig.PoolSize = 50;
+	DefaultProjectileConfig.LoadingPriority = EPoolLoadingPriority::Critical;
 	
 	ActorPools.Add(DefaultProjectileConfig);
 }

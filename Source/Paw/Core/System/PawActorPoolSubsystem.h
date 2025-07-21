@@ -59,7 +59,9 @@ protected: // Properties
 
 private: // Internal Helper Methods
 	void InitializeActorPools();
-	void OnAssetsLoaded();
+	void LoadNextPriorityBatch();
+	void OnPriorityBatchLoaded(EPoolLoadingPriority CompletedPriority);
+	void CreatePoolsFromConfigs(const TArray<FActorPoolConfig>& PoolConfigs);
 	UClass* FindPoolClassForActorClass(UClass* ActorClass) const;
 	bool IsActorClassPooled(UClass* ActorClass) const;
 	AActor* GetActorFromPool(UClass* ActorClass);
@@ -69,7 +71,8 @@ private: // Internal Helper Methods
 	void DeactivatePooledActor(AActor* Actor);
 
 private: // Cached State
-	TSharedPtr<FStreamableHandle> StreamableHandle;
+	TArray<TSharedPtr<FStreamableHandle>> StreamableHandles;
 	TArray<FActorPoolConfig> PendingPoolConfigs;
 	mutable TMap<TObjectPtr<UClass>, TObjectPtr<UClass>> ClassToPoolCache;
+	TMap<EPoolLoadingPriority, TArray<FActorPoolConfig>> PriorityLoadingQueues;
 };
