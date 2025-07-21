@@ -69,36 +69,6 @@ void APawProjectileBase::BeginPlay()
 		ProjectileMovement->Deactivate();
 	}
 
-	if (HasAuthority())
-	{
-		// Check overlap object and kill other projectile
-		FCollisionQueryParams QueryParams;
-		QueryParams.AddIgnoredActor(this);
-		FCollisionObjectQueryParams ObjectQueryParams;
-		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
-		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
-		if (UWorld* World = GetWorld(); IsValid(World))
-		{
-			// Check if we overlap with any other projectile
-			TArray<FHitResult> HitResults;
-			World->SweepMultiByObjectType(HitResults, GetActorLocation(), GetActorLocation(), FQuat::Identity,
-			                              ObjectQueryParams, FCollisionShape::MakeSphere(CollisionComp->GetScaledSphereRadius()),
-			                              QueryParams);
-			for (const FHitResult& Hit : HitResults) 
-			{
-				if (AActor* HitActor = Hit.GetActor(); HitActor && HitActor != this && HitActor->IsA(StaticClass()))
-				{
-					APawProjectileBase* HitProjectile = Cast<APawProjectileBase>(HitActor);
-					if (!IsValid(HitProjectile))
-					{
-						continue;
-					}
-					HitProjectile->ReturnToPoolOrDestroy();
-					
-				}
-			}
-		}	
-	}
 }
 
 void APawProjectileBase::PostNetReceiveLocationAndRotation()
