@@ -57,8 +57,6 @@ public: // C++ Public Helpers
 protected: // Properties
 	TMap<TObjectPtr<UClass>, TArray<TObjectPtr<AActor>>> ActorPools;
 
-	TSet<TObjectPtr<AActor>> PooledActors;
-
 private: // Internal Helper Methods
 	void InitializeActorPools();
 	void OnAssetsLoaded();

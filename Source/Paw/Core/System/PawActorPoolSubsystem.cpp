@@ -36,7 +36,6 @@ void UPawActorPoolSubsystem::Deinitialize()
 		}
 	}
 	ActorPools.Empty();
-	PooledActors.Empty();
 	PendingPoolConfigs.Empty();
 	ClassToPoolCache.Empty();
 	
@@ -104,26 +103,35 @@ void UPawActorPoolSubsystem::ReturnToPool(AActor* Actor)
 		return;
 	}
 
-	if (PooledActors.Contains(Actor))
+	// Check authority for network safety
+	if (Actor->GetLocalRole() != ROLE_Authority)
+	{
+		UE_LOG(LogPawActorPool, Error, TEXT("Not Authority, cannot return actor to pool: %s"), *Actor->GetName());
+		return;
+	}
+
+	// Try to return to pool, destroy if not poolable
+	UClass* ActorClass = Actor->GetClass();
+	if (FindPoolClassForActorClass(ActorClass))
 	{
 		ReturnActorToPool(Actor);
 	}
 	else
 	{
-		// check authority
-		if (Actor->GetLocalRole() != ROLE_Authority)
-		{
-			UE_LOG(LogPawActorPool, Error, TEXT("Not Authority, cannot return actor to pool: %s"), *Actor->GetName());
-			return;
-		}
 		Actor->Destroy();
-		UE_LOG(LogPawActorPool, Warning, TEXT("Actor not in pool, destroyed: %s"), *Actor->GetName());
+		UE_LOG(LogPawActorPool, Warning, TEXT("Actor not poolable, destroyed: %s"), *Actor->GetName());
 	}
 }
 
 bool UPawActorPoolSubsystem::IsActorPooled(AActor* Actor) const
 {
-	return PooledActors.Contains(Actor);
+	if (!IsValid(Actor))
+	{
+		return false;
+	}
+	
+	// Check if actor's class is poolable
+	return IsActorClassPooled(Actor->GetClass());
 }
 
 void UPawActorPoolSubsystem::InitializeActorPools()
@@ -201,7 +209,6 @@ void UPawActorPoolSubsystem::OnAssetsLoaded()
 					if (IsValid(NewActor))
 					{
 						DeactivatePooledActor(NewActor);
-						PooledActors.Add(NewActor);
 						Pool.Add(NewActor);
 					}
 				}
