@@ -5,8 +5,6 @@
 
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
-#include "Components/SphereComponent.h"
-#include "EntitySystem/MovieSceneEntitySystemRunner.h"
 #include "Kismet/GameplayStatics.h"
 #include "Paw/Character/Player/PawFPSPlayer.h"
 #include "Paw/Core/System/PawActorPoolSubsystem.h"
@@ -168,8 +166,7 @@ void UPawGunComponent::ServerSpawnProjectile_Implementation(FVector SpawnLocatio
 		return;
 	}
 
-	UWorld* const World = GetWorld();
-	if (IsValid(World))
+	if (const UWorld* World = GetWorld(); IsValid(World))
 	{
 		//Set Spawn Collision Handling Override
 		FActorSpawnParameters ActorSpawnParams;

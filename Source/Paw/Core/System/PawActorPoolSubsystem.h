@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
+#include "Engine/EngineTypes.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "PawActorPoolSubsystem.generated.h"
 
@@ -23,11 +24,9 @@ public: // Constructor & Public Engine Overrides
 
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	//~ End USubsystem Interface
+	
 
 public: // Blueprint-Callable API
-	UFUNCTION(BlueprintCallable, Category = "Actor Pool")
-	AActor* TrySpawnPooledActor(UClass* ActorClass, const FVector& Location, const FRotator& Rotation,
-	                            const FActorSpawnParameters& SpawnParameters = FActorSpawnParameters());
 
 	UFUNCTION(BlueprintCallable, Category = "Actor Pool")
 	void ReturnToPool(AActor* Actor);
@@ -36,6 +35,10 @@ public: // Blueprint-Callable API
 	bool IsActorPooled(AActor* Actor) const;
 
 public: // C++ Public Helpers
+
+	AActor* TrySpawnPooledActor(UClass* ActorClass, const FVector& Location, const FRotator& Rotation,
+	                            const FActorSpawnParameters& SpawnParameters = FActorSpawnParameters());
+
 	template <class T>
 	T* TrySpawnPooledActor(UClass* ActorClass, const FVector& Location, const FRotator& Rotation,
 	                       const FActorSpawnParameters& SpawnParameters = FActorSpawnParameters())
@@ -48,7 +51,6 @@ public: // C++ Public Helpers
 	}
 
 protected: // Properties
-	UPROPERTY()
 	TMap<TObjectPtr<UClass>, TArray<TObjectPtr<AActor>>> ActorPools;
 
 	TSet<TObjectPtr<AActor>> PooledActors;

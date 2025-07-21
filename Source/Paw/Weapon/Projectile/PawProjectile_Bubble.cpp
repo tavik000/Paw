@@ -145,7 +145,7 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 		BubbleHiderCapture->ServerCaptureHider(HitHider);
 	}
 
-	Destroy();
+	ReturnToPoolOrDestroy();
 }
 
 void APawProjectile_Bubble::SpawnMasterField_Implementation(FVector SpawnLocation, FRotator SpawnRotation)

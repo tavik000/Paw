@@ -2,9 +2,7 @@
 
 
 #include "PawActorPoolSubsystem.h"
-
 #include "Paw/Weapon/Projectile/PawProjectile_Bubble.h"
-#include "WorldPartition/ContentBundle/ContentBundleLog.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogPawActorPool, Log, All);
 
@@ -27,6 +25,7 @@ void UPawActorPoolSubsystem::Deinitialize()
 		}
 	}
 	ActorPools.Empty();
+	PooledActors.Empty();
 	Super::Deinitialize();
 	UE_LOG(LogPawActorPool, Log, TEXT("PawActorPoolSubsystem Deinitialized"));
 }
@@ -63,7 +62,7 @@ AActor* UPawActorPoolSubsystem::TrySpawnPooledActor(UClass* ActorClass, const FV
 		if (AActor* PooledActor = GetActorFromPool(ActorClass))
 		{
 			ActivatePooledActor(PooledActor, Location, Rotation, SpawnParameters);
-			UE_LOG(LogTemp, Warning, TEXT(" Spawned from pool: %s"), *ActorClass->GetName());
+			UE_LOG(LogPawActorPool, Warning, TEXT(" Spawned from pool: %s"), *ActorClass->GetName());
 			return PooledActor;
 		}
 		UE_LOG(LogPawActorPool, Log, TEXT("Pool empty for class: %s, falling back to spawn new actor."),
@@ -113,22 +112,39 @@ void UPawActorPoolSubsystem::InitializeActorPools()
 		return;
 	}
 
-	// Initialize pools for projectile
-	UClass* ProjectileClass = APawProjectile_Bubble::StaticClass();
-	if (!IsActorClassPooled(ProjectileClass))
+	// If no config provided, fallback to hardcoded projectile class
+	if (ActorPoolConfig.IsEmpty())
 	{
-		UE_LOG(LogPawActorPool, Log, TEXT("Initialized pool for actor class: %s"), *ProjectileClass->GetName());
-		TArray<TObjectPtr<AActor>>& Pool = ActorPools.Add(ProjectileClass);
-		Pool.Reserve(DefaultPoolSize);
-		for (int32 i = 0; i < DefaultPoolSize; ++i)
+		UClass* ProjectileClass = APawProjectile_Bubble::StaticClass();
+		ActorPoolConfig.Add(TSoftClassPtr<AActor>(ProjectileClass));
+		UE_LOG(LogPawActorPool, Log, TEXT("No pool config found, using default projectile class"));
+	}
+
+	// Initialize pools from configuration
+	for (const TSoftClassPtr<AActor>& ClassPtr : ActorPoolConfig)
+	{
+		if (UClass* ActorClass = ClassPtr.LoadSynchronous())
 		{
-			AActor* NewActor = World->SpawnActor<AActor>(ProjectileClass, FVector::ZeroVector, FRotator::ZeroRotator);
-			if (IsValid(NewActor))
+			if (!IsActorClassPooled(ActorClass))
 			{
-				DeactivatePooledActor(NewActor);
-				PooledActors.Add(NewActor);
-				Pool.Add(NewActor);
+				UE_LOG(LogPawActorPool, Log, TEXT("Initialized pool for actor class: %s"), *ActorClass->GetName());
+				TArray<TObjectPtr<AActor>>& Pool = ActorPools.Add(ActorClass);
+				Pool.Reserve(DefaultPoolSize);
+				for (int32 i = 0; i < DefaultPoolSize; ++i)
+				{
+					AActor* NewActor = World->SpawnActor<AActor>(ActorClass, FVector::ZeroVector, FRotator::ZeroRotator);
+					if (IsValid(NewActor))
+					{
+						DeactivatePooledActor(NewActor);
+						PooledActors.Add(NewActor);
+						Pool.Add(NewActor);
+					}
+				}
 			}
+		}
+		else
+		{
+			UE_LOG(LogPawActorPool, Warning, TEXT("Failed to load actor class from config: %s"), *ClassPtr.ToString());
 		}
 	}
 	UE_LOG(LogPawActorPool, Log, TEXT("Actor pools initialized"));
@@ -136,18 +152,32 @@ void UPawActorPoolSubsystem::InitializeActorPools()
 
 bool UPawActorPoolSubsystem::IsActorClassPooled(UClass* ActorClass) const
 {
-	return ActorClass && ActorClass->IsChildOf<APawProjectile_Bubble>();
+	if (!ActorClass)
+	{
+		return false;
+	}
+	for (const auto& PoolPair : ActorPools)
+	{
+		if (ActorClass->IsChildOf(PoolPair.Key))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 AActor* UPawActorPoolSubsystem::GetActorFromPool(UClass* ActorClass)
 {
-	if (ActorPools.Contains(ActorClass))
+	for (auto& PoolPair : ActorPools)
 	{
-		TArray<TObjectPtr<AActor>>& Pool = ActorPools[ActorClass];
-		if (Pool.Num() > 0)
+		if (ActorClass->IsChildOf(PoolPair.Key))
 		{
-			AActor* PooledActor = Pool.Pop();
-			return PooledActor;
+			TArray<TObjectPtr<AActor>>& Pool = PoolPair.Value;
+			if (Pool.Num() > 0)
+			{
+				AActor* PooledActor = Pool.Pop();
+				return PooledActor;
+			}
 		}
 	}
 	return nullptr;
@@ -160,10 +190,14 @@ void UPawActorPoolSubsystem::ReturnActorToPool(AActor* Actor)
 		return;
 	}
 	UClass* ActorClass = Actor->GetClass();
-	if (ActorPools.Contains(ActorClass))
+	for (auto& PoolPair : ActorPools)
 	{
-		DeactivatePooledActor(Actor);
-		ActorPools[ActorClass].Add(Actor);
+		if (ActorClass->IsChildOf(PoolPair.Key))
+		{
+			DeactivatePooledActor(Actor);
+			PoolPair.Value.Add(Actor);
+			return;
+		}
 	}
 }
 
