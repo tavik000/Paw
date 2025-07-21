@@ -228,9 +228,9 @@ UClass* UPawActorPoolSubsystem::FindPoolClassForActorClass(UClass* ActorClass) c
 	}
 
 	// Check cache first for O(1) lookup
-	if (UClass* const* CachedResult = ClassToPoolCache.Find(ActorClass))
+	if (const TObjectPtr<UClass>* CachedResult = ClassToPoolCache.Find(ActorClass))
 	{
-		return *CachedResult;
+		return CachedResult->Get();
 	}
 
 	// Cache miss - perform inheritance check and cache the result
