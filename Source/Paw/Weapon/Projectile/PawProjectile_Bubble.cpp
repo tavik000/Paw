@@ -3,6 +3,7 @@
 
 #include "PawProjectile_Bubble.h"
 
+#include "Component/PawProjectileMovementComponent.h"
 #include "Components/SphereComponent.h"
 #include "Engine/AssetManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -153,6 +154,12 @@ void APawProjectile_Bubble::OnPoolActivate(const FVector& Location, const FRotat
 		// Clear any existing timer before setting a new one
 		GetWorld()->GetTimerManager().ClearTimer(LifeCycleTimerHandle);
 		GetWorld()->GetTimerManager().SetTimer(LifeCycleTimerHandle, this, &APawProjectile_Bubble::SelfBreak, BubbleLifeTime, false);
+	}
+	
+	// Recalculate projectile velocity based on rotation
+	if (UPawProjectileMovementComponent* MovementComp = GetProjectileMovement())
+	{
+		MovementComp->Velocity = GetActorForwardVector() * MovementComp->InitialSpeed;
 	}
 }
 

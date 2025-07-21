@@ -80,22 +80,22 @@ void UPawGunComponent::Fire()
 	}
 
 	// Try and fire a projectile
-	AActor* ActorOwner = GetOwner();
-	if (!IsValid(ActorOwner))
+	if (const AActor* ActorOwner = GetOwner(); !IsValid(ActorOwner))
 	{
 		return;
 	}
-	APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
+	const APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
 	const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
-	const FVector Start = FPSPlayer->GetActorLocation();
-	const FVector End = Start + (SpawnRotation.Vector() * 10000);
-	FHitResult HitResult;
-	FCollisionQueryParams CollisionParams;
-	CollisionParams.AddIgnoredActor(ActorOwner);
-	CollisionParams.AddIgnoredActor(FPSPlayer);
-	GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECollisionChannel::ECC_Visibility, CollisionParams);
-	const float Distance = FVector::Dist(Start, HitResult.ImpactPoint);
-	const bool IsFacingDownOrTooClose = Distance < FireClosetDistance || SpawnRotation.Pitch <= FacingDownPitch;
+	
+	// const FVector Start = FPSPlayer->GetActorLocation();
+	// const FVector End = Start + (SpawnRotation.Vector() * 10000);
+	// FHitResult HitResult;
+	// FCollisionQueryParams CollisionParams;
+	// CollisionParams.AddIgnoredActor(ActorOwner);
+	// CollisionParams.AddIgnoredActor(FPSPlayer);
+	// GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECollisionChannel::ECC_Visibility, CollisionParams);
+	// const float Distance = FVector::Dist(Start, HitResult.ImpactPoint);
+	// // const bool IsFacingDownOrTooClose = Distance < FireClosetDistance || SpawnRotation.Pitch <= FacingDownPitch;
 
 	FVector SpawnLocation = FPSPlayer->GetActorLocation() + FPSPlayer->GetActorForwardVector() * MuzzleOffset;
 	// if (IsFacingDownOrTooClose)
@@ -172,12 +172,11 @@ void UPawGunComponent::ServerSpawnProjectile_Implementation(FVector SpawnLocatio
 		FActorSpawnParameters ActorSpawnParams;
 		ActorSpawnParams.SpawnCollisionHandlingOverride =
 			ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-		UPawActorPoolSubsystem* ActorPoolSubsystem = World->GetSubsystem<UPawActorPoolSubsystem>();
-		if (IsValid(ActorPoolSubsystem))
+		ActorSpawnParams.Owner = FPSPlayer;
+		ActorSpawnParams.Instigator = FPSPlayer;
+		if (UPawActorPoolSubsystem* ActorPoolSubsystem = World->GetSubsystem<UPawActorPoolSubsystem>(); IsValid(ActorPoolSubsystem))
 		{
 			AActor* SpawnProjectile = ActorPoolSubsystem->TrySpawnPooledActor(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
-			SpawnProjectile->SetOwner(FPSPlayer);
-			SpawnProjectile->SetInstigator(FPSPlayer);
 		}
 	}
 }

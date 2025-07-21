@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "Component/PawProjectileMovementComponent.h"
+#include "Paw/Core/System/PawActorPoolSubsystem.h"
 
 APawProjectileTestHelper::APawProjectileTestHelper()
 {
@@ -151,7 +152,13 @@ void APawProjectileTestHelper::FireSingleProjectile()
 	SpawnParams.Owner = this;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	APawProjectileBase* NewProjectile = GetWorld()->SpawnActor<APawProjectileBase>(
+	UPawActorPoolSubsystem* ActorPoolSubsystem = GetWorld()->GetSubsystem<UPawActorPoolSubsystem>();
+	if (!IsValid(ActorPoolSubsystem))
+	{
+		return;
+	}
+	
+	APawProjectileBase* NewProjectile = ActorPoolSubsystem->TrySpawnPooledActor<APawProjectileBase>(
 		ProjectileClass,
 		SpawnLocation,
 		SpawnRotation,
