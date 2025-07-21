@@ -1567,6 +1567,7 @@ void UPawProjectileMovementComponent::HandleMovementAsyncSweepResult(const FTrac
 void UPawProjectileMovementComponent::HandleMovementAsyncSweepCompleted()
 {
 	AActor* ActorOwner = UpdatedComponent ? UpdatedComponent->GetOwner() : NULL;
+
 	// If we hit a trigger that destroyed us, abort.
 	if (!CheckStillInWorld() || !IsValid(ActorOwner) || HasStoppedSimulation())
 	{
@@ -1597,7 +1598,6 @@ void UPawProjectileMovementComponent::HandleMovementAsyncSweepCompleted()
 	}
 	else
 	{
-		//        AsyncData.HitCount, AsyncData.HitMinDistance, *AsyncData.Direction.ToString());
 		// Only calculate new velocity if events didn't change it during the movement update.
 		FHitResult& Hit = AsyncData.HitResult;
 		const float& HitTime = AsyncData.HitResult.Time;
@@ -1683,7 +1683,6 @@ void UPawProjectileMovementComponent::HandleSlidingAsyncSweepCompleted()
 		return;
 	}
 
-	// A second hit can deflect the velocity (through the normal bounce code), for the next iteration.
 	auto& SlideAsyncData = SlidingAsyncData;
 	FHitResult& Hit = SlidingAsyncData.HitResult;
 	float& SubTickTimeRemaining = SlideAsyncData.SubTickTimeRemaining;
@@ -1788,9 +1787,8 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepResult(const FTraceH
 
 void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 {
-	//        BounceAsyncData.HitCount, BounceAsyncData.HitMinDistance, *BounceAsyncData.Direction.ToString(),
-	//        *GetNameSafe(BounceAsyncData.HitResult.GetActor()));
 	AActor* ActorOwner = UpdatedComponent ? UpdatedComponent->GetOwner() : NULL;
+
 	// If we hit a trigger that destroyed us, abort.
 	if (!CheckStillInWorld() || !IsValid(ActorOwner) || HasStoppedSimulation())
 	{
@@ -1849,7 +1847,7 @@ void UPawProjectileMovementComponent::HandleBounceAsyncSweepCompleted()
 				return;
 			}
 
-			// Corner bounce detected - use intelligent escape logic
+			// Corner bounce detected, reverse the velocity;
 			UE_LOG(LogTemp, Warning, TEXT("Corner bounce detected (distance: %.3f, bounce #%d) "),
 			       BounceData.HitMinDistance, ConsecutiveCornerBounces);
 
