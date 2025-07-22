@@ -150,18 +150,13 @@ void APawProjectile_Bubble::SpawnMasterField_Implementation(FVector SpawnLocatio
 void APawProjectile_Bubble::OnPoolActivate(const FVector& Location, const FRotator& Rotation,
                                            const FActorSpawnParameters& SpawnParameters)
 {
+	Super::OnPoolActivate(Location, Rotation, SpawnParameters);
 	if (HasAuthority())
 	{
 		// Clear any existing timer before setting a new one
 		GetWorld()->GetTimerManager().ClearTimer(LifeCycleTimerHandle);
 		GetWorld()->GetTimerManager().SetTimer(LifeCycleTimerHandle, this, &APawProjectile_Bubble::SelfBreak,
 		                                       BubbleLifeTime, false);
-	}
-
-	// Recalculate projectile velocity based on rotation
-	if (UPawProjectileMovementComponent* MovementComp = GetProjectileMovement())
-	{
-		MovementComp->Velocity = GetActorForwardVector() * MovementComp->InitialSpeed;
 	}
 
 	if (HasAuthority())
@@ -198,6 +193,7 @@ void APawProjectile_Bubble::OnPoolActivate(const FVector& Location, const FRotat
 
 void APawProjectile_Bubble::OnPoolDeactivate()
 {
+	Super::OnPoolDeactivate();
 	if (HasAuthority())
 	{
 		// Clear the lifecycle timer to prevent timer conflicts when reused

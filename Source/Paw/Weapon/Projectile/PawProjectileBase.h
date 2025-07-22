@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <Paw/Core/System/Interface/IPawPoolableInterface.h>
+
 #include "CoreMinimal.h"
 
 #include "PawProjectileBase.generated.h"
@@ -10,7 +12,7 @@ class UPawProjectileMovementComponent;
 class USphereComponent;
 
 UCLASS()
-class PAW_API APawProjectileBase : public AActor
+class PAW_API APawProjectileBase : public AActor, public IPawPoolableInterface
 {
 	GENERATED_BODY()
 
@@ -23,10 +25,14 @@ public:
 	                   FVector NormalImpulse,
 	                   const FHitResult& Hit);
 
+	// IPawPoolableInterface
+	virtual void OnPoolActivate(const FVector& Location, const FRotator& Rotation, const FActorSpawnParameters& SpawnParameters) override;
+	virtual void OnPoolDeactivate() override;
+
 public: 
 	USphereComponent* GetCollisionComp() const { return CollisionComp; }
 	UPawProjectileMovementComponent* GetProjectileMovement() const { return ProjectileMovement; }
-	
+
 	void ReturnToPoolOrDestroy();
 
 protected:

@@ -112,3 +112,24 @@ void APawProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor,
 		Destroy();
 	}
 }
+
+void APawProjectileBase::OnPoolActivate(const FVector& Location, const FRotator& Rotation,
+	const FActorSpawnParameters& SpawnParameters)
+{
+	// Recalculate projectile velocity based on rotation
+	if (UPawProjectileMovementComponent* MovementComp = GetProjectileMovement())
+	{
+		MovementComp->Velocity = GetActorForwardVector() * MovementComp->InitialSpeed;
+		MovementComp->UpdateComponentVelocity();
+		MovementComp->SetUpdatedComponent(RootComponent);
+	}
+}
+
+void APawProjectileBase::OnPoolDeactivate()
+{
+	if (UPawProjectileMovementComponent* MovementComp = GetProjectileMovement())
+	{
+		MovementComp->StopSimulating(FHitResult());
+		MovementComp->UpdateComponentVelocity();
+	}
+}
