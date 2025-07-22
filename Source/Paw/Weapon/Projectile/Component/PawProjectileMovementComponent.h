@@ -565,8 +565,14 @@ private: // Internal Helper Methods
 	// Unified Async Handlers (new system)
 	void HandleUnifiedAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
 	void HandleUnifiedAsyncSweepCompleted();
-	bool StartUnifiedAsyncSweep(EAsyncSweepType SweepType, const FVector& Start, const FVector& End,
-	                            const FQuat& Rotation);
+
+	bool StartUnifiedAsyncSweep(EAsyncSweepType SweepType, AActor* ActorOwner, EAsyncTraceType TraceType,
+	                            const FVector& Start, const FVector& End, const FQuat& Rotation,
+	                            const FCollisionObjectQueryParams& ObjectQueryParams,
+	                            const FCollisionQueryParams& QueryParams, float MoveDistance,
+	                            const FVector& Direction, const FQuat& RelativeQuat,
+	                            const FVector& MoveDelta, float SubTickTimeRemaining = 0.0f,
+	                            const FVector& OldHitNormal = FVector::ZeroVector);
 
 	// Type-specific completion handlers
 	void HandleUnifiedMovementCompleted(AActor* ActorOwner);
@@ -578,13 +584,6 @@ private: // Internal Helper Methods
 	void HandleAsyncSweepError(const FString& ErrorMessage, EAsyncSweepType SweepType);
 	void ResetAsyncSweepState(EAsyncSweepType SweepType);
 
-	// Legacy Async Handlers (for backward compatibility)
-	void HandleMovementAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
-	void HandleMovementAsyncSweepCompleted();
-	void HandleSlidingAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
-	void HandleSlidingAsyncSweepCompleted();
-	void HandleBounceAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
-	void HandleBounceAsyncSweepCompleted();
 
 	bool IsAllAsyncSweepingCompleted() const;
 	bool IsUnifiedAsyncSweepCompleted() const;
@@ -667,31 +666,6 @@ private: // Cached State & Internal Data
 		FORCEINLINE bool IsBounceType() const { return SweepType == EAsyncSweepType::Bounce; }
 	};
 
-	// Legacy structures for backward compatibility (will be removed)
-	struct FMovementAsyncSweepData
-	{
-		FMovementAsyncSweepData() { Reset(); }
-
-		void Reset()
-		{
-			SweepCount = 0;
-			MoveDistance = 0;
-			HitCount = 0;
-			HitMinDistance = 0;
-		}
-
-		int SweepCount;
-		double MoveDistance;
-		FVector Direction;
-		FVector MoveDelta;
-		FQuat RelativeQuat;
-
-		int HitCount;
-		double HitMinDistance;
-		FVector HitImpactNormal;
-		FHitResult HitResult;
-	};
-
 	// Unified async sweep data (new system)
 	FUnifiedAsyncSweepData UnifiedAsyncSweepData;
 	FTraceDelegate UnifiedAsyncSweepDelegate;
@@ -701,76 +675,11 @@ private: // Cached State & Internal Data
 	float UnifiedAsyncOperationStartTime;
 	static constexpr float MaxAsyncOperationTime = 5.0f; // 5 second timeout
 
-	// Legacy data (for backward compatibility during transition)
-	FMovementAsyncSweepData MovementAsyncSweepData;
-	FTraceDelegate AsyncSweepDelegate;
-
 	float CurrentTimeTick;
 	FVector OldVelocity;
 	int32 NumImpacts;
 	int32 NumBounces;
 
-	// Sliding System Data
-	struct FSlidingAsyncSweepData
-	{
-		float SubTickTimeRemaining = 0.f;
-		FHitResult InitialHit;
-		FVector OldHitNormal;
-		FVector Direction;
-		float MoveDistance = 0.f;
-		float HitMinDistance = 0.f;
-		int32 HitCount = 0;
-		int32 SweepCount = 0;
-		FHitResult HitResult;
-
-		void Reset()
-		{
-			SubTickTimeRemaining = 0.f;
-			InitialHit = FHitResult();
-			OldHitNormal = FVector::ZeroVector;
-			Direction = FVector::ZeroVector;
-			MoveDistance = 0.f;
-			HitMinDistance = 0.f;
-			HitCount = 0;
-			SweepCount = 0;
-			HitResult = FHitResult();
-		}
-	};
-
-	FSlidingAsyncSweepData SlidingAsyncData;
-	FTraceDelegate AsyncSlidingDelegate;
-
-	// Bounce System Data
-	struct FBounceAsyncSweepData
-	{
-		float SubTickTimeRemaining = 0.f;
-		FHitResult InitialHit;
-		FVector OldHitNormal;
-		FVector Direction;
-		float MoveDistance = 0.f;
-		float HitMinDistance = 0.f;
-		int32 HitCount = 0;
-		int32 SweepCount = 0;
-		FHitResult HitResult;
-		FQuat RelativeQuat;
-
-		void Reset()
-		{
-			SubTickTimeRemaining = 0.f;
-			InitialHit = FHitResult();
-			Direction = FVector::ZeroVector;
-			OldHitNormal = FVector::ZeroVector;
-			MoveDistance = 0.f;
-			HitMinDistance = 0.f;
-			HitCount = 0;
-			SweepCount = 0;
-			HitResult = FHitResult();
-			RelativeQuat = FQuat::Identity;
-		}
-	};
-
-	FBounceAsyncSweepData BounceAsyncData;
-	FTraceDelegate AsyncBounceDelegate;
 
 	// Anti-Infinite Bounce Protection System
 	int32 ConsecutiveCornerBounces;
