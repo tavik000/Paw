@@ -24,7 +24,6 @@ UPawProjectileMovementComponent::UPawProjectileMovementComponent(const FObjectIn
 {
 	bUpdateOnlyIfRendered = false;
 	bInitialVelocityInLocalSpace = true;
-	bForceSubStepping = false;
 	bSimulationEnabled = true;
 	bSweepCollision = true;
 	bInterpMovement = false;
@@ -189,11 +188,11 @@ bool UPawProjectileMovementComponent::TickAsyncSweepManagement(float DeltaTime)
 		// Queue movement update instead of skipping tick entirely
 		AddMovementToQueue(DeltaTime);
 
-		// During sliding with zero friction, process queue more aggressively to reduce lag
-		if (bIsSliding && FMath::IsNearlyZero(Friction) && QueuedUpdates.Num() >= 2)
-		{
-			ProcessQueuedMovements();
-		}
+		// // During sliding with zero friction, process queue more aggressively to reduce lag
+		// if (bIsSliding && FMath::IsNearlyZero(Friction) && QueuedUpdates.Num() >= 2)
+		// {
+		// 	ProcessQueuedMovements();
+		// }
 		return false;
 	}
 	return true;
@@ -205,17 +204,6 @@ void UPawProjectileMovementComponent::TickMovementQueueProcessing()
 	ProcessQueuedMovements();
 }
 
-void UPawProjectileMovementComponent::TickCollisionCooldownCleanup()
-{
-	// Clean up expired collision cooldowns periodically
-	static float LastCooldownCleanupTime = 0.0f;
-	const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	if (CurrentTime - LastCooldownCleanupTime > 1.0f) // Clean up every second
-	{
-		CleanupExpiredCollisionCooldowns();
-		LastCooldownCleanupTime = CurrentTime;
-	}
-}
 
 void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AActor* ActorOwner)
 {
@@ -236,22 +224,25 @@ void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AAc
 		break;
 	}
 
-	float RemainingTime = DeltaTime;
-	NumImpacts = 0;
-	NumBounces = 0;
-	int32 LoopCount = 0;
-	int32 Iterations = 0;
 	FHitResult Hit(1.f);
 
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_ProjectileMovementComponent_PerformMovement);
 	const FScopedMovementUpdate ScopedProjectileUpdate(bSimulationUseScopedMovement ? UpdatedComponent : nullptr,
 	                                                   EScopedUpdate::DeferredUpdates);
 
-	// subdivide long ticks to more closely follow parabolic trajectory
-	CurrentTimeTick = ShouldUseSubStepping()
-		                  ? GetSimulationTimeStep(RemainingTime, Iterations)
-		                  : RemainingTime;
-	RemainingTime -= CurrentTimeTick;
+	// Accumulate all queued delta times and apply movement
+	float AccumulatedDeltaTime = DeltaTime;
+	if (QueuedUpdates.Num() > 0)
+	{
+		for (const FQueuedMovementUpdate& Update : QueuedUpdates)
+		{
+			AccumulatedDeltaTime += Update.DeltaTime;
+		}
+		QueuedUpdates.Empty();
+	}
+
+	CurrentTimeTick = AccumulatedDeltaTime;
+	UE_LOG(LogTemp, Warning, TEXT("CurrentTimeTick: %f, AccumulatedDeltaTime: %f"), CurrentTimeTick, AccumulatedDeltaTime);
 
 	// Initial move state
 	Hit.Time = 1.f;
@@ -302,6 +293,8 @@ void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AAc
 	}
 	else
 	{
+		// TODO: Async for non-bounce as well
+		
 		// If we can't bounce, then we shouldn't adjust if initially penetrating, because that should be a blocking hit that causes a hit event and stop simulation.
 		TGuardValue<EMoveComponentFlags> ScopedFlagRestore(MoveComponentFlags,
 		                                                   MoveComponentFlags |
@@ -351,12 +344,10 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 	// Handle async sweep management
 	if (!TickAsyncSweepManagement(DeltaTime))
 	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("Skipping tick due to ongoing async sweeps or insufficient conditions for simulation."));
 		return;
 	}
-
-	// Process movement queue and cleanup
-	TickMovementQueueProcessing();
-	TickCollisionCooldownCleanup();
 
 	// Run the main physics simulation
 	TickPhysicsSimulation(DeltaTime, ActorOwner);
@@ -839,54 +830,6 @@ bool UPawProjectileMovementComponent::CheckStillInWorld()
 		}
 	}
 	return true;
-}
-
-// ============================================================================
-// Simulation & Time Stepping System
-// ============================================================================
-
-bool UPawProjectileMovementComponent::ShouldUseSubStepping() const
-{
-	return bForceSubStepping || (GetGravityZ() != 0.f) || (bIsHomingProjectile && HomingTargetComponent.IsValid());
-}
-
-
-float UPawProjectileMovementComponent::GetSimulationTimeStep(float RemainingTime, int32 Iterations) const
-{
-	if (RemainingTime > MaxSimulationTimeStep)
-	{
-		if (Iterations < MaxSimulationIterations)
-		{
-			// Subdivide moves to be no longer than MaxSimulationTimeStep seconds
-			RemainingTime = FMath::Min(MaxSimulationTimeStep, RemainingTime * 0.5f);
-		}
-		else
-		{
-			// If this is the last iteration, just use all the remaining time. This is better than cutting things short, as the simulation won't move far enough otherwise.
-			// Print a throttled warning.
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (const UWorld* const World = GetWorld())
-			{
-				// Don't report during long hitches, we're more concerned about normal behavior just to make sure we have reasonable simulation settings.
-				if (World->DeltaTimeSeconds < 0.20f)
-				{
-					static uint32 s_WarningCount = 0;
-					if ((s_WarningCount++ < 100) || (GFrameCounter & 15) == 0)
-					{
-						UE_LOG(LogProjectileMovement, Warning,
-						       TEXT(
-							       "GetSimulationTimeStep() - Max iterations %d hit while remaining time %.6f > MaxSimulationTimeStep (%.3f) for '%s'"
-						       ), MaxSimulationIterations, RemainingTime, MaxSimulationTimeStep,
-						       *GetPathNameSafe(UpdatedComponent));
-					}
-				}
-			}
-#endif
-		}
-	}
-
-	// no less than MIN_TICK_TIME (to avoid potential divide-by-zero during simulation).
-	return FMath::Max(MIN_TICK_TIME, RemainingTime);
 }
 
 // ============================================================================
@@ -1394,7 +1337,6 @@ void UPawProjectileMovementComponent::HandleUnifiedMovementCompleted(AActor* Act
 		}
 
 		// Handle blocking hit
-		NumImpacts++;
 		float SubTickTimeRemaining = CurrentTimeTick * (1.f - HitTime);
 		const EHandleBlockingHitResult HandleBlockingResult = HandleBlockingHit(
 			Hit, CurrentTimeTick, MoveDelta, SubTickTimeRemaining);
@@ -1408,12 +1350,10 @@ void UPawProjectileMovementComponent::HandleUnifiedMovementCompleted(AActor* Act
 		}
 		if (HandleBlockingResult == EHandleBlockingHitResult::Deflect)
 		{
-			NumBounces++;
-			
 			// Temporarily store the Movement RelativeQuat for HandleDeflection to use
 			// This prevents race condition when HandleDeflection starts Bounce/Sliding sweeps
 			UnifiedAsyncSweepData.RelativeQuat = MovementRelativeQuat;
-			
+
 			if (!HandleDeflection(Hit, SubTickTimeRemaining))
 			{
 				// Error: Deflection handling failed, stopping simulation
@@ -1804,106 +1744,5 @@ void UPawProjectileMovementComponent::ClearMovementQueue()
 	if (QueuedUpdates.Num() > 0)
 	{
 		QueuedUpdates.Empty();
-	}
-}
-
-// ============================================================================
-// Projectile Collision Cooldown System
-// ============================================================================
-
-void UPawProjectileMovementComponent::AddProjectileCollisionCooldown(AActor* OtherProjectile)
-{
-	if (!IsValid(OtherProjectile))
-	{
-		return;
-	}
-
-	const UWorld* World = GetWorld();
-	if (!IsValid(World))
-	{
-		return;
-	}
-
-	const float CurrentTime = World->GetTimeSeconds();
-	const float CooldownEndTime = CurrentTime + ProjectileCollisionCooldownTime;
-
-	// Clean up expired cooldowns before adding new ones
-	CleanupExpiredCollisionCooldowns();
-
-	// Check if this projectile already has a cooldown entry
-	for (FProjectileCollisionCooldown& Cooldown : ProjectileCollisionCooldowns)
-	{
-		if (Cooldown.OtherProjectile.Get() == OtherProjectile)
-		{
-			// Update existing cooldown
-			Cooldown.CooldownEndTime = CooldownEndTime;
-			return;
-		}
-	}
-
-	// Enforce memory limits
-	if (ProjectileCollisionCooldowns.Num() >= MaxCollisionCooldowns)
-	{
-		// Remove oldest cooldown to make room
-		ProjectileCollisionCooldowns.RemoveAt(0);
-	}
-
-	// Add new cooldown entry
-	ProjectileCollisionCooldowns.Add(FProjectileCollisionCooldown(OtherProjectile, CooldownEndTime));
-}
-
-bool UPawProjectileMovementComponent::IsProjectileCollisionOnCooldown(AActor* OtherProjectile) const
-{
-	if (!IsValid(OtherProjectile))
-	{
-		return false;
-	}
-
-	const UWorld* World = GetWorld();
-	if (!IsValid(World))
-	{
-		return false;
-	}
-
-	const float CurrentTime = World->GetTimeSeconds();
-
-	// Check if this projectile has an active cooldown
-	for (const FProjectileCollisionCooldown& Cooldown : ProjectileCollisionCooldowns)
-	{
-		if (Cooldown.OtherProjectile.Get() == OtherProjectile)
-		{
-			const bool bOnCooldown = CurrentTime < Cooldown.CooldownEndTime;
-			if (bOnCooldown)
-			{
-				const float TimeRemaining = Cooldown.CooldownEndTime - CurrentTime;
-			}
-			return bOnCooldown;
-		}
-	}
-
-	return false;
-}
-
-void UPawProjectileMovementComponent::CleanupExpiredCollisionCooldowns()
-{
-	const UWorld* World = GetWorld();
-	if (!IsValid(World))
-	{
-		return;
-	}
-
-	const float CurrentTime = World->GetTimeSeconds();
-	const int32 InitialCount = ProjectileCollisionCooldowns.Num();
-
-	// Remove expired cooldowns
-	ProjectileCollisionCooldowns.RemoveAll([CurrentTime](const FProjectileCollisionCooldown& Cooldown)
-	{
-		const bool bExpired = CurrentTime >= Cooldown.CooldownEndTime || !Cooldown.OtherProjectile.IsValid();
-		return bExpired;
-	});
-
-	const int32 RemovedCount = InitialCount - ProjectileCollisionCooldowns.Num();
-	if (RemovedCount > 0)
-	{
 	}
 }

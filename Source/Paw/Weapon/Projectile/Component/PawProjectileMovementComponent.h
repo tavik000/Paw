@@ -126,26 +126,6 @@ public: // C++ Public Helpers
 	/** Clears any pending forces from AddForce(). If bClearImmediateForce is true, clears any force being processed during this update as well. */
 	void ClearPendingForce(bool bClearImmediateForce = false);
 
-	/**
-	 * Compute remaining time step given remaining time and current iterations.
-	 * The last iteration (limited by MaxSimulationIterations) always returns the remaining time, which may violate MaxSimulationTimeStep.
-	 *
-	 * @param RemainingTime		Remaining time in the tick.
-	 * @param Iterations		Current iteration of the tick (starting at 1).
-	 * @return The remaining time step to use for the next sub-step of iteration.
-	 * @see MaxSimulationTimeStep, MaxSimulationIterations
-	 * @see ShouldUseSubStepping()
-	 */
-	float GetSimulationTimeStep(float RemainingTime, int32 Iterations) const;
-
-	/**
-	 * Determine whether or not to use substepping in the projectile motion update.
-	 * If true, GetSimulationTimeStep() will be used to time-slice the update. If false, all remaining time will be used during the tick.
-	 * @return Whether or not to use substepping in the projectile motion update.
-	 * @see GetSimulationTimeStep()
-	 */
-	virtual bool ShouldUseSubStepping() const;
-
 	/** Compute gravity effect given current physics volume, projectile gravity scale, etc. */
 	virtual float GetGravityZ() const override;
 
@@ -252,16 +232,6 @@ public: // Properties
 	/** Saved HitResult Normal from previous simulation step that resulted in an impact. If PreviousHitTime is 1.0, then the hit was not in the last step. */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category=ProjectileBounces)
 	FVector PreviousHitNormal;
-
-	// Properties: Simulation Settings
-	/**
-	 * If true, forces sub-stepping to break up movement into discrete smaller steps to improve accuracy of the trajectory.
-	 * Objects that move in a straight line typically do *not* need to set this, as movement always uses continuous collision detection (sweeps) so collision is not missed.
-	 * Sub-stepping is automatically enabled when under the effects of gravity or when homing towards a target.
-	 * @see MaxSimulationTimeStep, MaxSimulationIterations
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ProjectileSimulation)
-	uint8 bForceSubStepping : 1;
 
 	/**
 	 * If true, does normal simulation ticking and update. If false, simulation is halted, but component will still tick (allowing interpolation to run).
@@ -458,7 +428,6 @@ protected: // Protected Helper Methods
 	bool TickInterpolationValidation(float DeltaTime);
 	bool TickAsyncSweepManagement(float DeltaTime);
 	void TickMovementQueueProcessing();
-	void TickCollisionCooldownCleanup();
 	void TickPhysicsSimulation(float DeltaTime, AActor* ActorOwner);
 
 	// Physics & Collision Methods
@@ -544,11 +513,6 @@ private: // Internal Helper Methods
 	void AddMovementToQueue(float DeltaTime);
 	void ProcessQueuedMovements();
 	void ClearMovementQueue();
-
-	// Projectile Collision Cooldown Management
-	void AddProjectileCollisionCooldown(AActor* OtherProjectile);
-	bool IsProjectileCollisionOnCooldown(AActor* OtherProjectile) const;
-	void CleanupExpiredCollisionCooldowns();
 
 	// Async Sweep System
 	static int AsyncSweepByObjectType(
@@ -677,8 +641,6 @@ private: // Cached State & Internal Data
 
 	float CurrentTimeTick;
 	FVector OldVelocity;
-	int32 NumImpacts;
-	int32 NumBounces;
 
 
 	// Anti-Infinite Bounce Protection System
