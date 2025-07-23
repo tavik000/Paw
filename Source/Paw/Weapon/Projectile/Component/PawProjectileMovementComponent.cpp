@@ -467,6 +467,7 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 		}
 
 		// Use async sweep for bounce movement instead of direct transform
+		// If it is bouncing, the velocity was modified from ComputeBounceResult;
 		FVector MoveDelta = Velocity * SubTickTimeRemaining;
 		float MoveDistance = MoveDelta.Length();
 
@@ -509,7 +510,6 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 	{
 		return false;
 	}
-	FHitResult InitialHit(Hit);
 	const FVector OldHitNormal = ConstrainDirectionToPlane(Hit.Normal);
 
 	// Fast path for zero-friction sliding - skip async sweeps for better performance
