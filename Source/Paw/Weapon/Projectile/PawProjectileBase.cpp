@@ -116,12 +116,12 @@ void APawProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor,
 void APawProjectileBase::OnPoolActivate(const FVector& Location, const FRotator& Rotation,
 	const FActorSpawnParameters& SpawnParameters)
 {
+	UE_LOG(LogTemp, Warning, TEXT(" Activating pooled projectile: %s at location: %s, rotation: %s"),
+		*GetName(), *Location.ToString(), *Rotation.ToString());
 	// Recalculate projectile velocity based on rotation
 	if (UPawProjectileMovementComponent* MovementComp = GetProjectileMovement())
 	{
-		MovementComp->Velocity = GetActorForwardVector() * MovementComp->InitialSpeed;
-		MovementComp->UpdateComponentVelocity();
-		MovementComp->SetUpdatedComponent(RootComponent);
+		MovementComp->StartSimulating(GetActorForwardVector() * MovementComp->InitialSpeed);
 	}
 }
 
@@ -129,7 +129,9 @@ void APawProjectileBase::OnPoolDeactivate()
 {
 	if (UPawProjectileMovementComponent* MovementComp = GetProjectileMovement())
 	{
+		UE_LOG(LogTemp, Warning, TEXT(" Deactivating pooled projectile: %s"), *GetName());
 		MovementComp->StopSimulating(FHitResult());
+		
 		MovementComp->UpdateComponentVelocity();
 	}
 }

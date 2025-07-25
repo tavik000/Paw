@@ -73,10 +73,6 @@ UPawProjectileMovementComponent::UPawProjectileMovementComponent(const FObjectIn
 	// Initialize sliding hysteresis system
 	LastSlidingStateChangeTime = 0.0f;
 	bPreviousSlidingState = false;
-
-	// Initialize unified async operation tracking
-	bUnifiedAsyncOperationActive = false;
-	UnifiedAsyncOperationStartTime = 0.0f;
 }
 
 
@@ -180,9 +176,6 @@ bool UPawProjectileMovementComponent::TickInterpolationValidation(float DeltaTim
 
 bool UPawProjectileMovementComponent::TickAsyncSweepManagement(float DeltaTime)
 {
-	// Check for and handle async operation timeouts
-	CheckAndHandleAsyncTimeouts();
-
 	if (!IsAllAsyncSweepingCompleted())
 	{
 		// Queue movement update instead of skipping tick entirely
@@ -231,18 +224,19 @@ void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AAc
 	                                                   EScopedUpdate::DeferredUpdates);
 
 	// Accumulate all queued delta times and apply movement
-	float AccumulatedDeltaTime = DeltaTime;
-	if (QueuedUpdates.Num() > 0)
-	{
-		for (const FQueuedMovementUpdate& Update : QueuedUpdates)
-		{
-			AccumulatedDeltaTime += Update.DeltaTime;
-		}
-		QueuedUpdates.Empty();
-	}
+	// float AccumulatedDeltaTime = DeltaTime;
+	// if (QueuedUpdates.Num() > 0)
+	// {
+	// 	for (const FQueuedMovementUpdate& Update : QueuedUpdates)
+	// 	{
+	// 		AccumulatedDeltaTime += Update.DeltaTime;
+	// 	}
+	// 	QueuedUpdates.Empty();
+	// }
 
-	CurrentTimeTick = AccumulatedDeltaTime;
-	UE_LOG(LogTemp, Warning, TEXT("CurrentTimeTick: %f, AccumulatedDeltaTime: %f"), CurrentTimeTick, AccumulatedDeltaTime);
+	// CurrentTimeTick = AccumulatedDeltaTime;
+	CurrentTimeTick = DeltaTime;
+	// UE_LOG(LogTemp, Warning, TEXT("CurrentTimeTick: %f, AccumulatedDeltaTime: %f"), CurrentTimeTick, AccumulatedDeltaTime);
 
 	// Initial move state
 	Hit.Time = 1.f;
@@ -286,15 +280,15 @@ void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AAc
 		FVector EndLocation = StartLocation + MoveDelta;
 
 		// Use unified async system for movement sweeps
-		StartUnifiedAsyncSweep(EAsyncSweepType::Movement, ActorOwner, EAsyncTraceType::Single,
-		                       StartLocation, EndLocation, NewRotation,
-		                       ObjectQueryParams, QueryParams, MoveDistance, MoveDelta.GetSafeNormal(),
-		                       ActorQuat.Inverse() * NewRotation, MoveDelta);
+		StartAsyncSweep(EAsyncSweepType::Movement, ActorOwner, EAsyncTraceType::Single,
+		                StartLocation, EndLocation, NewRotation,
+		                ObjectQueryParams, QueryParams, MoveDistance, MoveDelta.GetSafeNormal(),
+		                ActorQuat.Inverse() * NewRotation, MoveDelta);
 	}
 	else
 	{
 		// TODO: Async for non-bounce as well
-		
+
 		// If we can't bounce, then we shouldn't adjust if initially penetrating, because that should be a blocking hit that causes a hit event and stop simulation.
 		TGuardValue<EMoveComponentFlags> ScopedFlagRestore(MoveComponentFlags,
 		                                                   MoveComponentFlags |
@@ -316,6 +310,8 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 	                                                   bUseScopedInterpolatedMove
 		                                                   ? EScopedUpdate::DeferredUpdates
 		                                                   : EScopedUpdate::ImmediateUpdates);
+	UE_LOG(LogTemp, Warning, TEXT("bSimulationEnabled: %d, bUseScopedInterpolatedMove: %d"),
+	       bSimulationEnabled, bUseScopedInterpolatedMove);
 
 	// Handle interpolation validation and early returns
 	if (!TickInterpolationValidation(DeltaTime))
@@ -327,6 +323,7 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 
 	if (!IsValid(UpdatedComponent) || !bSimulationEnabled)
 	{
+		UE_LOG(LogTemp, Warning, TEXT(" ProjectileMovementComponent: UpdatedComponent is invalid or simulation is disabled."));
 		return;
 	}
 
@@ -342,12 +339,12 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 	}
 
 	// Handle async sweep management
-	if (!TickAsyncSweepManagement(DeltaTime))
-	{
-		UE_LOG(LogTemp, Warning,
-		       TEXT("Skipping tick due to ongoing async sweeps or insufficient conditions for simulation."));
-		return;
-	}
+	// if (!TickAsyncSweepManagement(DeltaTime))
+	// {
+	// 	UE_LOG(LogTemp, Warning,
+	// 	       TEXT("Skipping tick due to ongoing async sweeps or insufficient conditions for simulation."));
+	// 	return;
+	// }
 
 	// Run the main physics simulation
 	TickPhysicsSimulation(DeltaTime, ActorOwner);
@@ -404,8 +401,6 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 
 	if (bIsSliding)
 	{
-		const float FrameTime = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f;
-
 		// Disable multihit testing for now. but it might cause issues with sliding along corners.
 		// for angle < 80 degrees, slide along wall. Cos 80 degrees = 0.173648f
 		if (bMultiHit && (PreviousHitNormal | Normal) < 0.173648f)
@@ -485,14 +480,14 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 
 		const FVector StartLocation = ActorOwner->GetActorLocation();
 		const FVector EndLocation = StartLocation + MoveDelta;
-		const FQuat NewRotation = ActorOwner->GetActorQuat() * UnifiedAsyncSweepData.RelativeQuat;
+		const FQuat NewRotation = ActorOwner->GetActorQuat() * MovementAsyncSweepData.RelativeQuat;
 
 		// Use unified async system for bounce sweeps
-		StartUnifiedAsyncSweep(EAsyncSweepType::Bounce, ActorOwner, EAsyncTraceType::Single,
-		                       StartLocation, EndLocation, NewRotation,
-		                       ObjectQueryParams, QueryParams, MoveDistance, MoveDelta.GetSafeNormal(),
-		                       UnifiedAsyncSweepData.RelativeQuat, MoveDelta,
-		                       SubTickTimeRemaining, ConstrainNormalToPlane(Hit.Normal));
+		StartAsyncSweep(EAsyncSweepType::Bounce, ActorOwner, EAsyncTraceType::Single,
+		                StartLocation, EndLocation, NewRotation,
+		                ObjectQueryParams, QueryParams, MoveDistance, MoveDelta.GetSafeNormal(),
+		                MovementAsyncSweepData.RelativeQuat, MoveDelta,
+		                SubTickTimeRemaining, ConstrainNormalToPlane(Hit.Normal));
 	}
 
 	return true;
@@ -564,10 +559,10 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 	const FVector EndLocation = StartLocation + MoveDelta;
 
 	// Use unified async system for sliding sweeps
-	StartUnifiedAsyncSweep(EAsyncSweepType::Sliding, ActorOwner, EAsyncTraceType::Single,
-	                       StartLocation, EndLocation, UpdatedComponent->GetComponentQuat(),
-	                       ObjectQueryParams, QueryParams, MoveDistance, MoveDelta.GetSafeNormal(),
-	                       FQuat::Identity, MoveDelta, SubTickTimeRemaining, OldHitNormal);
+	StartAsyncSweep(EAsyncSweepType::Sliding, ActorOwner, EAsyncTraceType::Single,
+	                StartLocation, EndLocation, UpdatedComponent->GetComponentQuat(),
+	                ObjectQueryParams, QueryParams, MoveDistance, MoveDelta.GetSafeNormal(),
+	                FQuat::Identity, MoveDelta, SubTickTimeRemaining, OldHitNormal);
 
 	return true;
 }
@@ -677,9 +672,24 @@ void UPawProjectileMovementComponent::StopSimulating(const FHitResult& HitResult
 	// Clear any queued movement updates when stopping simulation
 	ClearMovementQueue();
 
+	bSimulationEnabled = false;
 	UpdateComponentVelocity();
 	SetUpdatedComponent(nullptr);
 	OnProjectileStop.Broadcast(HitResult);
+	
+	// Reset the operation state
+	ResetAsyncSweepState(EAsyncSweepType::Movement);
+	ResetAsyncSweepState(EAsyncSweepType::Sliding);
+	ResetAsyncSweepState(EAsyncSweepType::Bounce);
+	
+	UE_LOG(LogTemp, Warning, TEXT(" Projectile Stop Simulation"));
+}
+
+void UPawProjectileMovementComponent::StartSimulating(const FVector& InitialVelocity)
+{
+	Velocity = InitialVelocity;
+	UpdateComponentVelocity();
+	SetUpdatedComponent(UpdatedComponent);
 }
 
 
@@ -1113,7 +1123,7 @@ void UPawProjectileMovementComponent::ResetThrottleInterpolation(float DeltaTime
 // Async Sweep System
 // ============================================================================
 
-int UPawProjectileMovementComponent::AsyncSweepByObjectType(AActor* Actor, EAsyncTraceType InTraceType,
+int UPawProjectileMovementComponent::AsyncSweepByObjectType(const AActor* Actor, EAsyncTraceType InTraceType,
                                                             const FVector& Start, const FVector& End, const FQuat& Rot,
                                                             const FCollisionObjectQueryParams& ObjectQueryParams,
                                                             const FCollisionQueryParams& Params,
@@ -1149,16 +1159,16 @@ int UPawProjectileMovementComponent::AsyncSweepByObjectType(AActor* Actor, EAsyn
 // Unified Async Sweep Handlers (New System)
 // ============================================================================
 
-bool UPawProjectileMovementComponent::StartUnifiedAsyncSweep(EAsyncSweepType SweepType, AActor* ActorOwner,
-                                                             EAsyncTraceType TraceType,
-                                                             const FVector& Start, const FVector& End,
-                                                             const FQuat& Rotation,
-                                                             const FCollisionObjectQueryParams& ObjectQueryParams,
-                                                             const FCollisionQueryParams& QueryParams,
-                                                             float MoveDistance,
-                                                             const FVector& Direction, const FQuat& RelativeQuat,
-                                                             const FVector& MoveDelta, float SubTickTimeRemaining,
-                                                             const FVector& OldHitNormal)
+bool UPawProjectileMovementComponent::StartAsyncSweep(EAsyncSweepType SweepType, AActor* ActorOwner,
+                                                      EAsyncTraceType TraceType,
+                                                      const FVector& Start, const FVector& End,
+                                                      const FQuat& Rotation,
+                                                      const FCollisionObjectQueryParams& ObjectQueryParams,
+                                                      const FCollisionQueryParams& QueryParams,
+                                                      float MoveDistance,
+                                                      const FVector& Direction, const FQuat& RelativeQuat,
+                                                      const FVector& MoveDelta, float SubTickTimeRemaining,
+                                                      const FVector& OldHitNormal)
 {
 	// Validate state before starting
 	if (!ValidateAsyncSweepState())
@@ -1173,138 +1183,207 @@ bool UPawProjectileMovementComponent::StartUnifiedAsyncSweep(EAsyncSweepType Swe
 		return false;
 	}
 
-	// Check if another async operation is already active
-	if (bUnifiedAsyncOperationActive)
-	{
-		HandleAsyncSweepError(TEXT("Another async operation is already active"), SweepType);
-		return false;
-	}
 
 	// Reset and configure unified data with provided parameters
-	UnifiedAsyncSweepData.Reset();
-	UnifiedAsyncSweepData.SweepType = SweepType;
-	UnifiedAsyncSweepData.Direction = Direction;
-	UnifiedAsyncSweepData.MoveDistance = MoveDistance;
-	UnifiedAsyncSweepData.HitMinDistance = MoveDistance;
-	UnifiedAsyncSweepData.MoveDelta = MoveDelta;
-	UnifiedAsyncSweepData.RelativeQuat = RelativeQuat;
-	UnifiedAsyncSweepData.SubTickTimeRemaining = SubTickTimeRemaining;
-	UnifiedAsyncSweepData.OldHitNormal = OldHitNormal;
-
-	// Bind unified delegate if not already bound
-	if (!UnifiedAsyncSweepDelegate.IsBound())
+	switch (SweepType)
 	{
-		UnifiedAsyncSweepDelegate.BindUObject(this, &ThisClass::HandleUnifiedAsyncSweepResult);
+	case EAsyncSweepType::Movement:
+		MovementAsyncSweepData.Reset();
+		MovementAsyncSweepData.SweepType = SweepType;
+		MovementAsyncSweepData.Direction = Direction;
+		MovementAsyncSweepData.MoveDistance = MoveDistance;
+		MovementAsyncSweepData.HitMinDistance = MoveDistance;
+		MovementAsyncSweepData.MoveDelta = MoveDelta;
+		MovementAsyncSweepData.RelativeQuat = RelativeQuat;
+		MovementAsyncSweepData.SubTickTimeRemaining = SubTickTimeRemaining;
+		MovementAsyncSweepData.OldHitNormal = OldHitNormal;
+		break;
+	case EAsyncSweepType::Sliding:
+		SlideAsyncSweepData.Reset();
+		SlideAsyncSweepData.SweepType = SweepType;
+		SlideAsyncSweepData.Direction = Direction;
+		SlideAsyncSweepData.MoveDistance = MoveDistance;
+		SlideAsyncSweepData.HitMinDistance = MoveDistance;
+		SlideAsyncSweepData.MoveDelta = MoveDelta;
+		SlideAsyncSweepData.RelativeQuat = RelativeQuat;
+		SlideAsyncSweepData.SubTickTimeRemaining = SubTickTimeRemaining;
+		SlideAsyncSweepData.OldHitNormal = OldHitNormal;
+		break;
+	case EAsyncSweepType::Bounce:
+		BounceAsyncSweepData.Reset();
+		BounceAsyncSweepData.SweepType = SweepType;
+		BounceAsyncSweepData.Direction = Direction;
+		BounceAsyncSweepData.MoveDistance = MoveDistance;
+		BounceAsyncSweepData.HitMinDistance = MoveDistance;
+		BounceAsyncSweepData.MoveDelta = MoveDelta;
+		BounceAsyncSweepData.RelativeQuat = RelativeQuat;
+		BounceAsyncSweepData.SubTickTimeRemaining = SubTickTimeRemaining;
+		BounceAsyncSweepData.OldHitNormal = OldHitNormal;
+		break;
 	}
 
+	if (!AsyncMovementSweepDelegate.IsBound())
+	{
+		AsyncMovementSweepDelegate.BindUObject(this, &ThisClass::HandleMovementSweepResult);
+	}
+	if (!AsyncSlideSweepDelegate.IsBound())
+	{
+		AsyncSlideSweepDelegate.BindUObject(this, &ThisClass::HandleSlideSweepResult);
+	}
+	if (!AsyncBounceSweepDelegate.IsBound())
+	{
+		AsyncBounceSweepDelegate.BindUObject(this, &ThisClass::HandleBounceSweepResult);
+	}
+
+
+	int SweepCount = 0;
 	// Start the async sweep
-	const int32 SweepCount = AsyncSweepByObjectType(ActorOwner, TraceType,
-	                                                Start, End, Rotation,
-	                                                ObjectQueryParams, QueryParams,
-	                                                &UnifiedAsyncSweepDelegate);
-
-	if (SweepCount > 0)
+	switch (SweepType)
 	{
-		UnifiedAsyncSweepData.SweepCount += SweepCount;
-		bUnifiedAsyncOperationActive = true;
-		UnifiedAsyncOperationStartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-		return true;
+	case EAsyncSweepType::Movement:
+		SweepCount = AsyncSweepByObjectType(ActorOwner, TraceType,
+		                                    Start, End, Rotation,
+		                                    ObjectQueryParams, QueryParams,
+		                                    &AsyncMovementSweepDelegate);
+		MovementAsyncSweepData.SweepCount += SweepCount;
+		break;
+	case EAsyncSweepType::Sliding:
+		SweepCount = AsyncSweepByObjectType(ActorOwner, TraceType,
+		                                    Start, End, Rotation,
+		                                    ObjectQueryParams, QueryParams,
+		                                    &AsyncSlideSweepDelegate);
+		SlideAsyncSweepData.SweepCount += SweepCount;
+		break;
+	case EAsyncSweepType::Bounce:
+		SweepCount = AsyncSweepByObjectType(ActorOwner, TraceType,
+		                                    Start, End, Rotation,
+		                                    ObjectQueryParams, QueryParams,
+		                                    &AsyncBounceSweepDelegate);
+		BounceAsyncSweepData.SweepCount += SweepCount;
+		break;
 	}
-	HandleAsyncSweepError(TEXT("Failed to start async sweep operation"), SweepType);
-	return false;
+
+	if (SweepCount <= 0)
+	{
+		HandleAsyncSweepError(TEXT("Failed to start async sweep operation"), SweepType);
+		return false;
+	}
+	return true;
 }
 
-void UPawProjectileMovementComponent::HandleUnifiedAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data)
+
+void UPawProjectileMovementComponent::UpdateSweepDataHit(FAsyncSweepData* SweepData, const FHitResult& Hit)
+{
+	if (SweepData->HitMinDistance > Hit.Distance)
+	{
+		SweepData->HitMinDistance = Hit.Distance;
+		SweepData->HitCount++;
+		SweepData->HitResult = Hit;
+
+		// Store type-specific hit data using optimized approach
+		if (SweepData->IsMovementType())
+		{
+			SweepData->HitImpactNormal = Hit.ImpactNormal;
+		}
+	}
+}
+
+void UPawProjectileMovementComponent::HandleMovementSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data)
 {
 	// Validate state before processing results
 	if (!ValidateAsyncSweepState())
 	{
 		HandleAsyncSweepError(
-			TEXT("Invalid state during async sweep result processing"), UnifiedAsyncSweepData.SweepType);
+			TEXT("Invalid state during async sweep result processing"), MovementAsyncSweepData.SweepType);
 		return;
 	}
 
 	// Process hits based on sweep type
 	for (const FHitResult& Hit : Data.OutHits)
 	{
-		bool bShouldProcessHit = true;
-
-		// Type-specific hit filtering using optimized approach
-		if (!UnifiedAsyncSweepData.IsMovementType())
-		{
-			// For sliding and bounce types, skip hits with same normal as previous hit
-			if (UnifiedAsyncSweepData.OldHitNormal == ConstrainDirectionToPlane(Hit.Normal))
-			{
-				bShouldProcessHit = false;
-			}
-		}
 		// Movement type accepts all hits (no additional filtering needed)
-
-		if (bShouldProcessHit && UnifiedAsyncSweepData.HitMinDistance > Hit.Distance)
-		{
-			UnifiedAsyncSweepData.HitMinDistance = Hit.Distance;
-			UnifiedAsyncSweepData.HitCount++;
-			UnifiedAsyncSweepData.HitResult = Hit;
-
-			// Store type-specific hit data using optimized approach
-			if (UnifiedAsyncSweepData.IsMovementType())
-			{
-				UnifiedAsyncSweepData.HitImpactNormal = Hit.ImpactNormal;
-			}
-		}
+		UpdateSweepDataHit(&MovementAsyncSweepData, Hit);
 	}
 
-	UnifiedAsyncSweepData.SweepCount--;
-	if (UnifiedAsyncSweepData.SweepCount <= 0)
+	MovementAsyncSweepData.SweepCount--;
+	if (MovementAsyncSweepData.SweepCount <= 0)
 	{
-		HandleUnifiedAsyncSweepCompleted();
+		HandleMovementSweepCompleted();
 	}
 }
 
-void UPawProjectileMovementComponent::HandleUnifiedAsyncSweepCompleted()
+void UPawProjectileMovementComponent::HandleSlideSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data)
 {
-	// Mark operation as no longer active
-	bUnifiedAsyncOperationActive = false;
-
-	// Validate state before processing
+	// Validate state before processing results
 	if (!ValidateAsyncSweepState())
 	{
-		HandleAsyncSweepError(TEXT("Invalid state during async sweep completion"), UnifiedAsyncSweepData.SweepType);
+		HandleAsyncSweepError(
+			TEXT("Invalid state during async sweep result processing"), MovementAsyncSweepData.SweepType);
 		return;
 	}
 
+	// For sliding and bounce types, skip hits with same normal as previous hit
+	for (const FHitResult& Hit : Data.OutHits)
+	{
+		if (SlideAsyncSweepData.OldHitNormal == ConstrainDirectionToPlane(Hit.Normal))
+		{
+			continue;
+		}
+
+		UpdateSweepDataHit(&SlideAsyncSweepData, Hit);
+	}
+
+	SlideAsyncSweepData.SweepCount--;
+	if (SlideAsyncSweepData.SweepCount <= 0)
+	{
+		HandleSlideSweepCompleted();
+	}
+}
+
+void UPawProjectileMovementComponent::HandleBounceSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data)
+{
+	// Validate state before processing results
+	if (!ValidateAsyncSweepState())
+	{
+		HandleAsyncSweepError(
+			TEXT("Invalid state during async sweep result processing"), MovementAsyncSweepData.SweepType);
+		return;
+	}
+
+	// For sliding and bounce types, skip hits with same normal as previous hit
+	for (const FHitResult& Hit : Data.OutHits)
+	{
+		if (BounceAsyncSweepData.OldHitNormal == ConstrainDirectionToPlane(Hit.Normal))
+		{
+			continue;
+		}
+
+		UpdateSweepDataHit(&BounceAsyncSweepData, Hit);
+	}
+
+	BounceAsyncSweepData.SweepCount--;
+	if (BounceAsyncSweepData.SweepCount <= 0)
+	{
+		HandleBounceSweepCompleted();
+	}
+}
+
+void UPawProjectileMovementComponent::HandleMovementSweepCompleted()
+{
 	AActor* ActorOwner = UpdatedComponent->GetOwner();
 	if (!IsValid(ActorOwner))
 	{
-		HandleAsyncSweepError(TEXT("Invalid ActorOwner during completion"), UnifiedAsyncSweepData.SweepType);
+		HandleAsyncSweepError(TEXT("Invalid ActorOwner during completion"), MovementAsyncSweepData.SweepType);
 		return;
 	}
-
-	// Delegate to type-specific completion logic using optimized approach
-	if (UnifiedAsyncSweepData.IsMovementType())
-	{
-		HandleUnifiedMovementCompleted(ActorOwner);
-	}
-	else if (UnifiedAsyncSweepData.IsSlidingType())
-	{
-		HandleUnifiedSlidingCompleted(ActorOwner);
-	}
-	else if (UnifiedAsyncSweepData.IsBounceType())
-	{
-		HandleUnifiedBounceCompleted(ActorOwner);
-	}
-}
-
-void UPawProjectileMovementComponent::HandleUnifiedMovementCompleted(AActor* ActorOwner)
-{
 	auto NewTransform = ActorOwner->GetActorTransform();
-	auto NewLocation = NewTransform.GetLocation() + UnifiedAsyncSweepData.Direction * UnifiedAsyncSweepData.
+	auto NewLocation = NewTransform.GetLocation() + MovementAsyncSweepData.Direction * MovementAsyncSweepData.
 		HitMinDistance;
-	const auto NewRotation = NewTransform.GetRotation() * UnifiedAsyncSweepData.RelativeQuat;
+	const auto NewRotation = NewTransform.GetRotation() * MovementAsyncSweepData.RelativeQuat;
 	NewTransform.SetLocation(NewLocation);
 	NewTransform.SetRotation(NewRotation);
 
-	if (!UnifiedAsyncSweepData.HasHits())
+	if (!MovementAsyncSweepData.HasHits())
 	{
 		// No hits - free movement
 		PreviousHitTime = 1.f;
@@ -1316,6 +1395,8 @@ void UPawProjectileMovementComponent::HandleUnifiedMovementCompleted(AActor* Act
 		}
 
 		ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
+		UE_LOG(LogTemp, Warning, TEXT(" Projectile %s: No hits during async sweep, free movement"),
+		       *GetNameSafe(ActorOwner));
 		UpdateComponentVelocity();
 	}
 	else
@@ -1323,10 +1404,10 @@ void UPawProjectileMovementComponent::HandleUnifiedMovementCompleted(AActor* Act
 		// Hit detected - handle collision
 		// Extract all Movement sweep data into local variables BEFORE calling HandleDeflection
 		// to prevent race condition when HandleDeflection starts new async sweeps
-		FHitResult Hit = UnifiedAsyncSweepData.HitResult; // Copy, not reference
+		FHitResult Hit = MovementAsyncSweepData.HitResult; // Copy, not reference
 		const float HitTime = Hit.Time;
-		const FVector MoveDelta = UnifiedAsyncSweepData.MoveDelta; // Copy, not reference
-		const FQuat MovementRelativeQuat = UnifiedAsyncSweepData.RelativeQuat; // Store for deflection
+		const FVector MoveDelta = MovementAsyncSweepData.MoveDelta; // Copy, not reference
+		const FQuat MovementRelativeQuat = MovementAsyncSweepData.RelativeQuat; // Store for deflection
 
 		if (Velocity == OldVelocity)
 		{
@@ -1352,7 +1433,7 @@ void UPawProjectileMovementComponent::HandleUnifiedMovementCompleted(AActor* Act
 		{
 			// Temporarily store the Movement RelativeQuat for HandleDeflection to use
 			// This prevents race condition when HandleDeflection starts Bounce/Sliding sweeps
-			UnifiedAsyncSweepData.RelativeQuat = MovementRelativeQuat;
+			MovementAsyncSweepData.RelativeQuat = MovementRelativeQuat;
 
 			if (!HandleDeflection(Hit, SubTickTimeRemaining))
 			{
@@ -1378,9 +1459,15 @@ void UPawProjectileMovementComponent::HandleUnifiedMovementCompleted(AActor* Act
 	}
 }
 
-void UPawProjectileMovementComponent::HandleUnifiedSlidingCompleted(AActor* ActorOwner)
+void UPawProjectileMovementComponent::HandleSlideSweepCompleted()
 {
-	const auto& SweepData = UnifiedAsyncSweepData;
+	AActor* ActorOwner = UpdatedComponent->GetOwner();
+	if (!IsValid(ActorOwner))
+	{
+		HandleAsyncSweepError(TEXT("Invalid ActorOwner during completion"), MovementAsyncSweepData.SweepType);
+		return;
+	}
+	const auto& SweepData = SlideAsyncSweepData;
 
 	if (!SweepData.HasHits())
 	{
@@ -1433,7 +1520,7 @@ void UPawProjectileMovementComponent::HandleUnifiedSlidingCompleted(AActor* Acto
 	else
 	{
 		// Hit detected during sliding - handle collision
-		FHitResult& Hit = UnifiedAsyncSweepData.HitResult;
+		FHitResult& Hit = MovementAsyncSweepData.HitResult;
 		const float TimeTick = SweepData.SubTickTimeRemaining;
 		float SubTickTimeRemaining = TimeTick * (1.f - Hit.Time);
 
@@ -1445,9 +1532,15 @@ void UPawProjectileMovementComponent::HandleUnifiedSlidingCompleted(AActor* Acto
 	}
 }
 
-void UPawProjectileMovementComponent::HandleUnifiedBounceCompleted(AActor* ActorOwner)
+void UPawProjectileMovementComponent::HandleBounceSweepCompleted()
 {
-	const auto& SweepData = UnifiedAsyncSweepData;
+	AActor* ActorOwner = UpdatedComponent->GetOwner();
+	if (!IsValid(ActorOwner))
+	{
+		HandleAsyncSweepError(TEXT("Invalid ActorOwner during completion"), MovementAsyncSweepData.SweepType);
+		return;
+	}
+	const auto& SweepData = BounceAsyncSweepData;
 	auto NewTransform = ActorOwner->GetActorTransform();
 	auto NewLocation = NewTransform.GetLocation() + SweepData.Direction * SweepData.HitMinDistance;
 	const auto NewRotation = NewTransform.GetRotation() * SweepData.RelativeQuat;
@@ -1549,12 +1642,14 @@ bool UPawProjectileMovementComponent::ValidateAsyncSweepState() const
 	// Check if component is in valid state for async operations
 	if (!IsValid(UpdatedComponent))
 	{
+		UE_LOG(LogTemp, Warning, TEXT(" ProjectileMovementComponent is not valid or UpdatedComponent is null!"));
 		return false;
 	}
 
 	AActor* ActorOwner = UpdatedComponent->GetOwner();
 	if (!IsValid(ActorOwner))
 	{
+		UE_LOG(LogTemp, Warning, TEXT(" ProjectileMovementComponent has no valid ActorOwner!"));
 		return false;
 	}
 
@@ -1562,24 +1657,17 @@ bool UPawProjectileMovementComponent::ValidateAsyncSweepState() const
 	const UWorld* World = ActorOwner->GetWorld();
 	if (!IsValid(World) || !World->IsGameWorld())
 	{
+		UE_LOG(LogTemp, Warning, TEXT("	ProjectileMovementComponent's world is not valid or not a game world!"));
 		return false;
 	}
 
 	// Check for simulation state
 	if (HasStoppedSimulation())
 	{
+		UE_LOG(LogTemp, Warning, TEXT(" ProjectileMovementComponent has stopped simulation!"));
 		return false;
 	}
 
-	// Check for timeout in async operations
-	if (bUnifiedAsyncOperationActive)
-	{
-		const float CurrentTime = World->GetTimeSeconds();
-		if (CurrentTime - UnifiedAsyncOperationStartTime > MaxAsyncOperationTime)
-		{
-			return false; // Operation timed out
-		}
-	}
 
 	return true;
 }
@@ -1603,8 +1691,6 @@ void UPawProjectileMovementComponent::HandleAsyncSweepError(const FString& Error
 
 	UE_LOG(LogTemp, Error, TEXT("Async Sweep Error [%s]: %s"), SweepTypeStr, *ErrorMessage);
 
-	// Reset the operation state
-	ResetAsyncSweepState(SweepType);
 
 	// Try to recover by stopping simulation if needed
 	if (!CheckStillInWorld())
@@ -1619,57 +1705,36 @@ void UPawProjectileMovementComponent::ResetAsyncSweepState(EAsyncSweepType Sweep
 	switch (SweepType)
 	{
 	case EAsyncSweepType::Movement:
+		MovementAsyncSweepData.Reset();
+		break;
 	case EAsyncSweepType::Sliding:
+		SlideAsyncSweepData.Reset();
+		break;
 	case EAsyncSweepType::Bounce:
-		// Reset unified state
-		UnifiedAsyncSweepData.Reset();
-		bUnifiedAsyncOperationActive = false;
-		UnifiedAsyncOperationStartTime = 0.0f;
+		BounceAsyncSweepData.Reset();
 		break;
 	}
 
 	// Clear any pending delegates to prevent stale callbacks
-	if (UnifiedAsyncSweepDelegate.IsBound())
+	if (AsyncMovementSweepDelegate.IsBound())
 	{
-		UnifiedAsyncSweepDelegate.Unbind();
+		AsyncMovementSweepDelegate.Unbind();
+	}
+	if (AsyncSlideSweepDelegate.IsBound())
+	{
+		AsyncSlideSweepDelegate.Unbind();
+	}
+	if (AsyncBounceSweepDelegate.IsBound())
+	{
+		AsyncBounceSweepDelegate.Unbind();
 	}
 }
 
 
 bool UPawProjectileMovementComponent::IsAllAsyncSweepingCompleted() const
 {
-	return IsUnifiedAsyncSweepCompleted();
-}
-
-bool UPawProjectileMovementComponent::IsUnifiedAsyncSweepCompleted() const
-{
-	// Return true if no unified async operation is active or if sweep count is zero
-	return !bUnifiedAsyncOperationActive || UnifiedAsyncSweepData.SweepCount <= 0;
-}
-
-void UPawProjectileMovementComponent::CheckAndHandleAsyncTimeouts()
-{
-	if (!bUnifiedAsyncOperationActive)
-	{
-		return;
-	}
-
-	UWorld* World = GetWorld();
-	if (!IsValid(World))
-	{
-		return;
-	}
-
-	const float CurrentTime = World->GetTimeSeconds();
-	const float OperationDuration = CurrentTime - UnifiedAsyncOperationStartTime;
-
-	if (OperationDuration > MaxAsyncOperationTime)
-	{
-		// Operation has timed out
-		const FString TimeoutMessage = FString::Printf(
-			TEXT("Async operation timed out after %.2f seconds"), OperationDuration);
-		HandleAsyncSweepError(TimeoutMessage, UnifiedAsyncSweepData.SweepType);
-	}
+	return MovementAsyncSweepData.SweepCount <= 0 && SlideAsyncSweepData.SweepCount <= 0
+		&& BounceAsyncSweepData.SweepCount <= 0;
 }
 
 // ============================================================================

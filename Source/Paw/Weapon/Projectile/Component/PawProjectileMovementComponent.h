@@ -10,6 +10,72 @@
 struct FHitResult;
 
 
+enum class EAsyncSweepType : uint8
+{
+	Movement,
+	Sliding,
+	Bounce
+};
+
+// Async Sweep Data Structures
+struct FAsyncSweepData
+{
+	FAsyncSweepData() { Reset(); }
+
+	void Reset()
+	{
+		// Reset in order of memory layout for better cache performance
+		SweepType = EAsyncSweepType::Movement;
+		SweepCount = 0;
+		HitCount = 0;
+		MoveDistance = 0.0;
+		HitMinDistance = 0.0;
+		SubTickTimeRemaining = 0.0f;
+
+		// Reset vectors together for cache locality
+		Direction = FVector::ZeroVector;
+		MoveDelta = FVector::ZeroVector;
+		OldHitNormal = FVector::ZeroVector;
+		HitImpactNormal = FVector::ZeroVector;
+
+		// Reset quaternion and hit results last
+		RelativeQuat = FQuat::Identity;
+		HitResult = FHitResult();
+		InitialHit = FHitResult();
+	}
+
+	// Memory layout optimized for cache efficiency (frequently accessed fields first)
+
+	// Type and counters (most frequently accessed - 16 bytes)
+	EAsyncSweepType SweepType;
+	int32 SweepCount;
+	int32 HitCount;
+	float SubTickTimeRemaining; // After hit, the remain time to process the next sub-tick
+
+	// Distance fields (frequently accessed together - 16 bytes)
+	double MoveDistance;
+	double HitMinDistance;
+
+	// Vector fields (accessed together - 48 bytes)
+	FVector Direction;
+	FVector MoveDelta;
+	FVector OldHitNormal;
+	FVector HitImpactNormal;
+
+	// Quaternion (16 bytes)
+	FQuat RelativeQuat;
+
+	// Hit results (large structures, accessed less frequently)
+	FHitResult HitResult;
+	FHitResult InitialHit;
+
+	// Helper methods for common operations
+	FORCEINLINE bool HasHits() const { return HitCount > 0; }
+	FORCEINLINE bool IsMovementType() const { return SweepType == EAsyncSweepType::Movement; }
+	FORCEINLINE bool IsSlidingType() const { return SweepType == EAsyncSweepType::Sliding; }
+	FORCEINLINE bool IsBounceType() const { return SweepType == EAsyncSweepType::Bounce; }
+};
+
 /**
  * This component handles the movement of projectiles in the game base on UProjectileMovementComponent but with asynchronous sweeps for penetration handling and not use USceneComponent->MoveComponent() function.
  */
@@ -46,6 +112,8 @@ public: // Blueprint-Callable API
 	/** Clears the reference to UpdatedComponent, fires stop event (OnProjectileStop), and stops ticking (if bAutoUpdateTickRegistration is true). */
 	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement")
 	virtual void StopSimulating(const FHitResult& HitResult);
+
+	void StartSimulating(const FVector& InitialVelocity);
 
 	/** Don't allow velocity magnitude to exceed MaxSpeed, if MaxSpeed is non-zero. */
 	UFUNCTION(BlueprintCallable, Category="Game|Components|ProjectileMovement")
@@ -131,12 +199,6 @@ public: // C++ Public Helpers
 
 public: // Async Sweep Types
 
-	enum class EAsyncSweepType : uint8
-	{
-		Movement,
-		Sliding,
-		Bounce
-	};
 
 public: // Properties
 
@@ -516,7 +578,7 @@ private: // Internal Helper Methods
 
 	// Async Sweep System
 	static int AsyncSweepByObjectType(
-		AActor* Actor,
+		const AActor* Actor,
 		EAsyncTraceType InTraceType,
 		const FVector& Start,
 		const FVector& End,
@@ -526,32 +588,31 @@ private: // Internal Helper Methods
 		const FTraceDelegate* InDelegate = nullptr,
 		uint32 UserData = 0);
 
-	// Unified Async Handlers (new system)
-	void HandleUnifiedAsyncSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
-	void HandleUnifiedAsyncSweepCompleted();
-
-	bool StartUnifiedAsyncSweep(EAsyncSweepType SweepType, AActor* ActorOwner, EAsyncTraceType TraceType,
+	// Async Handlers
+	void HandleMovementSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
+	void HandleSlideSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
+	void HandleBounceSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
+	void UpdateSweepDataHit(FAsyncSweepData* SweepData, const FHitResult& Hit);
+	
+	bool StartAsyncSweep(EAsyncSweepType SweepType, AActor* ActorOwner, EAsyncTraceType TraceType,
 	                            const FVector& Start, const FVector& End, const FQuat& Rotation,
 	                            const FCollisionObjectQueryParams& ObjectQueryParams,
 	                            const FCollisionQueryParams& QueryParams, float MoveDistance,
 	                            const FVector& Direction, const FQuat& RelativeQuat,
 	                            const FVector& MoveDelta, float SubTickTimeRemaining = 0.0f,
 	                            const FVector& OldHitNormal = FVector::ZeroVector);
+	
 
 	// Type-specific completion handlers
-	void HandleUnifiedMovementCompleted(AActor* ActorOwner);
-	void HandleUnifiedSlidingCompleted(AActor* ActorOwner);
-	void HandleUnifiedBounceCompleted(AActor* ActorOwner);
+	void HandleMovementSweepCompleted();
+	void HandleSlideSweepCompleted();
+	void HandleBounceSweepCompleted();
 
 	// Error handling and validation
 	bool ValidateAsyncSweepState() const;
 	void HandleAsyncSweepError(const FString& ErrorMessage, EAsyncSweepType SweepType);
 	void ResetAsyncSweepState(EAsyncSweepType SweepType);
-
-
 	bool IsAllAsyncSweepingCompleted() const;
-	bool IsUnifiedAsyncSweepCompleted() const;
-	void CheckAndHandleAsyncTimeouts();
 
 private: // Cached State & Internal Data
 
@@ -571,73 +632,14 @@ private: // Cached State & Internal Data
 	/** Minimum delta time considered when ticking. Delta times below this are not considered. This is a very small non-zero positive value to avoid potential divide-by-zero in simulation code. */
 	static const float MIN_TICK_TIME;
 
-	// Async Sweep Data Structures
-	struct FUnifiedAsyncSweepData
-	{
-		FUnifiedAsyncSweepData() { Reset(); }
 
-		void Reset()
-		{
-			// Reset in order of memory layout for better cache performance
-			SweepType = EAsyncSweepType::Movement;
-			SweepCount = 0;
-			HitCount = 0;
-			MoveDistance = 0.0;
-			HitMinDistance = 0.0;
-			SubTickTimeRemaining = 0.0f;
-
-			// Reset vectors together for cache locality
-			Direction = FVector::ZeroVector;
-			MoveDelta = FVector::ZeroVector;
-			OldHitNormal = FVector::ZeroVector;
-			HitImpactNormal = FVector::ZeroVector;
-
-			// Reset quaternion and hit results last
-			RelativeQuat = FQuat::Identity;
-			HitResult = FHitResult();
-			InitialHit = FHitResult();
-		}
-
-		// Memory layout optimized for cache efficiency (frequently accessed fields first)
-
-		// Type and counters (most frequently accessed - 16 bytes)
-		EAsyncSweepType SweepType;
-		int32 SweepCount;
-		int32 HitCount;
-		float SubTickTimeRemaining; // Moved up for better packing
-
-		// Distance fields (frequently accessed together - 16 bytes)
-		double MoveDistance;
-		double HitMinDistance;
-
-		// Vector fields (accessed together - 48 bytes)
-		FVector Direction;
-		FVector MoveDelta;
-		FVector OldHitNormal;
-		FVector HitImpactNormal;
-
-		// Quaternion (16 bytes)
-		FQuat RelativeQuat;
-
-		// Hit results (large structures, accessed less frequently)
-		FHitResult HitResult;
-		FHitResult InitialHit;
-
-		// Helper methods for common operations
-		FORCEINLINE bool HasHits() const { return HitCount > 0; }
-		FORCEINLINE bool IsMovementType() const { return SweepType == EAsyncSweepType::Movement; }
-		FORCEINLINE bool IsSlidingType() const { return SweepType == EAsyncSweepType::Sliding; }
-		FORCEINLINE bool IsBounceType() const { return SweepType == EAsyncSweepType::Bounce; }
-	};
-
-	// Unified async sweep data (new system)
-	FUnifiedAsyncSweepData UnifiedAsyncSweepData;
-	FTraceDelegate UnifiedAsyncSweepDelegate;
-
-	// Async operation tracking
-	bool bUnifiedAsyncOperationActive;
-	float UnifiedAsyncOperationStartTime;
-	static constexpr float MaxAsyncOperationTime = 5.0f; // 5 second timeout
+	// Async sweep data 
+	FAsyncSweepData MovementAsyncSweepData;
+	FAsyncSweepData SlideAsyncSweepData;
+	FAsyncSweepData BounceAsyncSweepData;
+	FTraceDelegate AsyncMovementSweepDelegate;
+	FTraceDelegate AsyncSlideSweepDelegate;
+	FTraceDelegate AsyncBounceSweepDelegate;
 
 	float CurrentTimeTick;
 	FVector OldVelocity;
