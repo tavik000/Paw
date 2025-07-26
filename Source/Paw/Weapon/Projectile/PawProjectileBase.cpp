@@ -116,13 +116,42 @@ void APawProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor,
 void APawProjectileBase::OnPoolActivate(const FVector& Location, const FRotator& Rotation,
 	const FActorSpawnParameters& SpawnParameters)
 {
-	UE_LOG(LogTemp, Warning, TEXT(" Activating pooled projectile: %s at location: %s, rotation: %s"),
-		*GetName(), *Location.ToString(), *Rotation.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("PawProjectileBase: OnPoolActivate called for %s"), *GetName());
+	UE_LOG(LogTemp, Warning, TEXT("  - Location: %s"), *Location.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("  - Rotation: %s"), *Rotation.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("  - HasAuthority: %s"), HasAuthority() ? TEXT("Yes") : TEXT("No"));
+	
 	// Recalculate projectile velocity based on rotation
 	if (UPawProjectileMovementComponent* MovementComp = GetProjectileMovement())
 	{
-		MovementComp->StartSimulating(GetActorForwardVector() * MovementComp->InitialSpeed);
+		UE_LOG(LogTemp, Warning, TEXT("  - Movement component found: %s"), *MovementComp->GetName());
+		UE_LOG(LogTemp, Warning, TEXT("  - Initial speed: %f"), MovementComp->InitialSpeed);
+		UE_LOG(LogTemp, Warning, TEXT("  - Actor forward vector: %s"), *GetActorForwardVector().ToString());
+		
+		// Ensure the movement component has the correct UpdatedComponent
+		if (CollisionComp)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("  - Setting UpdatedComponent to CollisionComp: %s"), *CollisionComp->GetName());
+			MovementComp->SetUpdatedComponent(CollisionComp);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("  - CollisionComp is null!"));
+		}
+		
+		// Calculate velocity based on spawn rotation, not actor forward (which might be wrong for pooled actors)
+		FVector InitialVelocity = Rotation.Vector() * MovementComp->InitialSpeed;
+		UE_LOG(LogTemp, Warning, TEXT("  - Calculated initial velocity: %s"), *InitialVelocity.ToString());
+		
+		MovementComp->StartSimulating(InitialVelocity);
+		UE_LOG(LogTemp, Warning, TEXT("  - StartSimulating called"));
 	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("  - No movement component found!"));
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("PawProjectileBase: OnPoolActivate completed"));
 }
 
 void APawProjectileBase::OnPoolDeactivate()

@@ -22,6 +22,8 @@ const float UPawProjectileMovementComponent::MIN_TICK_TIME = 1e-6f;
 UPawProjectileMovementComponent::UPawProjectileMovementComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	UE_LOG(LogTemp, Warning, TEXT("PawProjectileMovementComponent: Constructor called"));
+	
 	bUpdateOnlyIfRendered = false;
 	bInitialVelocityInLocalSpace = true;
 	bSimulationEnabled = true;
@@ -95,19 +97,29 @@ void UPawProjectileMovementComponent::PostLoad()
 
 void UPawProjectileMovementComponent::InitializeComponent()
 {
+	UE_LOG(LogTemp, Warning, TEXT("PawProjectileMovementComponent: InitializeComponent called"));
+	UE_LOG(LogTemp, Warning, TEXT("  - UpdatedComponent valid: %s"), UpdatedComponent ? TEXT("Yes") : TEXT("No"));
+	UE_LOG(LogTemp, Warning, TEXT("  - bSimulationEnabled: %s"), bSimulationEnabled ? TEXT("Yes") : TEXT("No"));
+	UE_LOG(LogTemp, Warning, TEXT("  - Initial Velocity: %s"), *Velocity.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("  - Component tick enabled: %s"), IsComponentTickEnabled() ? TEXT("Yes") : TEXT("No"));
+	
 	Super::InitializeComponent();
 
 	if (Velocity.SizeSquared() > 0.f)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("  - Velocity has magnitude, proceeding with initialization"));
+		
 		// InitialSpeed > 0 overrides initial velocity magnitude.
 		if (InitialSpeed > 0.f)
 		{
 			Velocity = Velocity.GetSafeNormal() * InitialSpeed;
+			UE_LOG(LogTemp, Warning, TEXT("  - Applied InitialSpeed, new velocity: %s"), *Velocity.ToString());
 		}
 
 		if (bInitialVelocityInLocalSpace)
 		{
 			SetVelocityInLocalSpace(Velocity);
+			UE_LOG(LogTemp, Warning, TEXT("  - Set velocity in local space"));
 		}
 
 		if (bRotationFollowsVelocity)
@@ -123,6 +135,11 @@ void UPawProjectileMovementComponent::InitializeComponent()
 				}
 
 				UpdatedComponent->SetWorldRotation(DesiredRotation);
+				UE_LOG(LogTemp, Warning, TEXT("  - Set rotation to follow velocity"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("  - Cannot set rotation, UpdatedComponent is null"));
 			}
 		}
 
@@ -131,8 +148,15 @@ void UPawProjectileMovementComponent::InitializeComponent()
 		if (UpdatedPrimitive && UpdatedPrimitive->IsSimulatingPhysics())
 		{
 			UpdatedPrimitive->SetPhysicsLinearVelocity(Velocity);
+			UE_LOG(LogTemp, Warning, TEXT("  - Set physics velocity"));
 		}
 	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("  - Velocity is zero, skipping initialization"));
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("PawProjectileMovementComponent: InitializeComponent completed"));
 }
 
 
@@ -297,7 +321,12 @@ void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AAc
 void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevelTick TickType,
                                                     FActorComponentTickFunction* ThisTickFunction)
 {
-	UE_LOG(LogTemp, Warning, TEXT(" ProjectileMovementComponent: TickComponent called with DeltaTime: %f"), DeltaTime);
+	UE_LOG(LogTemp, Warning, TEXT("PawProjectileMovementComponent: TickComponent START - DeltaTime: %f"), DeltaTime);
+	UE_LOG(LogTemp, Warning, TEXT("  - Owner: %s"), GetOwner() ? *GetOwner()->GetName() : TEXT("None"));
+	UE_LOG(LogTemp, Warning, TEXT("  - Component tick enabled: %s"), IsComponentTickEnabled() ? TEXT("Yes") : TEXT("No"));
+	UE_LOG(LogTemp, Warning, TEXT("  - UpdatedComponent valid: %s"), UpdatedComponent ? TEXT("Yes") : TEXT("No"));
+	UE_LOG(LogTemp, Warning, TEXT("  - bSimulationEnabled: %s"), bSimulationEnabled ? TEXT("Yes") : TEXT("No"));
+	
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_ProjectileMovementComponent_TickComponent);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(ProjectileMovement);
 
@@ -684,10 +713,27 @@ void UPawProjectileMovementComponent::StopSimulating(const FHitResult& HitResult
 
 void UPawProjectileMovementComponent::StartSimulating(const FVector& InitialVelocity)
 {
+	UE_LOG(LogTemp, Warning, TEXT("PawProjectileMovementComponent: StartSimulating called"));
+	UE_LOG(LogTemp, Warning, TEXT("  - InitialVelocity: %s"), *InitialVelocity.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("  - UpdatedComponent before: %s"), UpdatedComponent ? TEXT("Valid") : TEXT("Null"));
+	UE_LOG(LogTemp, Warning, TEXT("  - Component tick enabled before: %s"), IsComponentTickEnabled() ? TEXT("Yes") : TEXT("No"));
+	
+	// Enable simulation and set velocity
+	bSimulationEnabled = true;
 	Velocity = InitialVelocity;
 	UpdateComponentVelocity();
+	
+	// Enable component ticking
 	SetComponentTickEnabled(true);
-	SetUpdatedComponent(UpdatedComponent);
+	
+	// Don't call SetUpdatedComponent(UpdatedComponent) - that sets it to itself!
+	// UpdatedComponent should already be set by the projectile during construction/activation
+	
+	UE_LOG(LogTemp, Warning, TEXT("  - Final velocity: %s"), *Velocity.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("  - bSimulationEnabled: %s"), bSimulationEnabled ? TEXT("Yes") : TEXT("No"));
+	UE_LOG(LogTemp, Warning, TEXT("  - Component tick enabled after: %s"), IsComponentTickEnabled() ? TEXT("Yes") : TEXT("No"));
+	UE_LOG(LogTemp, Warning, TEXT("  - UpdatedComponent after: %s"), UpdatedComponent ? TEXT("Valid") : TEXT("Null"));
+	UE_LOG(LogTemp, Warning, TEXT("PawProjectileMovementComponent: StartSimulating completed"));
 }
 
 
