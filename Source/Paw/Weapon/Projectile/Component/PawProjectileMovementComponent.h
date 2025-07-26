@@ -641,11 +641,7 @@ private: // Cached State & Internal Data
 
 	int32 TotalBounceCount;
 	static constexpr int32 MaxTotalBounces = 10;
-
-	// Sliding Hysteresis System
-	float LastSlidingStateChangeTime;
-	static constexpr float SlidingHysteresisTime = 0.1f; // 100ms hysteresis to prevent rapid state changes
-
+	
 	// Projectile Collision Cooldown System
 	struct FProjectileCollisionCooldown
 	{

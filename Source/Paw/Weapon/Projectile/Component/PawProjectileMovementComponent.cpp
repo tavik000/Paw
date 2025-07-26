@@ -69,9 +69,6 @@ UPawProjectileMovementComponent::UPawProjectileMovementComponent(const FObjectIn
 	ConsecutiveCornerBounces = 0;
 	LastCornerBounceTime = 0.0f;
 	TotalBounceCount = 0;
-
-	// Initialize sliding hysteresis system
-	LastSlidingStateChangeTime = 0.0f;
 }
 
 
@@ -386,26 +383,20 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 
 	UE_LOG(LogTemp, Warning,
 	       TEXT(
-		       " Projectile %s: HandleDeflection called, SameHitNormal: %d, VelocityParallelToSurface: %d, bIsGroundSurface: %d, HitActor : %s"
+		       " Projectile %s: HandleDeflection called, SameHitNormal: %d, VelocityParallelToSurface: %d, bIsGroundSurface: %d, HitActor : %s, bNewSlidingState: %d, current bIsSliding: %d"
 	       ),
-	       *GetNameSafe(UpdatedComponent->GetOwner()), FVector::Coincident(PreviousHitNormal, Normal),
-	       bVelocityParallelToSurface, bIsGroundSurface, *GetNameSafe(Hit.GetActor()));
-
-
-	// Apply hysteresis to prevent rapid sliding state changes
-	const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
-	const float TimeSinceLastChange = CurrentTime - LastSlidingStateChangeTime;
+	       *GetNameSafe(UpdatedComponent->GetOwner()),
+	       FVector::Coincident(PreviousHitNormal, Normal),
+	       bVelocityParallelToSurface,
+	       bIsGroundSurface,
+	       *GetNameSafe(Hit.GetActor()),
+	       bNewSlidingState, bIsSliding);
 
 	if (bNewSlidingState != bIsSliding)
 	{
-		// Only change state if enough time has passed since last change
-		if (TimeSinceLastChange >= SlidingHysteresisTime)
-		{
-			bIsSliding = bNewSlidingState;
-			LastSlidingStateChangeTime = CurrentTime;
-			UE_LOG(LogTemp, Log, TEXT("Sliding state changed from %d to %d (hysteresis applied)"),
-			       !bNewSlidingState, bNewSlidingState);
-		}
+		bIsSliding = bNewSlidingState;
+		UE_LOG(LogTemp, Log, TEXT("Sliding state changed from %d to %d"),
+		       !bNewSlidingState, bNewSlidingState);
 	}
 
 
@@ -1335,7 +1326,8 @@ void UPawProjectileMovementComponent::HandleMovementSweepCompleted()
 		}
 
 		ActorOwner->SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
-		UE_LOG(LogTemp, Warning, TEXT(" Projectile %s: No hits during async sweep, free movement, Set bIsSliding to false"),
+		UE_LOG(LogTemp, Warning,
+		       TEXT(" Projectile %s: No hits during async sweep, free movement, Set bIsSliding to false"),
 		       *GetNameSafe(ActorOwner));
 		UpdateComponentVelocity();
 	}
@@ -1488,7 +1480,7 @@ void UPawProjectileMovementComponent::HandleBounceSweepCompleted()
 				Velocity = ComputeBounceResult(SweepData.HitResult, CurrentTimeTick, MoveDelta);
 				ConsecutiveCornerBounces = 0;
 				UpdateComponentVelocity();
-				
+
 				// Apply bounce physics
 				NewLocation = ActorOwner->GetActorLocation() + SweepData.Direction * SweepData.HitMinDistance;
 				NewTransform.SetLocation(NewLocation);
