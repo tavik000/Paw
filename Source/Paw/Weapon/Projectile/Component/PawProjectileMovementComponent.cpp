@@ -1253,8 +1253,6 @@ void UPawProjectileMovementComponent::HandleMovementSweepResult(const FTraceHand
 {
 	if (!ValidateAsyncSweepState())
 	{
-		HandleAsyncSweepError(
-			TEXT("Invalid state during async sweep result processing"), MovementAsyncSweepData.SweepType);
 		return;
 	}
 
@@ -1276,8 +1274,6 @@ void UPawProjectileMovementComponent::HandleBounceSweepResult(const FTraceHandle
 {
 	if (!ValidateAsyncSweepState())
 	{
-		HandleAsyncSweepError(
-			TEXT("Invalid state during async sweep result processing"), MovementAsyncSweepData.SweepType);
 		return;
 	}
 
@@ -1304,7 +1300,6 @@ void UPawProjectileMovementComponent::HandleMovementSweepCompleted()
 	AActor* ActorOwner = UpdatedComponent->GetOwner();
 	if (!IsValid(ActorOwner))
 	{
-		HandleAsyncSweepError(TEXT("Invalid ActorOwner during completion"), MovementAsyncSweepData.SweepType);
 		return;
 	}
 	auto NewTransform = ActorOwner->GetActorTransform();
@@ -1402,7 +1397,6 @@ void UPawProjectileMovementComponent::HandleBounceSweepCompleted()
 	AActor* ActorOwner = UpdatedComponent->GetOwner();
 	if (!IsValid(ActorOwner))
 	{
-		HandleAsyncSweepError(TEXT("Invalid ActorOwner during completion"), MovementAsyncSweepData.SweepType);
 		return;
 	}
 	const auto& SweepData = BounceAsyncSweepData;
@@ -1508,14 +1502,12 @@ bool UPawProjectileMovementComponent::ValidateAsyncSweepState() const
 	// Check if component is in valid state for async operations
 	if (!IsValid(UpdatedComponent))
 	{
-		UE_LOG(LogTemp, Warning, TEXT(" ProjectileMovementComponent is not valid or UpdatedComponent is null!"));
 		return false;
 	}
 
 	AActor* ActorOwner = UpdatedComponent->GetOwner();
 	if (!IsValid(ActorOwner))
 	{
-		UE_LOG(LogTemp, Warning, TEXT(" ProjectileMovementComponent has no valid ActorOwner!"));
 		return false;
 	}
 
