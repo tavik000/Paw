@@ -13,7 +13,6 @@ struct FHitResult;
 enum class EAsyncSweepType : uint8
 {
 	Movement,
-	Sliding,
 	Bounce
 };
 
@@ -72,7 +71,6 @@ struct FAsyncSweepData
 	// Helper methods for common operations
 	FORCEINLINE bool HasHits() const { return HitCount > 0; }
 	FORCEINLINE bool IsMovementType() const { return SweepType == EAsyncSweepType::Movement; }
-	FORCEINLINE bool IsSlidingType() const { return SweepType == EAsyncSweepType::Sliding; }
 	FORCEINLINE bool IsBounceType() const { return SweepType == EAsyncSweepType::Bounce; }
 };
 
@@ -89,6 +87,7 @@ public: // Constructor & Public Engine Overrides
 
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType,
 	                           FActorComponentTickFunction* ThisTickFunction) override;
+	bool HandleBouncing(const FHitResult& Hit, const float& SubTickTimeRemaining);
 	virtual void PostLoad() override;
 
 	virtual float GetMaxSpeed() const override { return MaxSpeed; }
@@ -488,8 +487,6 @@ protected: // Protected Helper Methods
 
 	// Tick Component Sub-Methods
 	bool TickInterpolationValidation(float DeltaTime);
-	bool TickAsyncSweepManagement(float DeltaTime);
-	void TickMovementQueueProcessing();
 	void TickPhysicsSimulation(float DeltaTime, AActor* ActorOwner);
 
 	// Physics & Collision Methods
@@ -571,11 +568,6 @@ protected: // Protected Helper Methods
 
 private: // Internal Helper Methods
 
-	// Movement Queue Management
-	void AddMovementToQueue(float DeltaTime);
-	void ProcessQueuedMovements();
-	void ClearMovementQueue();
-
 	// Async Sweep System
 	static int AsyncSweepByObjectType(
 		const AActor* Actor,
@@ -590,7 +582,6 @@ private: // Internal Helper Methods
 
 	// Async Handlers
 	void HandleMovementSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
-	void HandleSlideSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
 	void HandleBounceSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
 	void UpdateSweepDataHit(FAsyncSweepData* SweepData, const FHitResult& Hit);
 	
@@ -605,7 +596,6 @@ private: // Internal Helper Methods
 
 	// Type-specific completion handlers
 	void HandleMovementSweepCompleted();
-	void HandleSlideSweepCompleted();
 	void HandleBounceSweepCompleted();
 
 	// Error handling and validation
@@ -635,10 +625,8 @@ private: // Cached State & Internal Data
 
 	// Async sweep data 
 	FAsyncSweepData MovementAsyncSweepData;
-	FAsyncSweepData SlideAsyncSweepData;
 	FAsyncSweepData BounceAsyncSweepData;
 	FTraceDelegate AsyncMovementSweepDelegate;
-	FTraceDelegate AsyncSlideSweepDelegate;
 	FTraceDelegate AsyncBounceSweepDelegate;
 
 	float CurrentTimeTick;
@@ -656,29 +644,7 @@ private: // Cached State & Internal Data
 
 	// Sliding Hysteresis System
 	float LastSlidingStateChangeTime;
-	bool bPreviousSlidingState;
 	static constexpr float SlidingHysteresisTime = 0.1f; // 100ms hysteresis to prevent rapid state changes
-
-	// Movement Update Queuing System
-	struct FQueuedMovementUpdate
-	{
-		float DeltaTime;
-		FVector StartVelocity;
-		float TimeStamp;
-
-		FQueuedMovementUpdate() : DeltaTime(0.0f), StartVelocity(FVector::ZeroVector), TimeStamp(0.0f)
-		{
-		}
-
-		FQueuedMovementUpdate(float InDeltaTime, const FVector& InVelocity, float InTimeStamp)
-			: DeltaTime(InDeltaTime), StartVelocity(InVelocity), TimeStamp(InTimeStamp)
-		{
-		}
-	};
-
-	TArray<FQueuedMovementUpdate> QueuedUpdates;
-	static constexpr int32 MaxQueuedUpdates = 5;
-	static constexpr float MaxQueueTime = 0.033f; // 33ms max queue time (2 frames at 60fps)
 
 	// Projectile Collision Cooldown System
 	struct FProjectileCollisionCooldown
