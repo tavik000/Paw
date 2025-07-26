@@ -169,27 +169,46 @@ void UPawProjectileMovementComponent::UpdateTickRegistration()
 	}
 }
 
-bool UPawProjectileMovementComponent::TickInterpolationValidation(float DeltaTime)
+void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevelTick TickType,
+                                                    FActorComponentTickFunction* ThisTickFunction)
 {
-	// Still need to finish interpolating after we've stopped simulating, so do that first.
-	if (!bInterpolationComplete)
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_ProjectileMovementComponent_TickComponent);
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(ProjectileMovement);
+
+	// Can avoid moving the interpolated object's children until the end of the entire simulation frame.
+	// This only makes sense if simulation is also enabled, which would move the UpdatedComponent and move the attached InterpolatedComponent (and children) again.
+
+	// Handle interpolation validation and early returns
+	if (!TickInterpolationValidation(DeltaTime))
 	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_ProjectileMovementComponent_TickInterpolation);
-		TickInterpolation(DeltaTime);
+		UE_LOG(LogTemp, Warning,
+		       TEXT(" ProjectileMovementComponent: TickInterpolationValidation failed, skipping tick."));
+		return;
 	}
 
-	// Consume PendingForce and reset to zero.
-	// At this point, any calls to AddForce() will apply to the next frame.
-	PendingForceThisUpdate = PendingForce;
-	ClearPendingForce();
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// skip if don't want component updated when not rendered or updated component can't move
-	if (HasStoppedSimulation() || ShouldSkipUpdate(DeltaTime))
+	if (!IsValid(UpdatedComponent) || !bSimulationEnabled)
 	{
-		return false;
+		UE_LOG(LogTemp, Warning,
+		       TEXT(" ProjectileMovementComponent: UpdatedComponent is invalid or simulation is disabled."));
+		return;
 	}
 
-	return true;
+	AActor* ActorOwner = UpdatedComponent->GetOwner();
+	if (!ActorOwner || !CheckStillInWorld())
+	{
+		UE_LOG(LogTemp, Warning, TEXT(" ProjectileMovementComponent: ActorOwner is invalid or not in world."));
+		return;
+	}
+
+	if (UpdatedComponent->IsSimulatingPhysics())
+	{
+		return;
+	}
+
+	// Run the main physics simulation
+	TickPhysicsSimulation(DeltaTime, ActorOwner);
 }
 
 void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AActor* ActorOwner)
@@ -275,46 +294,27 @@ void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AAc
 	}
 }
 
-void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevelTick TickType,
-                                                    FActorComponentTickFunction* ThisTickFunction)
+bool UPawProjectileMovementComponent::TickInterpolationValidation(float DeltaTime)
 {
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_ProjectileMovementComponent_TickComponent);
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(ProjectileMovement);
-
-	// Can avoid moving the interpolated object's children until the end of the entire simulation frame.
-	// This only makes sense if simulation is also enabled, which would move the UpdatedComponent and move the attached InterpolatedComponent (and children) again.
-
-	// Handle interpolation validation and early returns
-	if (!TickInterpolationValidation(DeltaTime))
+	// Still need to finish interpolating after we've stopped simulating, so do that first.
+	if (!bInterpolationComplete)
 	{
-		UE_LOG(LogTemp, Warning,
-		       TEXT(" ProjectileMovementComponent: TickInterpolationValidation failed, skipping tick."));
-		return;
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_ProjectileMovementComponent_TickInterpolation);
+		TickInterpolation(DeltaTime);
 	}
 
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	// Consume PendingForce and reset to zero.
+	// At this point, any calls to AddForce() will apply to the next frame.
+	PendingForceThisUpdate = PendingForce;
+	ClearPendingForce();
 
-	if (!IsValid(UpdatedComponent) || !bSimulationEnabled)
+	// skip if don't want component updated when not rendered or updated component can't move
+	if (HasStoppedSimulation() || ShouldSkipUpdate(DeltaTime))
 	{
-		UE_LOG(LogTemp, Warning,
-		       TEXT(" ProjectileMovementComponent: UpdatedComponent is invalid or simulation is disabled."));
-		return;
+		return false;
 	}
 
-	AActor* ActorOwner = UpdatedComponent->GetOwner();
-	if (!ActorOwner || !CheckStillInWorld())
-	{
-		UE_LOG(LogTemp, Warning, TEXT(" ProjectileMovementComponent: ActorOwner is invalid or not in world."));
-		return;
-	}
-
-	if (UpdatedComponent->IsSimulatingPhysics())
-	{
-		return;
-	}
-
-	// Run the main physics simulation
-	TickPhysicsSimulation(DeltaTime, ActorOwner);
+	return true;
 }
 
 // ============================================================================
@@ -499,33 +499,6 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 	UE_LOG(LogTemp, Warning,
 	       TEXT(" Projectile %s: Sliding with zero friction, updated position directly. return, no sliding sweep"),
 	       *GetNameSafe(ActorOwner));
-	return true;
-
-	// Standard async sweep path for non-zero friction
-	// Velocity is now parallel to the impact surface.
-	// Perform the move now, before adding gravity/accel again, so we don't just keep hitting the surface.
-
-
-	// Use unified async system for sliding sweeps
-	// FVector MoveDelta = Velocity * SubTickTimeRemaining;
-	// float MoveDistance = MoveDelta.Length();
-	//
-	// FCollisionQueryParams QueryParams;
-	// QueryParams.AddIgnoredActor(ActorOwner);
-	// FCollisionObjectQueryParams ObjectQueryParams;
-	// ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
-	// ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
-	// ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
-	//
-	// const FVector StartLocation = ActorOwner->GetActorLocation();
-	// const FVector EndLocation = StartLocation + MoveDelta;
-	//
-	// // Use unified async system for sliding sweeps
-	// StartAsyncSweep(EAsyncSweepType::Sliding, ActorOwner, EAsyncTraceType::Single,
-	//                 StartLocation, EndLocation, UpdatedComponent->GetComponentQuat(),
-	//                 ObjectQueryParams, QueryParams, MoveDistance, MoveDelta.GetSafeNormal(),
-	//                 FQuat::Identity, MoveDelta, SubTickTimeRemaining, OldHitNormal);
-
 	return true;
 }
 
