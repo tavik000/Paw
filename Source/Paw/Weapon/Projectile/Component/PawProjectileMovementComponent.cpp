@@ -360,7 +360,7 @@ bool UPawProjectileMovementComponent::HandleBouncing(const FHitResult& Hit, cons
 	const FVector EndLocation = StartLocation + MoveDelta;
 	const FQuat NewRotation = ActorOwner->GetActorQuat() * MovementAsyncSweepData.RelativeQuat;
 
-	// Use unified async system for bounce sweeps
+	// Use async bounce sweeps
 	StartAsyncSweep(EAsyncSweepType::Bounce, ActorOwner, EAsyncTraceType::Single,
 	                StartLocation, EndLocation, NewRotation,
 	                ObjectQueryParams, QueryParams, MoveDistance, MoveDelta.GetSafeNormal(),
@@ -1128,7 +1128,7 @@ int UPawProjectileMovementComponent::AsyncSweepByObjectType(const AActor* Actor,
 }
 
 // ============================================================================
-// Unified Async Sweep Handlers (New System)
+// Async Sweep Handlers (New System)
 // ============================================================================
 
 bool UPawProjectileMovementComponent::StartAsyncSweep(EAsyncSweepType SweepType, AActor* ActorOwner,
@@ -1156,7 +1156,7 @@ bool UPawProjectileMovementComponent::StartAsyncSweep(EAsyncSweepType SweepType,
 	}
 
 
-	// Reset and configure unified data with provided parameters
+	// Reset and configure sweep data with provided parameters
 	switch (SweepType)
 	{
 	case EAsyncSweepType::Movement:
