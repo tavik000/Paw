@@ -285,8 +285,6 @@ void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AAc
 	}
 	else
 	{
-		// TODO: Async for non-bounce as well
-
 		// If we can't bounce, then we shouldn't adjust if initially penetrating, because that should be a blocking hit that causes a hit event and stop simulation.
 		TGuardValue<EMoveComponentFlags> ScopedFlagRestore(MoveComponentFlags,
 		                                                   MoveComponentFlags |
@@ -347,10 +345,6 @@ bool UPawProjectileMovementComponent::HandleBouncing(const FHitResult& Hit, cons
 			PrimitiveComponent.Get(), Hit.GetActor(), Hit.GetComponent(),
 			Hit.ImpactNormal, Hit);
 	}
-
-
-	
-	
 
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(ActorOwner);
@@ -1405,7 +1399,7 @@ void UPawProjectileMovementComponent::HandleBounceSweepCompleted()
 	else
 	{
 		// Hit detected - check for corner bounce or normal bounce
-		
+
 		if (IsValid(PrimitiveComponent.Get()))
 		{
 			FHitResult Hit = SweepData.HitResult;
@@ -1414,7 +1408,7 @@ void UPawProjectileMovementComponent::HandleBounceSweepCompleted()
 				Hit.ImpactNormal, Hit);
 		}
 
-		
+
 		constexpr float CornerDetectionDistance = 5.0f;
 
 		if (const bool bCornerBounce = SweepData.HitMinDistance < CornerDetectionDistance && !bHitProjectile)
