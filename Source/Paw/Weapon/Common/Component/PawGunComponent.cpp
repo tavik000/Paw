@@ -110,7 +110,10 @@ void UPawGunComponent::Fire()
 	                                            ObjectQueryParams, QueryParams))
 	{
 		// Found an obstacle in front, adjust spawn location
-		SpawnLocation = ActorLocation + ActorForwardVector + InitHit.Distance - MinClearanceDistance;
+		if (!InitHit.GetActor()->ActorHasTag("Projectile"))
+		{
+			SpawnLocation = ActorLocation + ActorForwardVector + InitHit.Distance - MinClearanceDistance;
+		}
 	}
 
 	FVector GroundCheckStartLocation = SpawnLocation;
