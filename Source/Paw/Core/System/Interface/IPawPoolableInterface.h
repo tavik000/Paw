@@ -6,6 +6,8 @@
 #include "UObject/Interface.h"
 #include "IPawPoolableInterface.generated.h"
 
+class UPawActorPool;
+
 UINTERFACE(MinimalAPI)
 class UPawPoolableInterface : public UInterface
 {
@@ -28,11 +30,11 @@ public:
 	 * @param Rotation The world rotation to spawn with
 	 * @param SpawnParameters Additional spawn parameters
 	 */
-	virtual void OnPoolActivate(const FVector& Location, const FRotator& Rotation, const FActorSpawnParameters& SpawnParameters) = 0;
+	virtual void OnActivateFromPool(UPawActorPool* InActorPool, const FVector& Location, const FRotator& Rotation, const FActorSpawnParameters& SpawnParameters) = 0;
 
 	/**
 	 * Called when an actor is being returned to the pool and deactivated.
 	 * Use this to clear timers, reset state, and prepare for pool storage.
 	 */
-	virtual void OnPoolDeactivate() = 0;
+	virtual void OnDeactivateFromPool() = 0;
 };

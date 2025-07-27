@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/World.h"
 #include "UObject/Object.h"
 #include "PawActorPool.generated.h"
 
@@ -20,13 +21,11 @@ public:
 	void InitializePool (TSubclassOf<AActor> InActorClass, int32 InPrewarmCount = 5);
 	
 	UFUNCTION(BlueprintCallable, Category = "Actor Pool")
-	AActor* TrySpawnPooledActor(const FVector& Location, const FRotator& Rotation, const FActorSpawnParameters& SpawnParameters);
-
-	UFUNCTION(BlueprintCallable, Category = "Actor Pool")
 	void ReturnToPool(AActor* Actor);
 	
 public:
 	
+	AActor* TrySpawnPooledActor(const FVector& Location, const FRotator& Rotation, const FActorSpawnParameters& SpawnParameters = FActorSpawnParameters());
 
 	FORCEINLINE bool IsEmpty() const
 	{

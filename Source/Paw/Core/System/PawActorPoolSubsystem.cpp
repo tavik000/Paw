@@ -564,7 +564,7 @@ void UPawActorPoolSubsystem::ActivatePooledActor(AActor* Actor, const FVector& L
 	// Call poolable interface if implemented
 	if (IPawPoolableInterface* PoolableInterface = Cast<IPawPoolableInterface>(Actor))
 	{
-		PoolableInterface->OnPoolActivate(Location, Rotation, SpawnParameters);
+		PoolableInterface->OnActivateFromPool(nullptr, Location, Rotation, SpawnParameters);
 	}
 }
 
@@ -578,7 +578,7 @@ void UPawActorPoolSubsystem::DeactivatePooledActor(AActor* Actor)
 	// Call poolable interface first to allow cleanup before state changes
 	if (IPawPoolableInterface* PoolableInterface = Cast<IPawPoolableInterface>(Actor))
 	{
-		PoolableInterface->OnPoolDeactivate();
+		PoolableInterface->OnDeactivateFromPool();
 	}
 
 	// Cache root component lookup to avoid repeated virtual calls

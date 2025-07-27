@@ -46,6 +46,8 @@ void UPawActorPool::PrewarmPool()
 		{
 			DeactivatePooledActor(NewActor);
 			PushActor(NewActor);
+			UE_LOG(LogPawActorPool, Log, TEXT("Prewarmed actor %s (%d/%d)"),
+			       *NewActor->GetName(), i + 1, PrewarmCount);
 		}
 		else
 		{
@@ -145,7 +147,7 @@ void UPawActorPool::ActivatePooledActor(AActor* Actor, const FVector& Location, 
 	// Call poolable interface if implemented
 	if (IPawPoolableInterface* PoolableInterface = Cast<IPawPoolableInterface>(Actor))
 	{
-		PoolableInterface->OnPoolActivate(Location, Rotation, SpawnParameters);
+		PoolableInterface->OnActivateFromPool(this, Location, Rotation, SpawnParameters);
 	}
 }
 
@@ -154,7 +156,7 @@ void UPawActorPool::DeactivatePooledActor(AActor* Actor)
 	// Call poolable interface first to allow cleanup before state changes
 	if (IPawPoolableInterface* PoolableInterface = Cast<IPawPoolableInterface>(Actor))
 	{
-		PoolableInterface->OnPoolDeactivate();
+		PoolableInterface->OnDeactivateFromPool();
 	}
 
 	// Cache root component lookup to avoid repeated virtual calls

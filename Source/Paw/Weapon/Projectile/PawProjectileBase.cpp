@@ -7,6 +7,7 @@
 #include "Components/SphereComponent.h"
 #include "Misc/MapErrors.h"
 #include "Paw/Core/System/PawActorPoolSubsystem.h"
+#include "Paw/Core/Utility/Object/PawActorPool.h"
 
 
 APawProjectileBase::APawProjectileBase()
@@ -86,14 +87,24 @@ void APawProjectileBase::ReturnToPoolOrDestroy()
 	{
 		return;
 	}
-	if (UWorld* World = GetWorld(); IsValid(World))
+
+	if (!IsValid(ActorPool))
 	{
-		UPawActorPoolSubsystem* ActorPoolSubsystem = World->GetSubsystem<UPawActorPoolSubsystem>();
-		if (IsValid(ActorPoolSubsystem))
-		{
-			ActorPoolSubsystem->ReturnToPool(this);
-		}
+		UE_LOG(LogTemp, Warning, TEXT("APawProjectileBase::ReturnToPoolOrDestroy - No ActorPool set! Destroying actor instead."));
+		Destroy();
+		return;
 	}
+
+	ActorPool->ReturnToPool(this);
+	
+	// if (UWorld* World = GetWorld(); IsValid(World))
+	// {
+	// 	UPawActorPoolSubsystem* ActorPoolSubsystem = World->GetSubsystem<UPawActorPoolSubsystem>();
+	// 	if (IsValid(ActorPoolSubsystem))
+	// 	{
+	// 		ActorPoolSubsystem->ReturnToPool(this);
+	// 	}
+	// }
 }
 
 void APawProjectileBase::Tick(float DeltaTime)
@@ -113,9 +124,11 @@ void APawProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor,
 	}
 }
 
-void APawProjectileBase::OnPoolActivate(const FVector& Location, const FRotator& Rotation,
+void APawProjectileBase::OnActivateFromPool(UPawActorPool* InActorPool, const FVector& Location, const FRotator& Rotation,
                                         const FActorSpawnParameters& SpawnParameters)
 {
+	ActorPool = InActorPool;
+	
 	// Recalculate projectile velocity based on rotation
 	if (UPawProjectileMovementComponent* MovementComp = GetProjectileMovement())
 	{
@@ -136,7 +149,7 @@ void APawProjectileBase::OnPoolActivate(const FVector& Location, const FRotator&
 	}
 }
 
-void APawProjectileBase::OnPoolDeactivate()
+void APawProjectileBase::OnDeactivateFromPool()
 {
 	if (UPawProjectileMovementComponent* MovementComp = GetProjectileMovement())
 	{

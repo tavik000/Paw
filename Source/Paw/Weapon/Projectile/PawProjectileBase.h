@@ -26,8 +26,8 @@ public:
 	                   const FHitResult& Hit);
 
 	// IPawPoolableInterface
-	virtual void OnPoolActivate(const FVector& Location, const FRotator& Rotation, const FActorSpawnParameters& SpawnParameters) override;
-	virtual void OnPoolDeactivate() override;
+	virtual void OnActivateFromPool(UPawActorPool* InActorPool, const FVector& Location, const FRotator& Rotation, const FActorSpawnParameters& SpawnParameters) override;
+	virtual void OnDeactivateFromPool() override;
 
 public: 
 	USphereComponent* GetCollisionComp() const { return CollisionComp; }
@@ -51,5 +51,8 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	UPawProjectileMovementComponent* ProjectileMovement;
 
+	UPROPERTY()
+	TObjectPtr<UPawActorPool> ActorPool;
+	
 private:
 };

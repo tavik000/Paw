@@ -6,6 +6,7 @@
 #include "PawWeaponComponent.h"
 #include "PawGunComponent.generated.h"
 
+class UPawActorPool;
 class APawFPSPlayer;
 /**
  * For FPS Player Only
@@ -23,6 +24,7 @@ public:
 	void Fire();
 
 protected:
+	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 protected:
@@ -58,6 +60,12 @@ protected:
 
 	UPROPERTY(EditAnywhere)
 	float FireCoolDown = 3.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Actor Pool")
+	TObjectPtr<UPawActorPool> ProjectilePool;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Actor Pool", meta = (ClampMin = "1"))
+	int32 PrewarmCount = 3;
 
 protected:
 	UFUNCTION(Server, Reliable)

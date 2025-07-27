@@ -26,8 +26,8 @@ public:
 	void SpawnMasterField(FVector SpawnLocation, FRotator SpawnRotation);
 
 	// IPawPoolableInterface
-	virtual void OnPoolActivate(const FVector& Location, const FRotator& Rotation, const FActorSpawnParameters& SpawnParameters) override;
-	virtual void OnPoolDeactivate() override;
+	virtual void OnActivateFromPool(UPawActorPool* InActorPool, const FVector& Location, const FRotator& Rotation, const FActorSpawnParameters& SpawnParameters) override;
+	virtual void OnDeactivateFromPool() override;
 
 protected:
 	virtual void BeginPlay() override;

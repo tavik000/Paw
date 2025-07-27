@@ -149,10 +149,10 @@ void APawProjectile_Bubble::SpawnMasterField_Implementation(FVector SpawnLocatio
 {
 }
 
-void APawProjectile_Bubble::OnPoolActivate(const FVector& Location, const FRotator& Rotation,
+void APawProjectile_Bubble::OnActivateFromPool(UPawActorPool* InActorPool, const FVector& Location, const FRotator& Rotation,
                                            const FActorSpawnParameters& SpawnParameters)
 {
-	Super::OnPoolActivate(Location, Rotation, SpawnParameters);
+	Super::OnActivateFromPool(InActorPool, Location, Rotation, SpawnParameters);
 	if (HasAuthority())
 	{
 		// Clear any existing timer before setting a new one
@@ -193,9 +193,9 @@ void APawProjectile_Bubble::OnPoolActivate(const FVector& Location, const FRotat
 	}
 }
 
-void APawProjectile_Bubble::OnPoolDeactivate()
+void APawProjectile_Bubble::OnDeactivateFromPool()
 {
-	Super::OnPoolDeactivate();
+	Super::OnDeactivateFromPool();
 	if (HasAuthority())
 	{
 		// Clear the lifecycle timer to prevent timer conflicts when reused

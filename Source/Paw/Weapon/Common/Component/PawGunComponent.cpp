@@ -8,12 +8,34 @@
 #include "Kismet/GameplayStatics.h"
 #include "Paw/Character/Player/PawFPSPlayer.h"
 #include "Paw/Core/System/PawActorPoolSubsystem.h"
+#include "Paw/Core/Utility/Object/PawActorPool.h"
 #include "Paw/Weapon/Projectile/PawProjectileBase.h"
 
 UPawGunComponent::UPawGunComponent()
 {
 	// Default offset from the character location for projectiles to spawn
 	SetIsReplicatedByDefault(true);
+}
+
+void UPawGunComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (GetOwnerRole() != ROLE_Authority)
+	{
+		return;
+	}
+	if (!IsValid(ProjectileClass))
+	{
+		return;
+	}
+
+	ProjectilePool = NewObject<UPawActorPool>(this);
+	if (!IsValid(ProjectilePool))
+	{
+		return;
+	}
+	ProjectilePool->InitializePool(ProjectileClass, PrewarmCount);
 }
 
 bool UPawGunComponent::AttachWeapon(APawBattleCharacter* TargetCharacter)
@@ -177,12 +199,14 @@ void UPawGunComponent::ServerSpawnProjectile_Implementation(FVector SpawnLocatio
 			ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 		ActorSpawnParams.Owner = FPSPlayer;
 		ActorSpawnParams.Instigator = FPSPlayer;
-		if (UPawActorPoolSubsystem* ActorPoolSubsystem = World->GetSubsystem<UPawActorPoolSubsystem>(); IsValid(
-			ActorPoolSubsystem))
-		{
-			AActor* SpawnProjectile = ActorPoolSubsystem->TrySpawnPooledActor(
-				ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
-		}
+		AActor* SpawnProjectile = ProjectilePool->TrySpawnPooledActor(
+			SpawnLocation, SpawnRotation, ActorSpawnParams);
+		// if (UPawActorPoolSubsystem* ActorPoolSubsystem = World->GetSubsystem<UPawActorPoolSubsystem>(); IsValid(
+		// 	ActorPoolSubsystem))
+		// {
+		// 	AActor* SpawnProjectile = ActorPoolSubsystem->TrySpawnPooledActor(
+		// 		ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+		// }
 	}
 }
 
