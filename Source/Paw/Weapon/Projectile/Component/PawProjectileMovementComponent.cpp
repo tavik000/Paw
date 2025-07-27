@@ -271,6 +271,7 @@ void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AAc
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_PhysicsBody);
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
+		ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel2); // Hider
 
 		FVector StartLocation = ActorLocation;
 		FVector EndLocation = StartLocation + MoveDelta;
@@ -339,6 +340,8 @@ bool UPawProjectileMovementComponent::HandleBouncing(const FHitResult& Hit, cons
 
 	if (IsValid(PrimitiveComponent.Get()))
 	{
+		UE_LOG(LogPawProjectileMovement, Verbose, TEXT("Broadcasting OnComponentHit for %s, HitActor: %s, HitComponent: %s"),
+		       *GetNameSafe(PrimitiveComponent.Get()), *GetNameSafe(Hit.GetActor()), *GetNameSafe(Hit.GetComponent()));
 		PrimitiveComponent->OnComponentHit.Broadcast(
 			PrimitiveComponent.Get(), Hit.GetActor(), Hit.GetComponent(),
 			Hit.ImpactNormal, Hit);
@@ -351,7 +354,8 @@ bool UPawProjectileMovementComponent::HandleBouncing(const FHitResult& Hit, cons
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_PhysicsBody);
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
-
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel2); // Hider
+	
 	const FVector StartLocation = ActorOwner->GetActorLocation();
 	const FVector EndLocation = StartLocation + MoveDelta;
 	const FQuat NewRotation = ActorOwner->GetActorQuat() * MovementAsyncSweepData.RelativeQuat;
@@ -1311,6 +1315,24 @@ void UPawProjectileMovementComponent::HandleMovementSweepCompleted()
 		const FVector MoveDelta = MovementAsyncSweepData.MoveDelta; // Copy, not reference
 		const FQuat MovementRelativeQuat = MovementAsyncSweepData.RelativeQuat; // Store for deflection
 
+		// Handle Hit Hider
+		if (Hit.GetActor()->ActorHasTag(FName("Hider")))
+		{
+			if (IsValid(PrimitiveComponent.Get()))
+			{
+				UE_LOG(LogPawProjectileMovement, Verbose,
+				       TEXT("Hider Detected, Broadcasting OnComponentHit for %s, HitActor: %s, HitComponent: %s"),
+				       *GetNameSafe(PrimitiveComponent.Get()), *GetNameSafe(Hit.GetActor()),
+				       *GetNameSafe(Hit.GetComponent()));
+				PrimitiveComponent->OnComponentHit.Broadcast(
+					PrimitiveComponent.Get(), Hit.GetActor(), Hit.GetComponent(),
+					Hit.ImpactNormal, Hit);
+			}
+			
+			StopSimulating(Hit);
+			return;
+		}
+
 		if (Velocity == OldVelocity)
 		{
 			// re-calculate end velocity for partial time
@@ -1396,10 +1418,20 @@ void UPawProjectileMovementComponent::HandleBounceSweepCompleted()
 
 		if (IsValid(PrimitiveComponent.Get()))
 		{
+			
 			FHitResult Hit = SweepData.HitResult;
+			UE_LOG(LogPawProjectileMovement, Verbose, TEXT("Bounce Broadcasting OnComponentHit for %s, HitActor: %s, HitComponent: %s"),
+				   *GetNameSafe(PrimitiveComponent.Get()), *GetNameSafe(Hit.GetActor()), *GetNameSafe(Hit.GetComponent()));
 			PrimitiveComponent->OnComponentHit.Broadcast(
 				PrimitiveComponent.Get(), Hit.GetActor(), Hit.GetComponent(),
 				Hit.ImpactNormal, Hit);
+			
+			// Handle Hit Hider
+			if (Hit.GetActor()->ActorHasTag(FName("Hider")))
+			{
+				StopSimulating(Hit);
+				return;
+			}
 		}
 
 

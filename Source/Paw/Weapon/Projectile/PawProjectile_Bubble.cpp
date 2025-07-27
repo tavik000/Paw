@@ -97,7 +97,9 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 		return;
 	}
 
-	TObjectPtr<APawPlayerHider> HitHider = Cast<APawPlayerHider>(OtherActor);
+	UE_LOG(LogTemp, Log, TEXT(" Bubble Projectile OnHit: %s"), *GetNameSafe(OtherActor));
+
+	const TObjectPtr<APawPlayerHider> HitHider = Cast<APawPlayerHider>(OtherActor);
 	if (!IsValid(HitHider))
 	{
 		// Only add impulse and destroy projectile if we hit a physics
@@ -124,8 +126,9 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 		return;
 	}
 
-	FVector HitHiderLocation = HitHider->GetActorLocation();
-	FVector BubbleSpawnLocation = FVector(HitHiderLocation.X, HitHiderLocation.Y,
+	
+	const FVector HitHiderLocation = HitHider->GetActorLocation();
+	const FVector BubbleSpawnLocation = FVector(HitHiderLocation.X, HitHiderLocation.Y,
 	                                      HitHiderLocation.Z + BubbleHeightOffset);
 	HitHider->SetActorLocation(BubbleSpawnLocation);
 
