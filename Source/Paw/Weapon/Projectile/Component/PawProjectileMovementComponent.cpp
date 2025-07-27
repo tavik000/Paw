@@ -1270,7 +1270,7 @@ void UPawProjectileMovementComponent::HandleBounceSweepResult(const FTraceHandle
 		return;
 	}
 
-	// For sliding and bounce types, skip hits with same normal as previous hit
+	// For bounce, skip hits with same normal as previous hit
 	for (const FHitResult& Hit : Data.OutHits)
 	{
 		if (BounceAsyncSweepData.OldHitNormal == ConstrainDirectionToPlane(Hit.Normal))
