@@ -86,47 +86,47 @@ void UPawGunComponent::Fire()
 	}
 	const APlayerController* PlayerController = Cast<APlayerController>(Character->GetController());
 	const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
-	
-	// const FVector Start = FPSPlayer->GetActorLocation();
-	// const FVector End = Start + (SpawnRotation.Vector() * 10000);
-	// FHitResult HitResult;
-	// FCollisionQueryParams CollisionParams;
-	// CollisionParams.AddIgnoredActor(ActorOwner);
-	// CollisionParams.AddIgnoredActor(FPSPlayer);
-	// GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECollisionChannel::ECC_Visibility, CollisionParams);
-	// const float Distance = FVector::Dist(Start, HitResult.ImpactPoint);
-	// // const bool IsFacingDownOrTooClose = Distance < FireClosetDistance || SpawnRotation.Pitch <= FacingDownPitch;
 
-	FVector SpawnLocation = FPSPlayer->GetActorLocation() + FPSPlayer->GetActorForwardVector() * MuzzleOffset;
-	// if (IsFacingDownOrTooClose)
-	// {
-	// 	SpawnLocation = SpawnLocation + FPSPlayer->GetActorForwardVector() * TooCloseAdjustOffset;
-	// }
-	
+	FVector ActorLocation = FPSPlayer->GetActorLocation();
+	FVector ActorForwardVector = FPSPlayer->GetActorForwardVector();
+	FVector SpawnLocation = ActorLocation + ActorForwardVector * MuzzleOffset;
+
 	// Ensure minimum ground clearance to prevent spawning inside ground
-	constexpr float MinGroundClearance = 50.0f; // Minimum distance above ground
-	FVector GroundCheckStart = SpawnLocation;
-	FVector GroundCheckEnd = SpawnLocation - FVector(0, 0, 200.0f); // Check 200 units down
-	
-	FHitResult GroundHit;
+	constexpr float MinClearanceDistance = 30.0f; // Minimum distance above ground
+	FVector ForwardCheckStartLocation = ActorLocation;
+	FVector ForwardCheckEndLocation = ActorLocation + FPSPlayer->GetActorForwardVector() * 200.0f;
+	// Check 200 units forward
+
+	FHitResult InitHit;
 	FCollisionObjectQueryParams ObjectQueryParams;
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
-	FCollisionQueryParams GroundParams;
-	GroundParams.AddIgnoredActor(GetOwner());
-	
-	if (GetWorld()->LineTraceSingleByObjectType(GroundHit, GroundCheckStart, GroundCheckEnd, ObjectQueryParams, GroundParams))
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(GetOwner());
+	QueryParams.AddIgnoredActor(FPSPlayer);
+
+	if (GetWorld()->LineTraceSingleByObjectType(InitHit, ForwardCheckStartLocation, ForwardCheckEndLocation,
+	                                            ObjectQueryParams, QueryParams))
+	{
+		// Found an obstacle in front, adjust spawn location
+		SpawnLocation = ActorLocation + ActorForwardVector + InitHit.Distance - MinClearanceDistance;
+	}
+
+	FVector GroundCheckStartLocation = SpawnLocation;
+	FVector GroundCheckEndLocation = SpawnLocation - FVector(0, 0, 200.0f); // Check 200 units down
+
+	if (GetWorld()->LineTraceSingleByObjectType(InitHit, GroundCheckStartLocation, GroundCheckEndLocation,
+	                                            ObjectQueryParams, QueryParams))
 	{
 		// Found ground below, ensure we're above it
-		float DistanceToGround = FVector::Dist(SpawnLocation, GroundHit.ImpactPoint);
-		if (DistanceToGround < MinGroundClearance)
+		float DistanceToGround = FVector::Dist(SpawnLocation, InitHit.ImpactPoint);
+		if (DistanceToGround < MinClearanceDistance)
 		{
 			// Adjust spawn location to be above ground
-			SpawnLocation = GroundHit.ImpactPoint + FVector(0, 0, MinGroundClearance);
+			SpawnLocation = InitHit.ImpactPoint + FVector(0, 0, MinClearanceDistance);
 		}
 	}
-	
 
 	// Spawn the projectile at the muzzle
 	ServerSpawnProjectile(SpawnLocation, SpawnRotation);
@@ -174,9 +174,11 @@ void UPawGunComponent::ServerSpawnProjectile_Implementation(FVector SpawnLocatio
 			ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 		ActorSpawnParams.Owner = FPSPlayer;
 		ActorSpawnParams.Instigator = FPSPlayer;
-		if (UPawActorPoolSubsystem* ActorPoolSubsystem = World->GetSubsystem<UPawActorPoolSubsystem>(); IsValid(ActorPoolSubsystem))
+		if (UPawActorPoolSubsystem* ActorPoolSubsystem = World->GetSubsystem<UPawActorPoolSubsystem>(); IsValid(
+			ActorPoolSubsystem))
 		{
-			AActor* SpawnProjectile = ActorPoolSubsystem->TrySpawnPooledActor(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+			AActor* SpawnProjectile = ActorPoolSubsystem->TrySpawnPooledActor(
+				ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
 		}
 	}
 }

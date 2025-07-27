@@ -645,6 +645,20 @@ void UPawProjectileMovementComponent::StartSimulating(const FVector& InitialVelo
 	       IsComponentTickEnabled() ? TEXT("Yes") : TEXT("No"));
 	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - UpdatedComponent after: %s"), UpdatedComponent ? TEXT("Valid") : TEXT("Null"));
 	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("PawProjectileMovementComponent: StartSimulating completed"));
+
+	if (!IsValid(UpdatedComponent))
+	{
+		return;
+	}
+
+	FHitResult InitHit;
+	SafeMoveUpdatedComponent(FVector::One() * 0.001f, UpdatedComponent->GetComponentQuat(), true, InitHit);
+	if (InitHit.bBlockingHit)
+	{
+		UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - Initial move hit: %s, Actor: %s"),
+		       *InitHit.ToString(), *GetNameSafe(InitHit.GetActor()));
+	}
+	
 }
 
 

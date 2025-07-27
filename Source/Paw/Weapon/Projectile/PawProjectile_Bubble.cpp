@@ -97,7 +97,6 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 		return;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT(" Bubble Projectile OnHit: %s"), *GetNameSafe(OtherActor));
 
 	const TObjectPtr<APawPlayerHider> HitHider = Cast<APawPlayerHider>(OtherActor);
 	if (!IsValid(HitHider))
@@ -126,7 +125,7 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 		return;
 	}
 
-	
+	UE_LOG(LogTemp, Log, TEXT(" Bubble Projectile OnHit Hider: %s"), *GetNameSafe(OtherActor));
 	const FVector HitHiderLocation = HitHider->GetActorLocation();
 	const FVector BubbleSpawnLocation = FVector(HitHiderLocation.X, HitHiderLocation.Y,
 	                                      HitHiderLocation.Z + BubbleHeightOffset);
