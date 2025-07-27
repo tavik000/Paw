@@ -116,9 +116,6 @@ void APawBubbleHiderCapture::MulticastAttachHiderToBubble_Implementation(APawPla
 		return;
 	}
 
-	// Store current world transform before attachment
-	FTransform CurrentWorldTransform = Hider->GetActorTransform();
-
 	// Attach hider to BubbleMesh with more stable rules
 	Hider->GetRootComponent()->SetAbsolute(false, true, false);
 	bool bAttachmentSuccessful = Hider->GetRootComponent()->AttachToComponent(
