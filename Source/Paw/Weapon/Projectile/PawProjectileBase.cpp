@@ -69,7 +69,6 @@ void APawProjectileBase::BeginPlay()
 	{
 		ProjectileMovement->Deactivate();
 	}
-
 }
 
 void APawProjectileBase::PostNetReceiveLocationAndRotation()
@@ -115,44 +114,34 @@ void APawProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor,
 }
 
 void APawProjectileBase::OnPoolActivate(const FVector& Location, const FRotator& Rotation,
-	const FActorSpawnParameters& SpawnParameters)
+                                        const FActorSpawnParameters& SpawnParameters)
 {
-	UE_LOG(LogTemp, Warning, TEXT("PawProjectileBase: OnPoolActivate called for %s"), *GetName());
-	UE_LOG(LogTemp, Warning, TEXT("  - Location: %s"), *Location.ToString());
-	UE_LOG(LogTemp, Warning, TEXT("  - Rotation: %s"), *Rotation.ToString());
-	
 	// Recalculate projectile velocity based on rotation
 	if (UPawProjectileMovementComponent* MovementComp = GetProjectileMovement())
 	{
 		// Ensure the movement component has the correct UpdatedComponent
 		if (CollisionComp)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("  - Setting UpdatedComponent to CollisionComp: %s"), *CollisionComp->GetName());
 			MovementComp->SetUpdatedComponent(CollisionComp);
 		}
-		
+
 		// Calculate velocity based on spawn rotation, not actor forward (which might be wrong for pooled actors)
 		FVector InitialVelocity = Rotation.Vector() * MovementComp->InitialSpeed;
-		UE_LOG(LogTemp, Warning, TEXT("  - Calculated initial velocity: %s"), *InitialVelocity.ToString());
-		
+
 		MovementComp->StartSimulating(InitialVelocity);
-		UE_LOG(LogTemp, Warning, TEXT("  - StartSimulating called"));
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("  - No movement component found!"));
+		UE_LOG(LogTemp, Error, TEXT("OnPoolActivate  - No movement component found!"));
 	}
-	
-	UE_LOG(LogTemp, Warning, TEXT("PawProjectileBase: OnPoolActivate completed"));
 }
 
 void APawProjectileBase::OnPoolDeactivate()
 {
 	if (UPawProjectileMovementComponent* MovementComp = GetProjectileMovement())
 	{
-		UE_LOG(LogTemp, Warning, TEXT(" Deactivating pooled projectile: %s"), *GetName());
 		MovementComp->StopSimulating(FHitResult());
-		
+
 		MovementComp->UpdateComponentVelocity();
 	}
 }

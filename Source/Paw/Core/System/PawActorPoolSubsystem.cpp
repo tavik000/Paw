@@ -123,7 +123,7 @@ void UPawActorPoolSubsystem::ReturnToPool(AActor* Actor)
 	UClass* PoolClass = FindPoolClassForActorClass(ActorClass);
 	if (PoolClass)
 	{
-		UE_LOG(LogPawActorPool, Warning, TEXT("Returning actor %s (class: %s) to pool (pool class: %s)"), *Actor->GetName(), *ActorClass->GetName(), *PoolClass->GetName());
+		UE_LOG(LogPawActorPool, Log, TEXT("Returning actor %s (class: %s) to pool (pool class: %s)"), *Actor->GetName(), *ActorClass->GetName(), *PoolClass->GetName());
 		ReturnActorToPool(Actor);
 	}
 	else
