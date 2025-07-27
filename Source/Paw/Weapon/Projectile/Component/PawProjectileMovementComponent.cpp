@@ -1375,7 +1375,7 @@ void UPawProjectileMovementComponent::HandleMovementSweepCompleted()
 		if (HandleBlockingResult == EHandleBlockingHitResult::Deflect)
 		{
 			// Temporarily store the Movement RelativeQuat for HandleDeflection to use
-			// This prevents race condition when HandleDeflection starts Bounce/Sliding sweeps
+			// This prevents race condition when HandleDeflection starts Bounce sweeps
 			MovementAsyncSweepData.RelativeQuat = MovementRelativeQuat;
 
 			if (!HandleDeflection(Hit, SubTickTimeRemaining))
