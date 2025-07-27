@@ -38,6 +38,7 @@ APawProjectileBase::APawProjectileBase()
 	// Use a ProjectileMovementComponent to govern this projectile's movement
 	ProjectileMovement = CreateDefaultSubobject<UPawProjectileMovementComponent>(TEXT("ProjectileMovementComp"));
 	ProjectileMovement->UpdatedComponent = CollisionComp;
+	ProjectileMovement->PrimitiveComponent = CollisionComp;
 	ProjectileMovement->InitialSpeed = 3000.f;
 	ProjectileMovement->MaxSpeed = 3000.f;
 	ProjectileMovement->bRotationFollowsVelocity = true;

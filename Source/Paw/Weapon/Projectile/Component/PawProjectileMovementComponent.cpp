@@ -271,6 +271,7 @@ void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AAc
 		FCollisionObjectQueryParams ObjectQueryParams;
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
+		ObjectQueryParams.AddObjectTypesToQuery(ECC_PhysicsBody);
 		ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
 
 		FVector StartLocation = ActorLocation;
@@ -340,11 +341,23 @@ bool UPawProjectileMovementComponent::HandleBouncing(const FHitResult& Hit, cons
 		return false;
 	}
 
+	if (IsValid(PrimitiveComponent.Get()))
+	{
+		PrimitiveComponent->OnComponentHit.Broadcast(
+			PrimitiveComponent.Get(), Hit.GetActor(), Hit.GetComponent(),
+			Hit.ImpactNormal, Hit);
+	}
+
+
+	
+	
+
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(ActorOwner);
 	FCollisionObjectQueryParams ObjectQueryParams;
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_PhysicsBody);
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
 
 	const FVector StartLocation = ActorOwner->GetActorLocation();
@@ -1392,6 +1405,16 @@ void UPawProjectileMovementComponent::HandleBounceSweepCompleted()
 	else
 	{
 		// Hit detected - check for corner bounce or normal bounce
+		
+		if (IsValid(PrimitiveComponent.Get()))
+		{
+			FHitResult Hit = SweepData.HitResult;
+			PrimitiveComponent->OnComponentHit.Broadcast(
+				PrimitiveComponent.Get(), Hit.GetActor(), Hit.GetComponent(),
+				Hit.ImpactNormal, Hit);
+		}
+
+		
 		constexpr float CornerDetectionDistance = 5.0f;
 
 		if (const bool bCornerBounce = SweepData.HitMinDistance < CornerDetectionDistance && !bHitProjectile)

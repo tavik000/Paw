@@ -460,6 +460,13 @@ public: // Properties
 	 */
 	int32 ThrottleInterpolationFramesSinceInterp;
 
+
+	/**
+	   * Cast PrimitiveComponent that is used for collision and movement.
+	  */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Category=Homing)
+	TWeakObjectPtr<UPrimitiveComponent> PrimitiveComponent;
+
 public: // Blueprint Events & Delegates
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnProjectileBounceDelegate, const FHitResult&, ImpactResult,
 	                                             const FVector&, ImpactVelocity);
@@ -584,15 +591,15 @@ private: // Internal Helper Methods
 	void HandleMovementSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
 	void HandleBounceSweepResult(const FTraceHandle& TraceHandle, FTraceDatum& Data);
 	void UpdateSweepDataHit(FAsyncSweepData* SweepData, const FHitResult& Hit);
-	
+
 	bool StartAsyncSweep(EAsyncSweepType SweepType, AActor* ActorOwner, EAsyncTraceType TraceType,
-	                            const FVector& Start, const FVector& End, const FQuat& Rotation,
-	                            const FCollisionObjectQueryParams& ObjectQueryParams,
-	                            const FCollisionQueryParams& QueryParams, float MoveDistance,
-	                            const FVector& Direction, const FQuat& RelativeQuat,
-	                            const FVector& MoveDelta, float SubTickTimeRemaining = 0.0f,
-	                            const FVector& OldHitNormal = FVector::ZeroVector);
-	
+	                     const FVector& Start, const FVector& End, const FQuat& Rotation,
+	                     const FCollisionObjectQueryParams& ObjectQueryParams,
+	                     const FCollisionQueryParams& QueryParams, float MoveDistance,
+	                     const FVector& Direction, const FQuat& RelativeQuat,
+	                     const FVector& MoveDelta, float SubTickTimeRemaining = 0.0f,
+	                     const FVector& OldHitNormal = FVector::ZeroVector);
+
 
 	// Type-specific completion handlers
 	void HandleMovementSweepCompleted();
@@ -641,7 +648,7 @@ private: // Cached State & Internal Data
 
 	int32 TotalBounceCount;
 	static constexpr int32 MaxTotalBounces = 10;
-	
+
 	// Projectile Collision Cooldown System
 	struct FProjectileCollisionCooldown
 	{
