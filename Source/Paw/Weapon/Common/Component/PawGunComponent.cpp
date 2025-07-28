@@ -81,7 +81,10 @@ void UPawGunComponent::Fire()
 {
 	if (IsCoolDown)
 	{
-		// TODO: Play a sound or something to indicate that the weapon is on cooldown
+		if (DryFireSound != nullptr)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, DryFireSound, Character->GetActorLocation());
+		}
 		return;
 	}
 
