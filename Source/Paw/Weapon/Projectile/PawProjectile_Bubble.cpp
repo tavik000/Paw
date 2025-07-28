@@ -40,6 +40,20 @@ bool APawProjectile_Bubble::CanBeBreakByHider_Implementation() const
 	return false;
 }
 
+void APawProjectile_Bubble::MulticastSpawnBounceSound_Implementation()
+{
+	if (!IsValid(ProjectileMovement))
+	{
+		return;
+	}
+	
+	if (IsValid(BounceSound))
+	{
+		const float VolumeMultiplier =  ProjectileMovement->Velocity.Length() / ProjectileMovement->InitialSpeed;
+		UGameplayStatics::SpawnSoundAtLocation(GetWorld(), BounceSound, GetActorLocation(), FRotator::ZeroRotator, VolumeMultiplier);
+	}
+}
+
 void APawProjectile_Bubble::SelfBreak()
 {
 	if (IPawCollideBreakableInterface* CollideBreakableInterface = Cast<IPawCollideBreakableInterface>(this))
@@ -58,6 +72,11 @@ void APawProjectile_Bubble::LoadBreakEffect()
 
 void APawProjectile_Bubble::OnBreakEffectLoaded()
 {
+}
+
+void APawProjectile_Bubble::OnProjectileBounce(const FHitResult& HitResult, const FVector& ImpactVelocity)
+{
+	MulticastSpawnBounceSound();
 }
 
 void APawProjectile_Bubble::MulticastSpawnBreakEffect_Implementation()
@@ -128,7 +147,7 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 	UE_LOG(LogTemp, Log, TEXT(" Bubble Projectile OnHit Hider: %s"), *GetNameSafe(OtherActor));
 	const FVector HitHiderLocation = HitHider->GetActorLocation();
 	const FVector BubbleSpawnLocation = FVector(HitHiderLocation.X, HitHiderLocation.Y,
-	                                      HitHiderLocation.Z + CapturedBubbleHeightOffset);
+	                                            HitHiderLocation.Z + CapturedBubbleHeightOffset);
 	HitHider->SetActorLocation(BubbleSpawnLocation);
 
 	// Spawn Actor from class BubbleHideCaptureClass
@@ -149,45 +168,53 @@ void APawProjectile_Bubble::SpawnMasterField_Implementation(FVector SpawnLocatio
 {
 }
 
-void APawProjectile_Bubble::OnActivateFromPool(UPawActorPool* InActorPool, const FVector& Location, const FRotator& Rotation,
-                                           const FActorSpawnParameters& SpawnParameters)
+void APawProjectile_Bubble::OnActivateFromPool(UPawActorPool* InActorPool, const FVector& Location,
+                                               const FRotator& Rotation,
+                                               const FActorSpawnParameters& SpawnParameters)
 {
 	Super::OnActivateFromPool(InActorPool, Location, Rotation, SpawnParameters);
-	if (HasAuthority())
+	if (!HasAuthority())
 	{
-		// Clear any existing timer before setting a new one
-		GetWorld()->GetTimerManager().ClearTimer(LifeCycleTimerHandle);
-		GetWorld()->GetTimerManager().SetTimer(LifeCycleTimerHandle, this, &APawProjectile_Bubble::SelfBreak,
-		                                       BubbleLifeTime, false);
+		return;
 	}
 
-	if (HasAuthority())
+	if (IsValid(ProjectileMovement))
 	{
-		// Only check overlaps for active projectiles (skip for pool actors that are hidden)
-		FCollisionQueryParams QueryParams;
-		QueryParams.AddIgnoredActor(this);
-		FCollisionObjectQueryParams ObjectQueryParams;
-		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
-		ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
-		if (UWorld* World = GetWorld(); IsValid(World))
+		if (!ProjectileMovement->OnProjectileBounce.IsBound())
 		{
-			// Check if we overlap with any other projectile
-			TArray<FHitResult> HitResults;
-			World->SweepMultiByObjectType(HitResults, GetActorLocation(), GetActorLocation(), FQuat::Identity,
-			                              ObjectQueryParams,
-			                              FCollisionShape::MakeSphere(CollisionComp->GetScaledSphereRadius()),
-			                              QueryParams);
-			for (const FHitResult& Hit : HitResults)
+			ProjectileMovement->OnProjectileBounce.AddDynamic(this, &APawProjectile_Bubble::OnProjectileBounce);
+		}
+	}
+
+	// Clear any existing timer before setting a new one
+	GetWorld()->GetTimerManager().ClearTimer(LifeCycleTimerHandle);
+	GetWorld()->GetTimerManager().SetTimer(LifeCycleTimerHandle, this, &APawProjectile_Bubble::SelfBreak,
+	                                       BubbleLifeTime, false);
+
+	// Only check overlaps for active projectiles (skip for pool actors that are hidden)
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	if (UWorld* World = GetWorld(); IsValid(World))
+	{
+		// Check if we overlap with any other projectile
+		TArray<FHitResult> HitResults;
+		World->SweepMultiByObjectType(HitResults, GetActorLocation(), GetActorLocation(), FQuat::Identity,
+		                              ObjectQueryParams,
+		                              FCollisionShape::MakeSphere(CollisionComp->GetScaledSphereRadius()),
+		                              QueryParams);
+		for (const FHitResult& Hit : HitResults)
+		{
+			if (AActor* HitActor = Hit.GetActor(); HitActor && HitActor != this && HitActor->IsA(StaticClass()))
 			{
-				if (AActor* HitActor = Hit.GetActor(); HitActor && HitActor != this && HitActor->IsA(StaticClass()))
+				APawProjectileBase* HitProjectile = Cast<APawProjectileBase>(HitActor);
+				if (!IsValid(HitProjectile))
 				{
-					APawProjectileBase* HitProjectile = Cast<APawProjectileBase>(HitActor);
-					if (!IsValid(HitProjectile))
-					{
-						continue;
-					}
-					HitProjectile->ReturnToPoolOrDestroy();
+					continue;
 				}
+				HitProjectile->ReturnToPoolOrDestroy();
 			}
 		}
 	}
@@ -203,5 +230,7 @@ void APawProjectile_Bubble::OnDeactivateFromPool()
 		{
 			World->GetTimerManager().ClearTimer(LifeCycleTimerHandle);
 		}
+
+		ProjectileMovement->OnProjectileBounce.RemoveAll(this);
 	}
 }

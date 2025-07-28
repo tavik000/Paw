@@ -29,10 +29,15 @@ public:
 	virtual void OnActivateFromPool(UPawActorPool* InActorPool, const FVector& Location, const FRotator& Rotation, const FActorSpawnParameters& SpawnParameters) override;
 	virtual void OnDeactivateFromPool() override;
 
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Break_Implementation() override;
 	virtual bool CanBeBreakByHider_Implementation() const override;
+
+protected:
+	UFUNCTION()
+	void OnProjectileBounce(const FHitResult& HitResult, const FVector& ImpactVelocity);
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -47,8 +52,11 @@ protected:
 	UPROPERTY(EditDefaultsOnly)
 	float BubbleLifeTime = 5.0f;
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "SFX")
 	USoundBase* BreakSound;
+	
+	UPROPERTY(EditAnywhere, Category = "SFX")
+	USoundBase* BounceSound;
 
 	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<APawBubbleHiderCapture> BubbleHiderCaptureClass;
@@ -62,11 +70,15 @@ protected:
 protected:
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastSpawnBreakEffect();
+	
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastSpawnBounceSound();
 
 private:
 	void SelfBreak();
 	void OnBreakEffectLoaded();
 	void LoadBreakEffect();
+	
 
 private:
 	FTimerHandle LifeCycleTimerHandle;

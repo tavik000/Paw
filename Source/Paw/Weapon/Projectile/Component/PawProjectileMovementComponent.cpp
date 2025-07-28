@@ -107,8 +107,9 @@ void UPawProjectileMovementComponent::InitializeComponent()
 		if (InitialSpeed > 0.f)
 		{
 			Velocity = Velocity.GetSafeNormal() * InitialSpeed;
-			UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  Verbose - Applied InitialSpeed, new velocity: %s, Actor: %s, IsAuthority : %d"),
-				   *Velocity.ToString(), *GetOwner()->GetName(), GetOwner()->HasAuthority());
+			UE_LOG(LogPawProjectileMovement, Verbose,
+			       TEXT("  Verbose - Applied InitialSpeed, new velocity: %s, Actor: %s, IsAuthority : %d"),
+			       *Velocity.ToString(), *GetOwner()->GetName(), GetOwner()->HasAuthority());
 		}
 
 		if (bInitialVelocityInLocalSpace)
@@ -196,7 +197,8 @@ void UPawProjectileMovementComponent::TickComponent(float DeltaTime, enum ELevel
 	AActor* ActorOwner = UpdatedComponent->GetOwner();
 	if (!ActorOwner || !CheckStillInWorld())
 	{
-		UE_LOG(LogPawProjectileMovement, Warning, TEXT(" ProjectileMovementComponent: ActorOwner is invalid or not in world."));
+		UE_LOG(LogPawProjectileMovement, Warning,
+		       TEXT(" ProjectileMovementComponent: ActorOwner is invalid or not in world."));
 		return;
 	}
 
@@ -285,7 +287,7 @@ void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AAc
 	else
 	{
 		// TODO: maybe use async sweep here as well?
-		
+
 		// If we can't bounce, then we shouldn't adjust if initially penetrating, because that should be a blocking hit that causes a hit event and stop simulation.
 		TGuardValue<EMoveComponentFlags> ScopedFlagRestore(MoveComponentFlags,
 		                                                   MoveComponentFlags |
@@ -342,12 +344,14 @@ bool UPawProjectileMovementComponent::HandleBouncing(const FHitResult& Hit, cons
 
 	if (IsValid(PrimitiveComponent.Get()))
 	{
-		UE_LOG(LogPawProjectileMovement, Verbose, TEXT("Broadcasting OnComponentHit for %s, HitActor: %s, HitComponent: %s"),
+		UE_LOG(LogPawProjectileMovement, Verbose,
+		       TEXT("Broadcasting OnComponentHit for %s, HitActor: %s, HitComponent: %s"),
 		       *GetNameSafe(PrimitiveComponent.Get()), *GetNameSafe(Hit.GetActor()), *GetNameSafe(Hit.GetComponent()));
 		PrimitiveComponent->OnComponentHit.Broadcast(
 			PrimitiveComponent.Get(), Hit.GetActor(), Hit.GetComponent(),
 			Hit.ImpactNormal, Hit);
 	}
+
 
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(ActorOwner);
@@ -357,7 +361,7 @@ bool UPawProjectileMovementComponent::HandleBouncing(const FHitResult& Hit, cons
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_PhysicsBody);
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel1); // Seeker
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_GameTraceChannel2); // Hider
-	
+
 	const FVector StartLocation = ActorOwner->GetActorLocation();
 	const FVector EndLocation = StartLocation + MoveDelta;
 	const FQuat NewRotation = ActorOwner->GetActorQuat() * MovementAsyncSweepData.RelativeQuat;
@@ -386,7 +390,8 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 
 	// If the previous hit normal is not valid, or if the current hit normal is not parallel to the previous hit normal,
 	const bool bVelocityParallelToSurface = (Velocity.GetSafeNormal() | Normal) <= DotTolerance;
-	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  Velocity GetSafeNormal: %s, Normal: %s, Dot: %f, bIsGroundSurface: %d"),
+	UE_LOG(LogPawProjectileMovement, Verbose,
+	       TEXT("  Velocity GetSafeNormal: %s, Normal: %s, Dot: %f, bIsGroundSurface: %d"),
 	       *Velocity.GetSafeNormal().ToString(), *Normal.ToString(),
 	       (Velocity.GetSafeNormal() | Normal), bIsGroundSurface);
 	bool bNewSlidingState = FVector::Coincident(PreviousHitNormal, Normal) &&
@@ -419,7 +424,8 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 			if (!HandleSliding(Hit, SubTickTimeRemaining))
 			{
 				// Log: Sliding handler failed, stopping simulation
-				UE_LOG(LogPawProjectileMovement, Warning, TEXT("Projectile %s: Stopping simulation after sliding failure"),
+				UE_LOG(LogPawProjectileMovement, Warning,
+				       TEXT("Projectile %s: Stopping simulation after sliding failure"),
 				       *GetNameSafe(UpdatedComponent->GetOwner()));
 				return false;
 			}
@@ -428,6 +434,10 @@ bool UPawProjectileMovementComponent::HandleDeflection(FHitResult& Hit, float& S
 	else
 	{
 		// If we are not sliding, we are bouncing.
+		if (!bIsGroundSurface)
+		{
+			OnProjectileBounce.Broadcast(Hit, Velocity);
+		}
 		if (!HandleBouncing(Hit, SubTickTimeRemaining))
 		{
 			UE_LOG(LogPawProjectileMovement, Warning, TEXT("Projectile %s: Stopping simulation after bouncing failure"),
@@ -459,7 +469,8 @@ bool UPawProjectileMovementComponent::HandleSliding(FHitResult& Hit, float& SubT
 	// Handle the case from drop to slide.
 	if (FMath::Abs(OriginalVelocity.Z) > 0.1f)
 	{
-		UE_LOG(LogPawProjectileMovement, Verbose, TEXT(" Projectile %s: Sliding from drop, OriginalVelocity: %s, Normal: %s"),
+		UE_LOG(LogPawProjectileMovement, Verbose,
+		       TEXT(" Projectile %s: Sliding from drop, OriginalVelocity: %s, Normal: %s"),
 		       *GetNameSafe(ActorOwner), *OriginalVelocity.ToString(), *Normal.ToString());
 		Velocity = ComputeSlideVector(Velocity, 1.f, Normal, Hit);
 
@@ -629,7 +640,8 @@ void UPawProjectileMovementComponent::StartSimulating(const FVector& InitialVelo
 	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("PawProjectileMovementComponent: StartSimulating called, Actor: %s"),
 	       *GetOwner()->GetName());
 	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - InitialVelocity: %s"), *InitialVelocity.ToString());
-	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - UpdatedComponent before: %s"), UpdatedComponent ? TEXT("Valid") : TEXT("Null"));
+	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - UpdatedComponent before: %s"),
+	       UpdatedComponent ? TEXT("Valid") : TEXT("Null"));
 	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - Component tick enabled before: %s"),
 	       IsComponentTickEnabled() ? TEXT("Yes") : TEXT("No"));
 
@@ -642,10 +654,12 @@ void UPawProjectileMovementComponent::StartSimulating(const FVector& InitialVelo
 	SetComponentTickEnabled(true);
 
 	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - Final velocity: %s"), *Velocity.ToString());
-	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - bSimulationEnabled: %s"), bSimulationEnabled ? TEXT("Yes") : TEXT("No"));
+	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - bSimulationEnabled: %s"),
+	       bSimulationEnabled ? TEXT("Yes") : TEXT("No"));
 	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - Component tick enabled after: %s"),
 	       IsComponentTickEnabled() ? TEXT("Yes") : TEXT("No"));
-	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - UpdatedComponent after: %s"), UpdatedComponent ? TEXT("Valid") : TEXT("Null"));
+	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - UpdatedComponent after: %s"),
+	       UpdatedComponent ? TEXT("Valid") : TEXT("Null"));
 	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("PawProjectileMovementComponent: StartSimulating completed"));
 
 	if (!IsValid(UpdatedComponent))
@@ -660,7 +674,6 @@ void UPawProjectileMovementComponent::StartSimulating(const FVector& InitialVelo
 		UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - Initial move hit: %s, Actor: %s"),
 		       *InitHit.ToString(), *GetNameSafe(InitHit.GetActor()));
 	}
-	
 }
 
 
@@ -671,7 +684,8 @@ UPawProjectileMovementComponent::EHandleBlockingHitResult UPawProjectileMovement
 	if (!CheckStillInWorld() || !IsValid(ActorOwner))
 	{
 		// Error: Projectile invalid or outside world bounds
-		UE_LOG(LogPawProjectileMovement, Error, TEXT("Projectile %s is not valid or not in world!"), *GetNameSafe(ActorOwner));
+		UE_LOG(LogPawProjectileMovement, Error, TEXT("Projectile %s is not valid or not in world!"),
+		       *GetNameSafe(ActorOwner));
 		return EHandleBlockingHitResult::Abort;
 	}
 
@@ -724,7 +738,8 @@ FVector UPawProjectileMovementComponent::ComputeBounceResult(const FHitResult& H
 		TempVelocity = LimitVelocity(TempVelocity);
 	}
 
-	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("compute bounce result, Before bounce velocity: %s, After bounce velocity: %s"),
+	UE_LOG(LogPawProjectileMovement, Verbose,
+	       TEXT("compute bounce result, Before bounce velocity: %s, After bounce velocity: %s"),
 	       *Velocity.ToString(), *TempVelocity.ToString());
 
 	return TempVelocity;
@@ -736,16 +751,10 @@ void UPawProjectileMovementComponent::HandleImpact(const FHitResult& Hit, float 
 
 	if (bShouldBounce)
 	{
-		const FVector _OldVelocity = Velocity;
 		Velocity = ComputeBounceResult(Hit, TimeSlice, MoveDelta);
-
-
-		// Trigger bounce events
-		OnProjectileBounce.Broadcast(Hit, _OldVelocity);
 
 		// Event may modify velocity or threshold, so check velocity threshold now.
 		Velocity = LimitVelocity(Velocity);
-
 
 		if (IsVelocityUnderSimulationThreshold())
 		{
@@ -1344,7 +1353,7 @@ void UPawProjectileMovementComponent::HandleMovementSweepCompleted()
 					PrimitiveComponent.Get(), Hit.GetActor(), Hit.GetComponent(),
 					Hit.ImpactNormal, Hit);
 			}
-			
+
 			StopSimulating(Hit);
 			return;
 		}
@@ -1434,14 +1443,15 @@ void UPawProjectileMovementComponent::HandleBounceSweepCompleted()
 
 		if (IsValid(PrimitiveComponent.Get()))
 		{
-			
 			FHitResult Hit = SweepData.HitResult;
-			UE_LOG(LogPawProjectileMovement, Verbose, TEXT("Bounce Broadcasting OnComponentHit for %s, HitActor: %s, HitComponent: %s"),
-				   *GetNameSafe(PrimitiveComponent.Get()), *GetNameSafe(Hit.GetActor()), *GetNameSafe(Hit.GetComponent()));
+			UE_LOG(LogPawProjectileMovement, Verbose,
+			       TEXT("Bounce Broadcasting OnComponentHit for %s, HitActor: %s, HitComponent: %s"),
+			       *GetNameSafe(PrimitiveComponent.Get()), *GetNameSafe(Hit.GetActor()),
+			       *GetNameSafe(Hit.GetComponent()));
 			PrimitiveComponent->OnComponentHit.Broadcast(
 				PrimitiveComponent.Get(), Hit.GetActor(), Hit.GetComponent(),
 				Hit.ImpactNormal, Hit);
-			
+
 			// Handle Hit Hider
 			if (Hit.GetActor()->ActorHasTag(FName("Hider")))
 			{
@@ -1495,7 +1505,8 @@ void UPawProjectileMovementComponent::HandleBounceSweepCompleted()
 				TotalBounceCount++;
 				if (TotalBounceCount > MaxTotalBounces)
 				{
-					UE_LOG(LogPawProjectileMovement, Warning, TEXT("Projectile %s exceeded max total bounces (%d), stopping simulation"),
+					UE_LOG(LogPawProjectileMovement, Warning,
+					       TEXT("Projectile %s exceeded max total bounces (%d), stopping simulation"),
 					       *GetNameSafe(ActorOwner), MaxTotalBounces);
 					StopSimulating(SweepData.HitResult);
 					return;
@@ -1521,7 +1532,8 @@ void UPawProjectileMovementComponent::HandleBounceSweepCompleted()
 			else
 			{
 				// Far hit - stop simulation
-				UE_LOG(LogPawProjectileMovement, Warning, TEXT("Far hit during bounce movement (distance: %.3f), stopping simulation"),
+				UE_LOG(LogPawProjectileMovement, Warning,
+				       TEXT("Far hit during bounce movement (distance: %.3f), stopping simulation"),
 				       SweepData.HitMinDistance);
 				StopSimulating(SweepData.HitResult);
 			}
@@ -1547,7 +1559,8 @@ bool UPawProjectileMovementComponent::ValidateAsyncSweepState() const
 	const UWorld* World = ActorOwner->GetWorld();
 	if (!IsValid(World) || !World->IsGameWorld())
 	{
-		UE_LOG(LogPawProjectileMovement, Warning, TEXT("	ProjectileMovementComponent's world is not valid or not a game world!"));
+		UE_LOG(LogPawProjectileMovement, Warning,
+		       TEXT("	ProjectileMovementComponent's world is not valid or not a game world!"));
 		return false;
 	}
 
