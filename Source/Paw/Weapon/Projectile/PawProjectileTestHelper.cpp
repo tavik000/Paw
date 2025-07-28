@@ -35,6 +35,10 @@ void APawProjectileTestHelper::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	if (!HasAuthority())
+	{
+		return;
+	}
 	ProjectilePool = NewObject<UPawActorPool>(this);
 	if (!IsValid(ProjectilePool))
 	{
