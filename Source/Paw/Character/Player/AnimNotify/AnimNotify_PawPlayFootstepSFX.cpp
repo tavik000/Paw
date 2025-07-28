@@ -15,13 +15,12 @@ void UAnimNotify_PawPlayFootstepSFX::Notify(USkeletalMeshComponent* MeshComp, UA
 	const auto* Hider = Cast<APawPlayerHider>(MeshComp->GetOwner());
 	if (!IsValid(Hider))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Hider is not valid!"));
+		UE_LOG(LogTemp, Warning, TEXT("PlayFootStepSFX Hider is not valid!"));
 		return;
 	}
 
-	if (Hider->GetMovementComponent()->Velocity.Length() <= Hider->GetSlowWalkSpeed())
+	if (FMath::Floor(Hider->GetMovementComponent()->Velocity.Length()) <= Hider->GetSlowWalkSpeed())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Hider is not moving fast enough to play footstep sound!"));
 		return;
 	}
 
@@ -31,6 +30,12 @@ void UAnimNotify_PawPlayFootstepSFX::Notify(USkeletalMeshComponent* MeshComp, UA
 		return;
 	}
 
-	UGameplayStatics::PlaySoundAtLocation(GetWorld(), FootstepSound, MeshComp->GetComponentLocation(),
+	if (!IsValid(MeshComp->GetWorld()))
+	{
+		return;
+	}
+	
+
+	UGameplayStatics::PlaySoundAtLocation(MeshComp->GetWorld(), FootstepSound, MeshComp->GetComponentLocation(),
 	                                      1.f, 1.f);
 }
