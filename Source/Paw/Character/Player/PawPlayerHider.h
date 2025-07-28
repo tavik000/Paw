@@ -358,19 +358,34 @@ private: // Internal State & Cached Data
 
 
 	// === Stealth System ===
+	UPROPERTY()
 	TArray<TObjectPtr<UMaterialInterface>> CachedBaseMaterials;
+	
+	UPROPERTY()
 	TObjectPtr<USoundBase> VanishSound;
 
 	// === UI System ===
+	
+	UPROPERTY()
 	TObjectPtr<UUserWidget> HUD;
 
 	// === Jump System ===
 	// Cached loaded assets
+	UPROPERTY()
 	TObjectPtr<USoundBase> JumpSound;
+	
+	UPROPERTY()
 	TObjectPtr<USoundBase> LandSound;
+	
+	UPROPERTY()
 	TObjectPtr<UNiagaraSystem> JumpVFX;
+	
+	UPROPERTY()
 	TObjectPtr<UNiagaraSystem> LandVFX;
+	
+	UPROPERTY()
 	TObjectPtr<UForceFeedbackEffect> LandForceFeedback;
+	
 	TSharedPtr<FStreamableHandle> JumpAssetsHandle;
 	float DefaultGravityScale;
 };

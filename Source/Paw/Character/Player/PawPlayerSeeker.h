@@ -62,8 +62,10 @@ private:
 	void UnregisterFromLightDetectionSubsystem();
 	
 	// === UI System ===
+	UPROPERTY()
 	TObjectPtr<UUserWidget> HUD;
 
 	// === Spotlight Detection ===
+	UPROPERTY()
 	TObjectPtr<UPawLightDetectionSubsystem> LightDetectionSubsystem;
 };
