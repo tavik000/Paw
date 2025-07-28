@@ -10,6 +10,7 @@
 #include "Paw/Core/Enum/ETeamId.h"
 #include "Paw/Core/System/PawLightDetectionSubsystem.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 
 
 APawPlayerSeeker::APawPlayerSeeker()
@@ -33,6 +34,11 @@ void APawPlayerSeeker::BeginPlay()
 	if (IsLocallyControlled())
 	{
 		Client_CreateHUD();
+	}
+	
+	if (SpawnSound != nullptr)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, SpawnSound, GetActorLocation());
 	}
 }
 

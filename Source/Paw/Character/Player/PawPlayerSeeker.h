@@ -47,6 +47,9 @@ protected:
 	// === UI System ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TSubclassOf<UUserWidget> HUDWidgetClass;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SFX")
+	USoundBase* SpawnSound;
 
 private:
 	// === UI Helper Functions ===
