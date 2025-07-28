@@ -201,6 +201,9 @@ protected: // Properties (State & Configuration)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stealth")
 	FName OpacityParameterName;
+	
+	UPROPERTY(EditAnywhere, Category = "SFX")
+	TSoftObjectPtr<USoundBase> VanishSoundAsset;
 
 	// === Capture System ===
 	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Capture", meta = (ScriptName = "is_captured_state"))
@@ -249,10 +252,10 @@ protected: // Properties (State & Configuration)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")
 	float JumpSFXVolumeMax;
 
-	UPROPERTY(EditAnywhere, Category = "Jump System")
+	UPROPERTY(EditAnywhere, Category = "SFX")
 	TSoftObjectPtr<USoundBase> JumpSoundAsset;
 
-	UPROPERTY(EditAnywhere, Category = "Jump System")
+	UPROPERTY(EditAnywhere, Category = "SFX")
 	TSoftObjectPtr<USoundBase> LandSoundAsset;
 
 	UPROPERTY(EditAnywhere, Category = "Jump System")
@@ -325,6 +328,7 @@ private: // Internal Helper Functions
 	void RestoreOriginalMaterials();
 	void ValidateAndRefreshMaterials();
 	void UpdateInvisibilityState();
+	void PlayVanishSound();
 	
 	UFUNCTION()
 	void HandlePossessionChanged(APawn* OldPawn, APawn* NewPawn);
@@ -336,7 +340,7 @@ private: // Internal Helper Functions
 
 	// === Jump System Helper Functions ===
 	void LoadJumpAssetsAsync();
-	void OnJumpAssetsLoaded();
+	void OnAssetsLoaded();
 	void SpawnJumpVFX();
 	void SpawnLandVFX();
 	void PlayJumpSound();
@@ -355,6 +359,7 @@ private: // Internal State & Cached Data
 
 	// === Stealth System ===
 	TArray<TObjectPtr<UMaterialInterface>> CachedBaseMaterials;
+	TObjectPtr<USoundBase> VanishSound;
 
 	// === UI System ===
 	TObjectPtr<UUserWidget> HUD;

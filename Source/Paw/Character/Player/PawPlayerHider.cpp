@@ -79,6 +79,7 @@ APawPlayerHider::APawPlayerHider()
 	DefaultGravityScale = 3.7f;
 
 	// Cached assets initialized to nullptr
+	VanishSound = nullptr;
 	JumpSound = nullptr;
 	JumpVFX = nullptr;
 	LandVFX = nullptr;
@@ -440,6 +441,14 @@ void APawPlayerHider::UpdateInvisibilityState()
 	}
 }
 
+void APawPlayerHider::PlayVanishSound()
+{
+	if (IsValid(VanishSound))
+	{
+		UGameplayStatics::PlaySoundAtLocation(GetWorld(), VanishSound, GetActorLocation());
+	}
+}
+
 void APawPlayerHider::UpdateStealthVisuals()
 {
 	// Early validation - check if actor is being destroyed or mesh is invalid
@@ -462,6 +471,8 @@ void APawPlayerHider::UpdateStealthVisuals()
 		}
 		return;
 	}
+
+	PlayVanishSound();
 
 	// Handle invisible state
 	ApplyInvisibilityMaterials();
@@ -1279,6 +1290,7 @@ void APawPlayerHider::LoadJumpAssetsAsync()
 {
 	TArray<FSoftObjectPath> AssetsToLoad;
 
+	if (!VanishSoundAsset.IsNull()) AssetsToLoad.Add(VanishSoundAsset.ToSoftObjectPath());
 	if (!JumpSoundAsset.IsNull()) AssetsToLoad.Add(JumpSoundAsset.ToSoftObjectPath());
 	if (!LandSoundAsset.IsNull()) AssetsToLoad.Add(LandSoundAsset.ToSoftObjectPath());
 	if (!JumpVFXAsset.IsNull()) AssetsToLoad.Add(JumpVFXAsset.ToSoftObjectPath());
@@ -1289,12 +1301,12 @@ void APawPlayerHider::LoadJumpAssetsAsync()
 	{
 		JumpAssetsHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(
 			AssetsToLoad,
-			FStreamableDelegate::CreateUObject(this, &APawPlayerHider::OnJumpAssetsLoaded)
+			FStreamableDelegate::CreateUObject(this, &APawPlayerHider::OnAssetsLoaded)
 		);
 	}
 }
 
-void APawPlayerHider::OnJumpAssetsLoaded()
+void APawPlayerHider::OnAssetsLoaded()
 {
 	// Safety check: ensure object is still valid
 	if (!IsValid(this))
@@ -1302,6 +1314,12 @@ void APawPlayerHider::OnJumpAssetsLoaded()
 		return;
 	}
 
+	VanishSound = VanishSoundAsset.Get();
+	if (!VanishSound && !VanishSoundAsset.IsNull())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to load JumpSoundAsset for %s"), *GetName());
+	}
+	
 	JumpSound = JumpSoundAsset.Get();
 	if (!JumpSound && !JumpSoundAsset.IsNull())
 	{
