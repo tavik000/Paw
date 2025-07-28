@@ -228,6 +228,9 @@ protected: // Properties (State & Configuration)
 	// === Role Conversion System ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Role Conversion")
 	TSubclassOf<APawPlayerSeeker_Ghost> SeekerGhostClass;
+	
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	TSoftObjectPtr<TSubclassOf<AActor>> ConversionAuraVFXAsset;
 
 	// === Move System ===
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
@@ -273,13 +276,13 @@ protected: // Properties (State & Configuration)
 	UPROPERTY(EditAnywhere, Category = "SFX")
 	TSoftObjectPtr<USoundBase> LandSoundAsset;
 
-	UPROPERTY(EditAnywhere, Category = "Jump System")
+	UPROPERTY(EditAnywhere, Category = "VFX")
 	TSoftObjectPtr<UNiagaraSystem> JumpVFXAsset;
 
-	UPROPERTY(EditAnywhere, Category = "Jump System")
+	UPROPERTY(EditAnywhere, Category = "VFX")
 	TSoftObjectPtr<UNiagaraSystem> LandVFXAsset;
 
-	UPROPERTY(EditAnywhere, Category = "Jump System")
+	UPROPERTY(EditAnywhere, Category = "VFX")
 	TSoftObjectPtr<UForceFeedbackEffect> LandForceFeedbackAsset;
 
 protected: // Networking (RPCs & RepNotifies)
@@ -350,6 +353,10 @@ private: // Internal Helper Functions
 	void ValidateAndRefreshMaterials();
 	void UpdateInvisibilityState();
 	void PlayVanishSound();
+
+
+	// === Role Conversion Helper Functions ===
+	void SpawnConversionAuraVFX();
 	
 	UFUNCTION()
 	void HandlePossessionChanged(APawn* OldPawn, APawn* NewPawn);
@@ -360,7 +367,7 @@ private: // Internal Helper Functions
 	void ConfigureHealthBar();
 
 	// === Jump System Helper Functions ===
-	void LoadJumpAssetsAsync();
+	void LoadAssetsAsync();
 	void OnAssetsLoaded();
 	void SpawnJumpVFX();
 	void SpawnLandVFX();
@@ -384,6 +391,10 @@ private: // Internal State & Cached Data
 	
 	UPROPERTY()
 	TObjectPtr<USoundBase> VanishSound;
+
+	// === Role Conversion System ===
+	UPROPERTY()
+	TObjectPtr<AActor> ConversionAuraVFX;
 
 	// === UI System ===
 	
@@ -410,6 +421,6 @@ private: // Internal State & Cached Data
 	UPROPERTY()
 	TObjectPtr<UForceFeedbackEffect> LandForceFeedback;
 	
-	TSharedPtr<FStreamableHandle> JumpAssetsHandle;
+	TSharedPtr<FStreamableHandle> AssetsHandle;
 	float DefaultGravityScale;
 };

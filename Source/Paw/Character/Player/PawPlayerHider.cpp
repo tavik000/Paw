@@ -172,7 +172,7 @@ void APawPlayerHider::BeginPlay()
 	}
 
 	// Start async loading of jump assets
-	LoadJumpAssetsAsync();
+	LoadAssetsAsync();
 
 	// Bind collision event for breaking objects
 	if (IsValid(GetCapsuleComponent()))
@@ -256,10 +256,10 @@ void APawPlayerHider::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 
 	// Release streamable asset handle
-	if (JumpAssetsHandle.IsValid())
+	if (AssetsHandle.IsValid())
 	{
-		JumpAssetsHandle->ReleaseHandle();
-		JumpAssetsHandle.Reset();
+		AssetsHandle->ReleaseHandle();
+		AssetsHandle.Reset();
 	}
 
 	// Clear HUD widget reference
@@ -320,9 +320,9 @@ void APawPlayerHider::ToggleWalk()
 		ServerToggleWalk();
 		return;
 	}
-	
+
 	bIsWalking = !bIsWalking;
-	
+
 	// Server needs to update its own speed since RepNotify doesn't execute on server
 	if (GetCharacterMovement())
 	{
@@ -487,6 +487,23 @@ void APawPlayerHider::PlayVanishSound()
 	{
 		UGameplayStatics::PlaySoundAtLocation(GetWorld(), VanishSound, GetActorLocation());
 	}
+}
+
+void APawPlayerHider::SpawnConversionAuraVFX()
+{
+	if (!ConversionAuraVFXAsset.IsNull())
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("SpawnConversionAuraVFX: ConversionAuraVFX is not valid, trying to load from asset"));
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!IsValid(World))
+	{
+		return;
+	}
+	ConversionAuraVFX = World->SpawnActor(ConversionAuraVFXAsset.Get(), &GetActorLocation(), &GetActorRotation());
 }
 
 void APawPlayerHider::UpdateStealthVisuals()
@@ -1351,7 +1368,7 @@ void APawPlayerHider::SetCrosshairVisibility(bool bVisible)
 // Private Helper Functions - Jump System Helper Functions
 // ================================================================
 
-void APawPlayerHider::LoadJumpAssetsAsync()
+void APawPlayerHider::LoadAssetsAsync()
 {
 	TArray<FSoftObjectPath> AssetsToLoad;
 
@@ -1361,10 +1378,11 @@ void APawPlayerHider::LoadJumpAssetsAsync()
 	if (!JumpVFXAsset.IsNull()) AssetsToLoad.Add(JumpVFXAsset.ToSoftObjectPath());
 	if (!LandVFXAsset.IsNull()) AssetsToLoad.Add(LandVFXAsset.ToSoftObjectPath());
 	if (!LandForceFeedbackAsset.IsNull()) AssetsToLoad.Add(LandForceFeedbackAsset.ToSoftObjectPath());
+	if (!ConversionAuraVFXAsset.IsNull()) AssetsToLoad.Add(ConversionAuraVFXAsset.ToSoftObjectPath());
 
 	if (AssetsToLoad.Num() > 0)
 	{
-		JumpAssetsHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(
+		AssetsHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(
 			AssetsToLoad,
 			FStreamableDelegate::CreateUObject(this, &APawPlayerHider::OnAssetsLoaded)
 		);
@@ -1413,6 +1431,11 @@ void APawPlayerHider::OnAssetsLoaded()
 	if (!LandForceFeedback && !LandForceFeedbackAsset.IsNull())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Failed to load LandForceFeedbackAsset for %s"), *GetName());
+	}
+
+	if (!ConversionAuraVFX && !ConversionAuraVFXAsset.IsNull())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to load ConversionAuraVFXAsset for %s"), *GetName());
 	}
 }
 
