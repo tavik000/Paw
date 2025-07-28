@@ -123,6 +123,8 @@ public: // Blueprint Callable API
 public: // C++ Public Helper
 	float GetDefaultGravityScale() const { return DefaultGravityScale; }
 
+	float GetSlowWalkSpeed() const { return SlowWalkSpeed; }
+
 public: // Blueprint Events & Delegates
 	UPROPERTY(BlueprintAssignable, Category = "Health")
 	FOnDeathStartedSignature OnDeathStarted;
