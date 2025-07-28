@@ -282,6 +282,9 @@ void APawPlayerHider::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		}
 	}
 
+	ConversionAuraVFX = nullptr;
+	ConversionBurstVFX = nullptr;
+
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -380,6 +383,8 @@ void APawPlayerHider::Die()
 		// Stop health effects timer
 		StopHealthEffectTimer();
 
+		MulticastSpawnConversionAuraEffect();
+
 		// Broadcast death started
 		OnDeathStarted.Broadcast();
 
@@ -398,6 +403,7 @@ void APawPlayerHider::Die()
 				return;
 			}
 
+			MulticastSpawnConversionBurstEffect();
 			OnDeathFinished.Broadcast();
 			Client_HandleConvertSeekerUI();
 			ServerConvertToSeeker();
@@ -489,12 +495,25 @@ void APawPlayerHider::PlayVanishSound()
 	}
 }
 
-void APawPlayerHider::SpawnConversionAuraVFX()
+void APawPlayerHider::SpawnConversionAura()
 {
-	if (!ConversionAuraVFXAsset.IsNull())
+	if (IsValid(ConversionAuraSound))
+	{
+		UGameplayStatics::PlaySoundAtLocation(GetWorld(), ConversionAuraSound, GetActorLocation());
+	}
+
+	if (ConversionAuraVFXAsset.IsNull())
 	{
 		UE_LOG(LogTemp, Warning,
-		       TEXT("SpawnConversionAuraVFX: ConversionAuraVFX is not valid, trying to load from asset"));
+		       TEXT("SpawnConversionAuraVFX: ConversionAuraVFXAsset is not set"));
+		return;
+	}
+
+	UClass* VFXClass = ConversionAuraVFXAsset.Get();
+	if (!IsValid(VFXClass))
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("SpawnConversionAuraVFX: ConversionAuraVFXAsset class is not loaded"));
 		return;
 	}
 
@@ -503,7 +522,92 @@ void APawPlayerHider::SpawnConversionAuraVFX()
 	{
 		return;
 	}
-	ConversionAuraVFX = World->SpawnActor(ConversionAuraVFXAsset.Get(), &GetActorLocation(), &GetActorRotation());
+
+	// Find ground location using line trace
+	FVector StartLocation = GetActorLocation();
+	FVector EndLocation = StartLocation - FVector(0.0f, 0.0f, 1000.0f); // Trace 1000 units down
+
+	FHitResult HitResult;
+	bool bHit = World->LineTraceSingleByChannel(
+		HitResult,
+		StartLocation,
+		EndLocation,
+		ECC_WorldStatic,
+		FCollisionQueryParams::DefaultQueryParam
+	);
+
+	FVector GroundLocation;
+	if (bHit)
+	{
+		// Use the hit location as ground position
+		GroundLocation = HitResult.Location;
+	}
+	else
+	{
+		// Fallback to capsule-based calculation if trace fails
+		GroundLocation = GetActorLocation();
+		if (const UCapsuleComponent* Capsule = GetCapsuleComponent())
+		{
+			GroundLocation.Z -= Capsule->GetScaledCapsuleHalfHeight();
+		}
+	}
+
+	ConversionAuraVFX = World->SpawnActor<AActor>(VFXClass, GroundLocation, GetActorRotation());
+}
+
+void APawPlayerHider::SpawnConversionBurstVFX()
+{
+	if (ConversionBurstVFXAsset.IsNull())
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("SpawnConversionBurstVFX: ConversionBurstVFXAsset is not set"));
+		return;
+	}
+
+	UClass* VFXClass = ConversionBurstVFXAsset.Get();
+	if (!IsValid(VFXClass))
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("SpawnConversionBurstVFX: ConversionBurstVFXAsset class is not loaded"));
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!IsValid(World))
+	{
+		return;
+	}
+
+	// Find ground location using line trace
+	const FVector StartLocation = GetActorLocation();
+	const FVector EndLocation = StartLocation - FVector(0.0f, 0.0f, 1000.0f); // Trace 1000 units down
+
+	FHitResult HitResult;
+	const bool bHit = World->LineTraceSingleByChannel(
+		HitResult,
+		StartLocation,
+		EndLocation,
+		ECC_WorldStatic,
+		FCollisionQueryParams::DefaultQueryParam
+	);
+
+	FVector GroundLocation;
+	if (bHit)
+	{
+		// Use the hit location as ground position
+		GroundLocation = HitResult.Location;
+	}
+	else
+	{
+		// Fallback to capsule-based calculation if trace fails
+		GroundLocation = GetActorLocation();
+		if (const UCapsuleComponent* Capsule = GetCapsuleComponent())
+		{
+			GroundLocation.Z -= Capsule->GetScaledCapsuleHalfHeight();
+		}
+	}
+
+	ConversionBurstVFX = World->SpawnActor<AActor>(VFXClass, GroundLocation, GetActorRotation());
 }
 
 void APawPlayerHider::UpdateStealthVisuals()
@@ -791,6 +895,16 @@ void APawPlayerHider::MulticastPlayLandEffects_Implementation()
 
 	PlayLandSound(Volume);
 	SpawnLandVFX();
+}
+
+void APawPlayerHider::MulticastSpawnConversionAuraEffect_Implementation()
+{
+	SpawnConversionAura();
+}
+
+void APawPlayerHider::MulticastSpawnConversionBurstEffect_Implementation()
+{
+	SpawnConversionBurstVFX();
 }
 
 // ================================================================
@@ -1379,6 +1493,8 @@ void APawPlayerHider::LoadAssetsAsync()
 	if (!LandVFXAsset.IsNull()) AssetsToLoad.Add(LandVFXAsset.ToSoftObjectPath());
 	if (!LandForceFeedbackAsset.IsNull()) AssetsToLoad.Add(LandForceFeedbackAsset.ToSoftObjectPath());
 	if (!ConversionAuraVFXAsset.IsNull()) AssetsToLoad.Add(ConversionAuraVFXAsset.ToSoftObjectPath());
+	if (!ConversionBurstVFXAsset.IsNull()) AssetsToLoad.Add(ConversionBurstVFXAsset.ToSoftObjectPath());
+	if (!ConversionAuraSoundAsset.IsNull()) AssetsToLoad.Add(ConversionAuraSoundAsset.ToSoftObjectPath());
 
 	if (AssetsToLoad.Num() > 0)
 	{
@@ -1433,9 +1549,20 @@ void APawPlayerHider::OnAssetsLoaded()
 		UE_LOG(LogTemp, Warning, TEXT("Failed to load LandForceFeedbackAsset for %s"), *GetName());
 	}
 
-	if (!ConversionAuraVFX && !ConversionAuraVFXAsset.IsNull())
+	if (ConversionAuraVFXAsset.Get() == nullptr && !ConversionAuraVFXAsset.IsNull())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Failed to load ConversionAuraVFXAsset for %s"), *GetName());
+	}
+
+	if (ConversionBurstVFXAsset.Get() == nullptr && !ConversionBurstVFXAsset.IsNull())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to load ConversionBurstVFXAsset for %s"), *GetName());
+	}
+
+	ConversionAuraSound = ConversionAuraSoundAsset.Get();
+	if (ConversionAuraSoundAsset.Get() == nullptr && !ConversionAuraSoundAsset.IsNull())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to load ConversionAuraSoundAsset for %s"), *GetName());
 	}
 }
 

@@ -14,6 +14,7 @@
 class APawPlayerSeeker_Ghost;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathStartedSignature);
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDeathFinishedSignature);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHpChangedSignature, float, HpPercentage);
@@ -151,7 +152,7 @@ protected: // Engine Overrides
 	virtual bool CanMove() override;
 	virtual bool CanJump() override;
 
-protected: 
+protected:
 	void ToggleWalk();
 
 protected: // Properties (State & Configuration)
@@ -206,7 +207,7 @@ protected: // Properties (State & Configuration)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stealth")
 	FName OpacityParameterName;
-	
+
 	UPROPERTY(EditAnywhere, Category = "SFX")
 	TSoftObjectPtr<USoundBase> VanishSoundAsset;
 
@@ -228,20 +229,26 @@ protected: // Properties (State & Configuration)
 	// === Role Conversion System ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Role Conversion")
 	TSubclassOf<APawPlayerSeeker_Ghost> SeekerGhostClass;
+
+	UPROPERTY(EditAnywhere, Category = "VFX")
+	TSoftClassPtr<AActor> ConversionAuraVFXAsset;
 	
 	UPROPERTY(EditAnywhere, Category = "VFX")
-	TSoftObjectPtr<TSubclassOf<AActor>> ConversionAuraVFXAsset;
+	TSoftClassPtr<AActor> ConversionBurstVFXAsset;
+	
+	UPROPERTY(EditAnywhere, Category = "SFX")
+	TSoftObjectPtr<USoundBase> ConversionAuraSoundAsset;
 
 	// === Move System ===
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* ToggleWalkAction;
-	
+
 	UPROPERTY(BlueprintReadWrite, ReplicatedUsing = OnRep_IsWalking, Category = "Movement")
 	bool bIsWalking;
-	
+
 	UPROPERTY(EditAnywhere, Category = "Movement")
 	int32 SlowWalkSpeed = 75;
-	
+
 	// === Jump System ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")
 	float HangTimeGravityScale;
@@ -298,15 +305,9 @@ protected: // Networking (RPCs & RepNotifies)
 
 	UFUNCTION(Server, Reliable, Category = "Movement")
 	void ServerRequestCancelHorizontalVelocity();
-	
+
 	UFUNCTION(Server, Reliable, Category = "Movement")
 	void ServerToggleWalk();
-
-	UFUNCTION(NetMulticast, Reliable, Category = "Stealth")
-	void MulticastUpdateStealthVisuals();
-
-	UFUNCTION(NetMulticast, Reliable, Category = "Health")
-	void MulticastOnDeath();
 
 	UFUNCTION(Client, Reliable, Category = "Health")
 	void ClientUpdateHealth(float NewHealth);
@@ -316,15 +317,27 @@ protected: // Networking (RPCs & RepNotifies)
 
 	UFUNCTION(Client, Reliable, Category = "UI")
 	void Client_HandleOnDeathStartedUI();
-	
+
 	UFUNCTION(Client, Reliable, Category = "UI")
 	void Client_HandleConvertSeekerUI();
+
+	UFUNCTION(NetMulticast, Reliable, Category = "Stealth")
+	void MulticastUpdateStealthVisuals();
+
+	UFUNCTION(NetMulticast, Reliable, Category = "Health")
+	void MulticastOnDeath();
 
 	UFUNCTION(NetMulticast, Reliable, Category = "Jump System")
 	void MulticastPlayJumpEffects();
 
 	UFUNCTION(NetMulticast, Reliable, Category = "Jump System")
 	void MulticastPlayLandEffects();
+	
+	UFUNCTION(NetMulticast, Reliable, Category = "Role Conversion")
+	void MulticastSpawnConversionAuraEffect();
+	
+	UFUNCTION(NetMulticast, Reliable, Category = "Role Conversion")
+	void MulticastSpawnConversionBurstEffect();
 
 	// RepNotifies
 	UFUNCTION()
@@ -356,8 +369,9 @@ private: // Internal Helper Functions
 
 
 	// === Role Conversion Helper Functions ===
-	void SpawnConversionAuraVFX();
-	
+	void SpawnConversionAura();
+	void SpawnConversionBurstVFX();
+
 	UFUNCTION()
 	void HandlePossessionChanged(APawn* OldPawn, APawn* NewPawn);
 
@@ -377,7 +391,8 @@ private: // Internal Helper Functions
 
 	// === Collision System ===
 	UFUNCTION()
-	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse,
+	           const FHitResult& Hit);
 
 private: // Internal State & Cached Data
 	// === Health System ===
@@ -388,16 +403,22 @@ private: // Internal State & Cached Data
 	// === Stealth System ===
 	UPROPERTY()
 	TArray<TObjectPtr<UMaterialInterface>> CachedBaseMaterials;
-	
+
 	UPROPERTY()
 	TObjectPtr<USoundBase> VanishSound;
 
 	// === Role Conversion System ===
 	UPROPERTY()
 	TObjectPtr<AActor> ConversionAuraVFX;
+	
+	UPROPERTY()
+	TObjectPtr<AActor> ConversionBurstVFX;
+	
+	UPROPERTY()
+	TObjectPtr<USoundBase> ConversionAuraSound;
 
 	// === UI System ===
-	
+
 	UPROPERTY()
 	TObjectPtr<UUserWidget> HUD;
 
@@ -408,19 +429,19 @@ private: // Internal State & Cached Data
 	// Cached loaded assets
 	UPROPERTY()
 	TObjectPtr<USoundBase> JumpSound;
-	
+
 	UPROPERTY()
 	TObjectPtr<USoundBase> LandSound;
-	
+
 	UPROPERTY()
 	TObjectPtr<UNiagaraSystem> JumpVFX;
-	
+
 	UPROPERTY()
 	TObjectPtr<UNiagaraSystem> LandVFX;
-	
+
 	UPROPERTY()
 	TObjectPtr<UForceFeedbackEffect> LandForceFeedback;
-	
+
 	TSharedPtr<FStreamableHandle> AssetsHandle;
 	float DefaultGravityScale;
 };
