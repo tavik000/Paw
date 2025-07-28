@@ -149,6 +149,9 @@ protected: // Engine Overrides
 	virtual bool CanMove() override;
 	virtual bool CanJump() override;
 
+protected: 
+	void ToggleWalk();
+
 protected: // Properties (State & Configuration)
 	// === Health System ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, ReplicatedUsing = OnRep_Health, Category = "Health")
@@ -224,6 +227,16 @@ protected: // Properties (State & Configuration)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Role Conversion")
 	TSubclassOf<APawPlayerSeeker_Ghost> SeekerGhostClass;
 
+	// === Move System ===
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* ToggleWalkAction;
+	
+	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Movement")
+	bool bIsWalking;
+	
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	int32 WalkSpeed = 75;
+	
 	// === Jump System ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")
 	float HangTimeGravityScale;
@@ -368,6 +381,9 @@ private: // Internal State & Cached Data
 	
 	UPROPERTY()
 	TObjectPtr<UUserWidget> HUD;
+
+	// === Movement System ===
+	int32 SprintSpeed;
 
 	// === Jump System ===
 	// Cached loaded assets

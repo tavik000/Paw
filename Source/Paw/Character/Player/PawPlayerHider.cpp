@@ -1,4 +1,6 @@
 ﻿#include "PawPlayerHider.h"
+
+#include "EnhancedInputComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Widget.h"
 #include "Engine/Engine.h"
@@ -59,6 +61,9 @@ APawPlayerHider::APawPlayerHider()
 	// Multiplayer Properties
 	bIsLocalPlayer = false;
 	PlayerIndex = -1;
+
+	// Movement System
+	bIsWalking = false;
 
 	// UI System
 	HUD = nullptr;
@@ -121,6 +126,12 @@ void APawPlayerHider::Tick(float DeltaTime)
 void APawPlayerHider::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
+	{
+		// Toggle walking
+		EnhancedInputComponent->BindAction(ToggleWalkAction, ETriggerEvent::Started, this, &ThisClass::ToggleWalk);
+	}
 }
 
 void APawPlayerHider::Landed(const FHitResult& Hit)
@@ -157,6 +168,7 @@ void APawPlayerHider::BeginPlay()
 	if (GetCharacterMovement())
 	{
 		DefaultGravityScale = GetCharacterMovement()->GravityScale;
+		SprintSpeed = GetCharacterMovement()->MaxWalkSpeed;
 	}
 
 	// Start async loading of jump assets
@@ -285,6 +297,7 @@ void APawPlayerHider::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(APawPlayerHider, bIsCaptured);
 	DOREPLIFETIME(APawPlayerHider, bIsLocalPlayer);
 	DOREPLIFETIME(APawPlayerHider, PlayerIndex);
+	DOREPLIFETIME(APawPlayerHider, bIsWalking);
 }
 
 bool APawPlayerHider::CanMove()
@@ -295,6 +308,31 @@ bool APawPlayerHider::CanMove()
 bool APawPlayerHider::CanJump()
 {
 	return !bIsCaptured;
+}
+
+// ================================================================
+// Movement System
+// ================================================================
+void APawPlayerHider::ToggleWalk()
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	bIsWalking = !bIsWalking;
+
+	if (GetCharacterMovement())
+	{
+		if (bIsWalking)
+		{
+			GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+		}
+		else
+		{
+			GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
+		}
+	}
 }
 
 // ================================================================
@@ -598,7 +636,8 @@ void APawPlayerHider::ServerConvertToSeeker_Implementation()
 	NewSeeker->SetTeamId(ETeamId::Seeker);
 	SetTeamId(ETeamId::Seeker);
 
-	UE_LOG(LogTemp, Log, TEXT("ServerConvertToSeeker: Successfully converted %s to seeker ghost"), *GetActorNameOrLabel());
+	UE_LOG(LogTemp, Log, TEXT("ServerConvertToSeeker: Successfully converted %s to seeker ghost"),
+	       *GetActorNameOrLabel());
 
 	// Note: Hider visual updates are now handled by the new seeker's BeginPlay()
 	// This eliminates timing issues with network replication
@@ -1319,7 +1358,7 @@ void APawPlayerHider::OnAssetsLoaded()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Failed to load JumpSoundAsset for %s"), *GetName());
 	}
-	
+
 	JumpSound = JumpSoundAsset.Get();
 	if (!JumpSound && !JumpSoundAsset.IsNull())
 	{
