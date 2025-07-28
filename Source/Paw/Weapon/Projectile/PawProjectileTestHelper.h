@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "PawProjectileTestHelper.generated.h"
 
+class UPawActorPool;
 class APawProjectileBase;
 class UStaticMeshComponent;
 
@@ -56,6 +57,12 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Test")
 	TArray<TObjectPtr<APawProjectileBase>> ActiveProjectiles;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Actor Pool")
+	TObjectPtr<UPawActorPool> ProjectilePool;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Actor Pool", meta = (ClampMin = "1"))
+	int32 PrewarmCount = 3;
 
 private:
 	FTimerHandle FireTimerHandle;

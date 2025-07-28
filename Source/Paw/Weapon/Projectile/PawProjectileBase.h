@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Paw/Core/System/Interface/IPawPoolableInterface.h>
+#include <Paw/Core/Interface/IPawPoolableInterface.h>
 
 #include "CoreMinimal.h"
 

@@ -5,8 +5,6 @@
 
 #include "Component/PawProjectileMovementComponent.h"
 #include "Components/SphereComponent.h"
-#include "Misc/MapErrors.h"
-#include "Paw/Core/System/PawActorPoolSubsystem.h"
 #include "Paw/Core/Utility/Object/PawActorPool.h"
 
 
@@ -97,14 +95,6 @@ void APawProjectileBase::ReturnToPoolOrDestroy()
 
 	ActorPool->ReturnToPool(this);
 	
-	// if (UWorld* World = GetWorld(); IsValid(World))
-	// {
-	// 	UPawActorPoolSubsystem* ActorPoolSubsystem = World->GetSubsystem<UPawActorPoolSubsystem>();
-	// 	if (IsValid(ActorPoolSubsystem))
-	// 	{
-	// 		ActorPoolSubsystem->ReturnToPool(this);
-	// 	}
-	// }
 }
 
 void APawProjectileBase::Tick(float DeltaTime)

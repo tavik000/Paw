@@ -7,7 +7,6 @@
 #include "EnhancedInputSubsystems.h"
 #include "Kismet/GameplayStatics.h"
 #include "Paw/Character/Player/PawFPSPlayer.h"
-#include "Paw/Core/System/PawActorPoolSubsystem.h"
 #include "Paw/Core/Utility/Object/PawActorPool.h"
 #include "Paw/Weapon/Projectile/PawProjectileBase.h"
 
@@ -201,12 +200,6 @@ void UPawGunComponent::ServerSpawnProjectile_Implementation(FVector SpawnLocatio
 		ActorSpawnParams.Instigator = FPSPlayer;
 		AActor* SpawnProjectile = ProjectilePool->TrySpawnPooledActor(
 			SpawnLocation, SpawnRotation, ActorSpawnParams);
-		// if (UPawActorPoolSubsystem* ActorPoolSubsystem = World->GetSubsystem<UPawActorPoolSubsystem>(); IsValid(
-		// 	ActorPoolSubsystem))
-		// {
-		// 	AActor* SpawnProjectile = ActorPoolSubsystem->TrySpawnPooledActor(
-		// 		ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
-		// }
 	}
 }
 

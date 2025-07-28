@@ -3,7 +3,7 @@
 
 #include "PawActorPool.h"
 
-#include <Paw/Core/System/Interface/IPawPoolableInterface.h>
+#include <Paw/Core/Interface/IPawPoolableInterface.h>
 
 DEFINE_LOG_CATEGORY_STATIC(LogPawActorPool, Log, All);
 
