@@ -17,14 +17,10 @@ class PAW_API APawBubbleHiderCapture : public APawBubbleObjectCapture
 public:
 	APawBubbleHiderCapture();
 
-protected:
-	virtual void BeginPlay() override;
-
-	virtual void Break_Implementation() override;
-
 public:
 	virtual void Tick(float DeltaTime) override;
 
+public: // Network
 	UFUNCTION(Server, Reliable, BlueprintCallable)
 	void ServerCaptureHider(APawPlayerHider *Hider);
 
@@ -33,6 +29,15 @@ public:
 	
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastSetHiderFloatingEnable(APawPlayerHider* Hider, bool bEnable);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastSpawnCaptureBurstEffect();
+	
+protected:
+	virtual void BeginPlay() override;
+
+	virtual void Break_Implementation() override;
+
 
 protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
@@ -43,10 +48,15 @@ protected:
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastDetachHiderFromBubble(APawPlayerHider* Hider);
 
+protected:
+	
+	UPROPERTY(EditAnywhere, Category = "SFX")
+	USoundBase* CapturedBurstSound;
+	
 private:
 
 	UFUNCTION()
-	void OnCapturedHiderDestroy(AActor* DestroyedActor);
+	void OnCapturedHiderDeathStarted();
 	
 	UPROPERTY(Replicated)
 	TWeakObjectPtr<APawPlayerHider> CapturedHider;

@@ -73,7 +73,7 @@ protected:
 	UPROPERTY(EditAnywhere)
 	float BreakEffectScale = 1.0f;
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "SFX")
 	USoundBase* BreakSound;
 
 public:

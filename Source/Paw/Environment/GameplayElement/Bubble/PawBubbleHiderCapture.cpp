@@ -5,6 +5,7 @@
 
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 #include "Paw/Character/Player/PawCharacter.h"
 #include "Paw/Character/Player/PawPlayerHider.h"
@@ -193,7 +194,7 @@ void APawBubbleHiderCapture::ServerCaptureHider_Implementation(APawPlayerHider* 
 
 			// Set captured state
 			Hider->ServerSetCaptured(true);
-			Hider->OnDestroyed.AddDynamic(this, &APawBubbleHiderCapture::OnCapturedHiderDestroy);
+			Hider->OnDeathStarted.AddDynamic(this, &APawBubbleHiderCapture::OnCapturedHiderDeathStarted);
 
 			UE_LOG(LogTemp, Log, TEXT("APawBubbleHiderCapture::ServerCaptureHider - Capture complete for %s"),
 			       *Hider->GetName());
@@ -217,10 +218,38 @@ void APawBubbleHiderCapture::ServerReleaseHider_Implementation()
 	CapturedHider.Reset();
 }
 
-void APawBubbleHiderCapture::OnCapturedHiderDestroy(AActor* DestroyedActor)
+void APawBubbleHiderCapture::MulticastSpawnCaptureBurstEffect_Implementation()
 {
+	if (IsValid(CapturedBurstSound))
+	{
+		UGameplayStatics::SpawnSoundAtLocation(GetWorld(), CapturedBurstSound, GetActorLocation());
+	}
+	
+	if (!IsValid(BreakEffect))
+	{
+		BreakEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), BreakEffectAsset.Get(),
+																	 GetActorLocation(),
+																	 GetActorRotation(),
+																	 FVector::One() * BreakEffectScale, true, true,
+																	 ENCPoolMethod::AutoRelease,
+																	 true);
+	}
+	
+	Deactivate();
+
 	if (HasAuthority())
 	{
 		Destroy();
+	}
+}
+
+void APawBubbleHiderCapture::OnCapturedHiderDeathStarted()
+{
+	if (HasAuthority())
+	{
+		APawPlayerHider* HiderToRelease = CapturedHider.Get();
+		MulticastDetachHiderFromBubble(HiderToRelease);
+		MulticastSetHiderFloatingEnable(HiderToRelease, false);
+		MulticastSpawnCaptureBurstEffect();
 	}
 }

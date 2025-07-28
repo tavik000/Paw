@@ -54,7 +54,7 @@ protected:
 	TSubclassOf<APawBubbleHiderCapture> BubbleHiderCaptureClass;
 
 	UPROPERTY(EditDefaultsOnly)
-	float BubbleHeightOffset = 20.0f;
+	float CapturedBubbleHeightOffset = 20.0f;
 
 	UPROPERTY(EditDefaultsOnly)
 	float PushForce = 30.0f;

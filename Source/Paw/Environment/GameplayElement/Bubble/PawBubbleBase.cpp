@@ -70,11 +70,16 @@ void APawBubbleBase::LoadBreakEffect()
 
 void APawBubbleBase::MulticastSpawnBreakEffect_Implementation()
 {
-	BreakEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), BreakEffectAsset.Get(), GetActorLocation(),
-	                                                             GetActorRotation(),
-	                                                             FVector::One() * BreakEffectScale, true, true,
-	                                                             ENCPoolMethod::AutoRelease,
-	                                                             true);
+	if (!IsValid(BreakEffect))
+	{
+		BreakEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), BreakEffectAsset.Get(),
+		                                                             GetActorLocation(),
+		                                                             GetActorRotation(),
+		                                                             FVector::One() * BreakEffectScale, true, true,
+		                                                             ENCPoolMethod::AutoRelease,
+		                                                             true);
+	}
+	
 	if (IsValid(BreakSound))
 	{
 		UGameplayStatics::SpawnSoundAtLocation(GetWorld(), BreakSound, GetActorLocation());

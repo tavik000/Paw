@@ -128,7 +128,7 @@ void APawProjectile_Bubble::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAct
 	UE_LOG(LogTemp, Log, TEXT(" Bubble Projectile OnHit Hider: %s"), *GetNameSafe(OtherActor));
 	const FVector HitHiderLocation = HitHider->GetActorLocation();
 	const FVector BubbleSpawnLocation = FVector(HitHiderLocation.X, HitHiderLocation.Y,
-	                                      HitHiderLocation.Z + BubbleHeightOffset);
+	                                      HitHiderLocation.Z + CapturedBubbleHeightOffset);
 	HitHider->SetActorLocation(BubbleSpawnLocation);
 
 	// Spawn Actor from class BubbleHideCaptureClass
