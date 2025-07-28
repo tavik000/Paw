@@ -231,7 +231,7 @@ protected: // Properties (State & Configuration)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* ToggleWalkAction;
 	
-	UPROPERTY(BlueprintReadWrite, Replicated, Category = "Movement")
+	UPROPERTY(BlueprintReadWrite, ReplicatedUsing = OnRep_IsWalking, Category = "Movement")
 	bool bIsWalking;
 	
 	UPROPERTY(EditAnywhere, Category = "Movement")
@@ -293,6 +293,9 @@ protected: // Networking (RPCs & RepNotifies)
 
 	UFUNCTION(Server, Reliable, Category = "Movement")
 	void ServerRequestCancelHorizontalVelocity();
+	
+	UFUNCTION(Server, Reliable, Category = "Movement")
+	void ServerToggleWalk();
 
 	UFUNCTION(NetMulticast, Reliable, Category = "Stealth")
 	void MulticastUpdateStealthVisuals();
@@ -324,6 +327,9 @@ protected: // Networking (RPCs & RepNotifies)
 
 	UFUNCTION()
 	void OnRep_IsInvisible();
+
+	UFUNCTION()
+	void OnRep_IsWalking();
 
 private: // Internal Helper Functions
 	// === Internal System Functions ===

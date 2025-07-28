@@ -317,22 +317,11 @@ void APawPlayerHider::ToggleWalk()
 {
 	if (!HasAuthority())
 	{
+		ServerToggleWalk();
 		return;
 	}
-
+	
 	bIsWalking = !bIsWalking;
-
-	if (GetCharacterMovement())
-	{
-		if (bIsWalking)
-		{
-			GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
-		}
-		else
-		{
-			GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
-		}
-	}
 }
 
 // ================================================================
@@ -675,6 +664,12 @@ void APawPlayerHider::ServerRequestCancelHorizontalVelocity_Implementation()
 	}
 }
 
+void APawPlayerHider::ServerToggleWalk_Implementation()
+{
+	ToggleWalk();
+}
+
+
 void APawPlayerHider::MulticastUpdateStealthVisuals_Implementation()
 {
 	// Network safety checks before updating visuals
@@ -791,6 +786,26 @@ void APawPlayerHider::OnRep_IsInvisible()
 
 	UpdateStealthVisuals();
 	OnInvisibilityChanged(bIsInvisible);
+}
+
+void APawPlayerHider::OnRep_IsWalking()
+{
+	if (!IsValid(GetCharacterMovement()))
+	{
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("HasAuthority: %s, bIsWalking: %s, WalkSpeed: %d, SprintSpeed: %d"),
+	       HasAuthority() ? TEXT("true") : TEXT("false"), bIsWalking ? TEXT("true") : TEXT("false"),
+	       WalkSpeed, SprintSpeed);
+	if (bIsWalking)
+	{
+		GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+	}
+	else
+	{
+		GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
+	}
 }
 
 // ================================================================
