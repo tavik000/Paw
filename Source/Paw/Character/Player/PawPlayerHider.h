@@ -235,7 +235,7 @@ protected: // Properties (State & Configuration)
 	bool bIsWalking;
 	
 	UPROPERTY(EditAnywhere, Category = "Movement")
-	int32 WalkSpeed = 75;
+	int32 SlowWalkSpeed = 75;
 	
 	// === Jump System ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Jump System")

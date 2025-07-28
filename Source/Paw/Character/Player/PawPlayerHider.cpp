@@ -322,6 +322,19 @@ void APawPlayerHider::ToggleWalk()
 	}
 	
 	bIsWalking = !bIsWalking;
+	
+	// Server needs to update its own speed since RepNotify doesn't execute on server
+	if (GetCharacterMovement())
+	{
+		if (bIsWalking)
+		{
+			GetCharacterMovement()->MaxWalkSpeed = SlowWalkSpeed;
+		}
+		else
+		{
+			GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
+		}
+	}
 }
 
 // ================================================================
@@ -792,15 +805,13 @@ void APawPlayerHider::OnRep_IsWalking()
 {
 	if (!IsValid(GetCharacterMovement()))
 	{
+		UE_LOG(LogTemp, Error, TEXT("OnRep_IsWalking: CharacterMovement is invalid!"));
 		return;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("HasAuthority: %s, bIsWalking: %s, WalkSpeed: %d, SprintSpeed: %d"),
-	       HasAuthority() ? TEXT("true") : TEXT("false"), bIsWalking ? TEXT("true") : TEXT("false"),
-	       WalkSpeed, SprintSpeed);
 	if (bIsWalking)
 	{
-		GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+		GetCharacterMovement()->MaxWalkSpeed = SlowWalkSpeed;
 	}
 	else
 	{
