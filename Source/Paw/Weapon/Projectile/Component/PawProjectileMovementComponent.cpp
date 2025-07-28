@@ -284,6 +284,8 @@ void UPawProjectileMovementComponent::TickPhysicsSimulation(float DeltaTime, AAc
 	}
 	else
 	{
+		// TODO: maybe use async sweep here as well?
+		
 		// If we can't bounce, then we shouldn't adjust if initially penetrating, because that should be a blocking hit that causes a hit event and stop simulation.
 		TGuardValue<EMoveComponentFlags> ScopedFlagRestore(MoveComponentFlags,
 		                                                   MoveComponentFlags |
