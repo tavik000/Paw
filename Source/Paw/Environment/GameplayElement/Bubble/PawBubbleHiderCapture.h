@@ -53,6 +53,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "SFX")
 	USoundBase* CapturedBurstSound;
 	
+	UPROPERTY(EditAnywhere, Category = "SFX")
+	USoundBase* CaptureSound;
+	
 private:
 
 	UFUNCTION()

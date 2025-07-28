@@ -3,11 +3,12 @@
 
 #include "PawBubbleHiderCapture.h"
 
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
-#include "Paw/Character/Player/PawCharacter.h"
+#include "Engine/Engine.h"
 #include "Paw/Character/Player/PawPlayerHider.h"
 
 
@@ -26,6 +27,11 @@ void APawBubbleHiderCapture::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 void APawBubbleHiderCapture::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (IsValid(CaptureSound))
+	{
+		UGameplayStatics::SpawnSoundAtLocation(GetWorld(), CaptureSound, GetActorLocation());
+	}
 }
 
 void APawBubbleHiderCapture::Break_Implementation()
@@ -51,7 +57,8 @@ void APawBubbleHiderCapture::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void APawBubbleHiderCapture::MulticastSetHiderFloatingEnable_Implementation(APawPlayerHider* Hider, bool bEnable)
+void APawBubbleHiderCapture::MulticastSetHiderFloatingEnable_Implementation(
+	APawPlayerHider* Hider, bool bEnable)
 {
 	if (!IsValid(Hider))
 	{
@@ -96,12 +103,13 @@ void APawBubbleHiderCapture::MulticastSetHiderFloatingEnable_Implementation(APaw
 
 		// Restore collision
 		Hider->SetActorEnableCollision(true);
+		// Restore original movement mode
+		MovementComp->SetMovementMode(OriginalMovementMode);
+
 
 		// Restore gravity
 		MovementComp->GravityScale = Hider->GetDefaultGravityScale();
 
-		// Restore original movement mode
-		MovementComp->SetMovementMode(OriginalMovementMode);
 
 		// Clear velocity to prevent sudden movements
 		MovementComp->Velocity = FVector::ZeroVector;
@@ -209,6 +217,7 @@ void APawBubbleHiderCapture::ServerReleaseHider_Implementation()
 		return;
 	}
 
+	CapturedHider->OnDeathStarted.RemoveDynamic(this, &APawBubbleHiderCapture::OnCapturedHiderDeathStarted);
 	APawPlayerHider* HiderToRelease = CapturedHider.Get();
 
 	MulticastDetachHiderFromBubble(HiderToRelease);
@@ -224,17 +233,17 @@ void APawBubbleHiderCapture::MulticastSpawnCaptureBurstEffect_Implementation()
 	{
 		UGameplayStatics::SpawnSoundAtLocation(GetWorld(), CapturedBurstSound, GetActorLocation());
 	}
-	
+
 	if (!IsValid(BreakEffect))
 	{
 		BreakEffect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), BreakEffectAsset.Get(),
-																	 GetActorLocation(),
-																	 GetActorRotation(),
-																	 FVector::One() * BreakEffectScale, true, true,
-																	 ENCPoolMethod::AutoRelease,
-																	 true);
+		                                                             GetActorLocation(),
+		                                                             GetActorRotation(),
+		                                                             FVector::One() * BreakEffectScale, true, true,
+		                                                             ENCPoolMethod::AutoRelease,
+		                                                             true);
 	}
-	
+
 	Deactivate();
 
 	if (HasAuthority())
