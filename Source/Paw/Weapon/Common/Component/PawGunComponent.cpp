@@ -115,11 +115,15 @@ void UPawGunComponent::Fire()
 	FVector ActorForwardVector = FPSPlayer->GetActorForwardVector();
 	FVector SpawnLocation = ActorLocation + ActorForwardVector * MuzzleOffset;
 
+	// Debug SpawnLocation
+	// DrawDebugSphere(GetWorld(), SpawnLocation, 20.0f, 12, FColor::Red, false, 5.0f);
+
+
 	// Ensure minimum ground clearance to prevent spawning inside ground
 	constexpr float MinClearanceDistance = 30.0f; // Minimum distance above ground
 	FVector ForwardCheckStartLocation = ActorLocation;
-	FVector ForwardCheckEndLocation = ActorLocation + FPSPlayer->GetActorForwardVector() * 200.0f;
-	// Check 200 units forward
+	FVector ForwardCheckEndLocation = ActorLocation + ActorForwardVector * 100.0f;
+	// Check 100 units forward
 
 	FHitResult InitHit;
 	FCollisionObjectQueryParams ObjectQueryParams;
@@ -136,7 +140,9 @@ void UPawGunComponent::Fire()
 		// Found an obstacle in front, adjust spawn location
 		if (!InitHit.GetActor()->ActorHasTag("Projectile"))
 		{
-			SpawnLocation = ActorLocation + ActorForwardVector + InitHit.Distance - MinClearanceDistance;
+			SpawnLocation = ActorLocation + ActorForwardVector * (InitHit.Distance - MinClearanceDistance);
+
+			// DrawDebugSphere(GetWorld(), SpawnLocation, 20.0f, 12, FColor::Green, false, 5.0f);
 		}
 	}
 
@@ -152,6 +158,8 @@ void UPawGunComponent::Fire()
 		{
 			// Adjust spawn location to be above ground
 			SpawnLocation = InitHit.ImpactPoint + FVector(0, 0, MinClearanceDistance);
+			UE_LOG(LogTemp, Warning, TEXT("ImpactPoint: %s, DistanceToGround: %f, Adjusted SpawnLocation: %s"),
+			       *InitHit.ImpactPoint.ToString(), DistanceToGround, *SpawnLocation.ToString());
 		}
 	}
 
