@@ -72,7 +72,7 @@ protected:
 	void MulticastSpawnBreakEffect();
 	
 	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastSpawnBounceSound();
+	void MulticastSpawnBounceSound(const FVector& Velocity);
 
 private:
 	void SelfBreak();

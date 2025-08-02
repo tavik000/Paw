@@ -40,17 +40,24 @@ bool APawProjectile_Bubble::CanBeBreakByHider_Implementation() const
 	return false;
 }
 
-void APawProjectile_Bubble::MulticastSpawnBounceSound_Implementation()
+void APawProjectile_Bubble::MulticastSpawnBounceSound_Implementation(const FVector& Velocity)
 {
 	if (!IsValid(ProjectileMovement))
 	{
 		return;
 	}
 	
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
 	if (IsValid(BounceSound))
 	{
-		const float VolumeMultiplier =  ProjectileMovement->Velocity.Length() / ProjectileMovement->InitialSpeed;
-		UGameplayStatics::SpawnSoundAtLocation(GetWorld(), BounceSound, GetActorLocation(), FRotator::ZeroRotator, VolumeMultiplier);
+		const float VolumeMultiplier = Velocity.Length() / ProjectileMovement->InitialSpeed;
+		UGameplayStatics::SpawnSoundAtLocation(World, BounceSound, GetActorLocation(), FRotator::ZeroRotator,
+		                                       VolumeMultiplier);
 	}
 }
 
@@ -76,7 +83,7 @@ void APawProjectile_Bubble::OnBreakEffectLoaded()
 
 void APawProjectile_Bubble::OnProjectileBounce(const FHitResult& HitResult, const FVector& ImpactVelocity)
 {
-	MulticastSpawnBounceSound();
+	MulticastSpawnBounceSound(ImpactVelocity);
 }
 
 void APawProjectile_Bubble::MulticastSpawnBreakEffect_Implementation()
