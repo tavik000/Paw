@@ -83,6 +83,7 @@ void UPawGunComponent::Fire()
 	{
 		if (DryFireSound != nullptr)
 		{
+			// Play dry fire sound on client
 			UGameplayStatics::PlaySoundAtLocation(this, DryFireSound, Character->GetActorLocation());
 		}
 		return;
