@@ -18,7 +18,7 @@
 #include "PawPlayerSeeker_Ghost.h"
 #include "../../Environment/GameplayElement/Common/Interface/PawCollideBreakableInterface.h"
 #include "Components/CapsuleComponent.h"
-#include "GameFramework/GameStateBase.h"
+
 
 // ================================================================
 // Constructor & Core Engine Overrides
@@ -527,13 +527,15 @@ void APawPlayerHider::SpawnConversionAura()
 	FVector StartLocation = GetActorLocation();
 	FVector EndLocation = StartLocation - FVector(0.0f, 0.0f, 1000.0f); // Trace 1000 units down
 
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
 	FHitResult HitResult;
 	bool bHit = World->LineTraceSingleByChannel(
 		HitResult,
 		StartLocation,
 		EndLocation,
 		ECC_WorldStatic,
-		FCollisionQueryParams::DefaultQueryParam
+		QueryParams
 	);
 
 	FVector GroundLocation;
@@ -581,6 +583,8 @@ void APawPlayerHider::SpawnConversionBurstVFX()
 	// Find ground location using line trace
 	const FVector StartLocation = GetActorLocation();
 	const FVector EndLocation = StartLocation - FVector(0.0f, 0.0f, 1000.0f); // Trace 1000 units down
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
 
 	FHitResult HitResult;
 	const bool bHit = World->LineTraceSingleByChannel(
@@ -588,13 +592,12 @@ void APawPlayerHider::SpawnConversionBurstVFX()
 		StartLocation,
 		EndLocation,
 		ECC_WorldStatic,
-		FCollisionQueryParams::DefaultQueryParam
+		QueryParams
 	);
 
 	FVector GroundLocation;
 	if (bHit)
 	{
-		// Use the hit location as ground position
 		GroundLocation = HitResult.Location;
 	}
 	else
