@@ -55,6 +55,15 @@ void APawBubbleHiderCapture::Break_Implementation()
 void APawBubbleHiderCapture::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	if (CapturedHider.IsValid() && CapturedHider->IsAlive())
+	{
+		float HealthPercentage = CapturedHider->GetHealthPercentage();
+		UMaterialInterface* MaterialInterface = BubbleMesh->GetMaterial(0);
+		if (IsValid(MaterialInterface))
+		{
+			BubbleMesh->SetScalarParameterValueOnMaterials(TEXT("OpacityCenter"), 1 - HealthPercentage);
+		}
+	}
 }
 
 void APawBubbleHiderCapture::MulticastSetHiderFloatingEnable_Implementation(
