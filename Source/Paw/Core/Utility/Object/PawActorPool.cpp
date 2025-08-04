@@ -117,6 +117,7 @@ void UPawActorPool::ReturnToPool(AActor* Actor)
 void UPawActorPool::ActivatePooledActor(AActor* Actor, const FVector& Location, const FRotator& Rotation,
                                         const FActorSpawnParameters& SpawnParameters)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPawActorPool::ActivatePooledActor);
 	if (!IsValid(Actor))
 	{
 		return;
@@ -153,6 +154,7 @@ void UPawActorPool::ActivatePooledActor(AActor* Actor, const FVector& Location, 
 
 void UPawActorPool::DeactivatePooledActor(AActor* Actor)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPawActorPool::DeactivatePooledActor);
 	// Call poolable interface first to allow cleanup before state changes
 	if (IPawPoolableInterface* PoolableInterface = Cast<IPawPoolableInterface>(Actor))
 	{
