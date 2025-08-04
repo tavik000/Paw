@@ -637,6 +637,7 @@ void UPawProjectileMovementComponent::StopSimulating(const FHitResult& HitResult
 
 void UPawProjectileMovementComponent::StartSimulating(const FVector& InitialVelocity)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPawProjectileMovementComponent::StartSimulating);
 	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("PawProjectileMovementComponent: StartSimulating called, Actor: %s"),
 	       *GetOwner()->GetName());
 	UE_LOG(LogPawProjectileMovement, Verbose, TEXT("  - InitialVelocity: %s"), *InitialVelocity.ToString());

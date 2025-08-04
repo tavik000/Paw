@@ -117,6 +117,7 @@ void APawProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor,
 void APawProjectileBase::OnActivateFromPool(UPawActorPool* InActorPool, const FVector& Location, const FRotator& Rotation,
                                         const FActorSpawnParameters& SpawnParameters)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(APawProjectileBase::OnActivateFromPool);
 	ActorPool = InActorPool;
 	
 	// Recalculate projectile velocity based on rotation
