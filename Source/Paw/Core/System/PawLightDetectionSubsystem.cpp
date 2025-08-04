@@ -175,6 +175,7 @@ void UPawLightDetectionSubsystem::FindAndCacheSunLight() const
 
 bool UPawLightDetectionSubsystem::CheckBubbleLightExposure(const FVector& Location, AActor* IgnoreActor) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(PawLightDetectionSubsystem_CheckBubbleLightExposure);
 	// Early exit if no bubble lights registered
 	if (RegisteredBubbleLights.Num() == 0)
 	{
@@ -231,6 +232,7 @@ bool UPawLightDetectionSubsystem::CheckBubbleLightExposure(const FVector& Locati
 
 bool UPawLightDetectionSubsystem::CheckDirectionalLightExposure(const FVector& Location, AActor* IgnoreActor) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(PawLightDetectionSubsystem_CheckDirectionalLightExposure);
 	// Lazy load: search for SunLight if not attempted yet
 	if (SunLightState == ESunLightState::NotSearched)
 	{
@@ -292,6 +294,7 @@ void UPawLightDetectionSubsystem::StopUnifiedLightDetectionTimer()
 
 void UPawLightDetectionSubsystem::OnUnifiedLightDetectionTick()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(PawLightDetectionSubsystem_OnUnifiedLightDetectionTick);
 	if (UWorld* World = GetWorld(); !IsValid(World))
 	{
 		return;
@@ -364,6 +367,8 @@ bool UPawLightDetectionSubsystem::CheckBubbleLightsForHider(APawPlayerHider* Hid
 
 bool UPawLightDetectionSubsystem::CheckSpotlightsForHider(APawPlayerHider* Hider)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(PawLightDetectionSubsystem_CheckSpotlightsForHider);
+	
 	if (!IsValid(Hider) || RegisteredSeekers.Num() == 0)
 	{
 		return false;
@@ -526,6 +531,7 @@ bool UPawLightDetectionSubsystem::IsObstructedForHiderDetection(const FVector& S
 
 void UPawLightDetectionSubsystem::RefreshHiderCache()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(PawLightDetectionSubsystem_RefreshHiderCache);
 	// Only refresh cache periodically or when needed (not every tick)
 	static int32 CacheRefreshCounter = 0;
 	const int32 CacheRefreshInterval = 50; // Refresh every ~5 seconds at 0.1s tick rate
@@ -536,6 +542,8 @@ void UPawLightDetectionSubsystem::RefreshHiderCache()
 
 		// Get current hiders in world
 		TArray<AActor*> AllHiders;
+
+		// TODO: this is heavy
 		UGameplayStatics::GetAllActorsOfClass(this, APawPlayerHider::StaticClass(), AllHiders);
 
 		// Clear and rebuild cache
