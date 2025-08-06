@@ -3,6 +3,7 @@
 
 #include "PawBubbleBase.h"
 
+#include "Components/SphereComponent.h"
 #include "Engine/AssetManager.h"
 #include "Engine/StreamableManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -14,8 +15,10 @@ APawBubbleBase::APawBubbleBase()
 	bReplicates = true;
 	AActor::SetReplicateMovement(true);
 	SceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("SceneComponent"));
+	CollisionComponent = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionComponent"));
 	BubbleMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BubbleMesh"));
-	SetRootComponent(BubbleMesh);
+	SetRootComponent(CollisionComponent);
+	BubbleMesh->SetupAttachment(CollisionComponent);
 	BubbleMesh->SetIsReplicated(true);
 	MovementPathSpline = CreateDefaultSubobject<USplineComponent>(TEXT("MovementPathSpline"));
 	MovementPathSpline->SetupAttachment(SceneComponent);

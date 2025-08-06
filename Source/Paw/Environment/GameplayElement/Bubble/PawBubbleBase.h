@@ -10,6 +10,8 @@
 #include "Paw/Environment/GameplayElement/Common/Interface/PawCollideBreakableInterface.h"
 #include "PawBubbleBase.generated.h"
 
+class USphereComponent;
+
 UENUM(BlueprintType)
 enum class EPawSplineMovementType: uint8
 {
@@ -52,6 +54,9 @@ protected:
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<USceneComponent> SceneComponent;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<USphereComponent> CollisionComponent;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<UStaticMeshComponent> BubbleMesh;
 
