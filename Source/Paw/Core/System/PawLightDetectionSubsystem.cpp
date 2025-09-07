@@ -60,7 +60,7 @@ bool UPawLightDetectionSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 	TEnumAsByte<EWorldType::Type> type = World->WorldType;
 	if (type != EWorldType::Editor && type != EWorldType::EditorPreview && type != EWorldType::None)
 	{
-		return World-> GetNetMode() < NM_Client;
+		return World->GetNetMode() < NM_Client;
 	}
 	return false;
 }
@@ -368,7 +368,7 @@ bool UPawLightDetectionSubsystem::CheckBubbleLightsForHider(APawPlayerHider* Hid
 bool UPawLightDetectionSubsystem::CheckSpotlightsForHider(APawPlayerHider* Hider)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(PawLightDetectionSubsystem_CheckSpotlightsForHider);
-	
+
 	if (!IsValid(Hider) || RegisteredSeekers.Num() == 0)
 	{
 		return false;
@@ -570,9 +570,9 @@ void UPawLightDetectionSubsystem::RefreshHiderCache()
 
 void UPawLightDetectionSubsystem::AddHiderToCache(APawPlayerHider* Hider)
 {
-	if (Hider && !CachedHiders.Contains(Hider))
+	if (Hider)
 	{
-		CachedHiders.Add(Hider);
+		CachedHiders.AddUnique(Hider);
 	}
 }
 
