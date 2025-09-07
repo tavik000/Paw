@@ -665,7 +665,7 @@ float APawPlayerHider::GetOpacityForViewerTeam() const
 UUserWidget* APawPlayerHider::GetHUDSafe() const
 {
 	// Only return HUD on locally controlled clients
-	if (IsLocallyControlled() && IsValid(HUD))
+	if (HasValidHUD())
 	{
 		return HUD;
 	}
