@@ -58,7 +58,11 @@ bool UPawLightDetectionSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 		return false;
 	}
 
-	UWorld* World = Cast<UWorld>(Outer);
+	const UWorld* World = Cast<UWorld>(Outer);
+	if (!IsValid(World))
+	{
+		return false;
+	}
 	TEnumAsByte<EWorldType::Type> type = World->WorldType;
 	if (type != EWorldType::Editor && type != EWorldType::EditorPreview && type != EWorldType::None)
 	{
