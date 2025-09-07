@@ -310,13 +310,13 @@ void UPawLightDetectionSubsystem::OnUnifiedLightDetectionTick()
 	RefreshHiderCache();
 
 	// For each cached hider, check all light types
-	for (int32 i = CachedHiders.Num() - 1; i >= 0; --i)
+	for (int32 i = 0; i < CachedHiders.Num();)
 	{
 		APawPlayerHider* Hider = CachedHiders[i].Get();
 		if (!Hider)
 		{
 			// Remove stale weak pointer
-			CachedHiders.RemoveAtSwap(i);
+			CachedHiders.RemoveAt(i);
 			continue;
 		}
 
@@ -324,6 +324,7 @@ void UPawLightDetectionSubsystem::OnUnifiedLightDetectionTick()
 		if (!Hider->IsAlive() || Hider->IsCaptured())
 		{
 			Hider->SetInLight(true);
+			i++;
 			continue;
 		}
 
@@ -346,6 +347,8 @@ void UPawLightDetectionSubsystem::OnUnifiedLightDetectionTick()
 		{
 			Hider->SetInLight(bNewIsInLight);
 		}
+		
+		i++;
 	}
 }
 
