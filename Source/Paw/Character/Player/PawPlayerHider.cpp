@@ -431,14 +431,6 @@ void APawPlayerHider::SetInLight(bool bNewInLight)
 	}
 }
 
-void APawPlayerHider::SetSpotLighted(bool bSpotLighted)
-{
-	if (HasAuthority() && bIsSpotLighted != bSpotLighted)
-	{
-		bIsSpotLighted = bSpotLighted;
-	}
-}
-
 // ================================================================
 // Blueprint Callable API - Stealth System
 // ================================================================

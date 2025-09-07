@@ -53,9 +53,6 @@ public: // Blueprint Callable API
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	void SetInLight(bool bNewInLight);
 
-	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void SetSpotLighted(bool bSpotLighted);
-
 	// Stealth
 	UFUNCTION(BlueprintCallable, Category = "Stealth")
 	void ActivateInvisibility();
@@ -125,6 +122,8 @@ public: // C++ Public Helper
 	float GetDefaultGravityScale() const { return DefaultGravityScale; }
 
 	float GetSlowWalkSpeed() const { return SlowWalkSpeed; }
+	
+	FORCEINLINE void SetSpotLighted(bool bSpotLighted) { if (HasAuthority() && bIsSpotLighted != bSpotLighted) { bIsSpotLighted = bSpotLighted; } }
 
 public: // Blueprint Events & Delegates
 	UPROPERTY(BlueprintAssignable, Category = "Health")

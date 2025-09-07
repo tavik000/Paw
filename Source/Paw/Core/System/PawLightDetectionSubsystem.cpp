@@ -394,10 +394,7 @@ bool UPawLightDetectionSubsystem::CheckSpotlightsForHider(APawPlayerHider* Hider
 	}
 
 	// Update hider's spotlight state if changed
-	if (bIsSpotLighted != bWasSpotLighted)
-	{
-		Hider->SetSpotLighted(bIsSpotLighted);
-	}
+	Hider->SetSpotLighted(bIsSpotLighted);
 	return bIsSpotLighted;
 }
 
@@ -436,7 +433,7 @@ bool UPawLightDetectionSubsystem::IsPointInSpotlightCone(const FVector& Point, A
 
 	// Use cosine comparison instead of angle calculation (cheaper)
 	float EffectiveConeAngle = OuterConeAngle * SpotlightConeAngleMultiplier;
-	
+
 	// suppose the angel is identical
 	if (CachedCosConeAngle == 0.0f)
 	{
@@ -530,4 +527,3 @@ bool UPawLightDetectionSubsystem::IsObstructedForHiderDetection(const FVector& S
 
 	return false; // No obstruction found
 }
-
