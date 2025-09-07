@@ -371,7 +371,6 @@ bool UPawLightDetectionSubsystem::CheckSpotlightsForHider(APawPlayerHider* Hider
 		return false;
 	}
 
-	const bool bWasSpotLighted = Hider->IsSpotLighted();
 	bool bIsSpotLighted = false;
 
 	// Check against all registered seekers
