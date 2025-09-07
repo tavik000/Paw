@@ -95,8 +95,8 @@ private:
 	bool CheckDirectionalLightsForHider(APawPlayerHider* Hider);
 	bool CheckBubbleLightsForHider(APawPlayerHider* Hider);
 	bool CheckSpotlightsForHider(APawPlayerHider* Hider);
-	bool IsHiderCapsuleInSpotlightCone(APawPlayerHider* Hider, AActor* SeekerActor, USpotLightComponent* SpotLight) const;
-	bool IsPointInSpotlightCone(const FVector& Point, AActor* SeekerActor, USpotLightComponent* SpotLight) const;
+	bool IsHiderCapsuleInSpotlightCone(APawPlayerHider* Hider, AActor* SeekerActor, USpotLightComponent* SpotLight);
+	bool IsPointInSpotlightCone(const FVector& Point, AActor* SeekerActor, USpotLightComponent* SpotLight);
 	bool IsObstructedForHiderDetection(const FVector& Start, const FVector& End, AActor* SeekerActor) const;
 	void RefreshHiderCache();
 	void AddHiderToCache(APawPlayerHider* Hider);
@@ -108,4 +108,5 @@ private:
 	
 	// === Performance Optimization Members ===
 	mutable TArray<FVector> CachedTestPoints;
+	float CachedCosConeAngle = 0.0f;
 };

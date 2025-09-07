@@ -405,7 +405,7 @@ bool UPawLightDetectionSubsystem::CheckSpotlightsForHider(APawPlayerHider* Hider
 }
 
 bool UPawLightDetectionSubsystem::IsPointInSpotlightCone(const FVector& Point, AActor* SeekerActor,
-                                                         USpotLightComponent* SpotLight) const
+                                                         USpotLightComponent* SpotLight)
 {
 	if (!SeekerActor || !SpotLight)
 	{
@@ -439,9 +439,14 @@ bool UPawLightDetectionSubsystem::IsPointInSpotlightCone(const FVector& Point, A
 
 	// Use cosine comparison instead of angle calculation (cheaper)
 	float EffectiveConeAngle = OuterConeAngle * SpotlightConeAngleMultiplier;
-	float CosConeAngle = FMath::Cos(FMath::DegreesToRadians(EffectiveConeAngle));
+	
+	// suppose the angel is identical
+	if (CachedCosConeAngle == 0.0f)
+	{
+		CachedCosConeAngle = FMath::Cos(FMath::DegreesToRadians(EffectiveConeAngle));
+	}
 
-	if (DotProduct < CosConeAngle)
+	if (DotProduct < CachedCosConeAngle)
 	{
 		return false;
 	}
@@ -451,7 +456,7 @@ bool UPawLightDetectionSubsystem::IsPointInSpotlightCone(const FVector& Point, A
 }
 
 bool UPawLightDetectionSubsystem::IsHiderCapsuleInSpotlightCone(APawPlayerHider* Hider, AActor* SeekerActor,
-                                                                USpotLightComponent* SpotLight) const
+                                                                USpotLightComponent* SpotLight)
 {
 	if (!Hider)
 	{
