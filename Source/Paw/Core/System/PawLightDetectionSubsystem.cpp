@@ -283,7 +283,7 @@ void UPawLightDetectionSubsystem::StartUnifiedLightDetectionTimer()
 	{
 		// Use configurable tick rate for light detection
 		World->GetTimerManager().SetTimer(UnifiedLightDetectionTimerHandle, this,
-		                                  &UPawLightDetectionSubsystem::OnUnifiedLightDetectionTick,
+		                                  &ThisClass::OnUnifiedLightDetectionTick,
 		                                  LightDetectionTickRate, true);
 		UE_LOG(LogTemp, Log, TEXT("Started unified light detection timer with rate: %f"), LightDetectionTickRate);
 	}
