@@ -122,8 +122,11 @@ public: // C++ Public Helper
 	float GetDefaultGravityScale() const { return DefaultGravityScale; }
 
 	float GetSlowWalkSpeed() const { return SlowWalkSpeed; }
-	
-	FORCEINLINE void SetSpotLighted(bool bSpotLighted) { if (HasAuthority() && bIsSpotLighted != bSpotLighted) { bIsSpotLighted = bSpotLighted; } }
+
+	FORCEINLINE void SetSpotLighted(const bool bSpotLighted)
+	{
+		if (HasAuthority() && bIsSpotLighted != bSpotLighted) { bIsSpotLighted = bSpotLighted; }
+	}
 
 public: // Blueprint Events & Delegates
 	UPROPERTY(BlueprintAssignable, Category = "Health")
@@ -231,10 +234,10 @@ protected: // Properties (State & Configuration)
 
 	UPROPERTY(EditAnywhere, Category = "VFX")
 	TSoftClassPtr<AActor> ConversionAuraVFXAsset;
-	
+
 	UPROPERTY(EditAnywhere, Category = "VFX")
 	TSoftClassPtr<AActor> ConversionBurstVFXAsset;
-	
+
 	UPROPERTY(EditAnywhere, Category = "SFX")
 	TSoftObjectPtr<USoundBase> ConversionAuraSoundAsset;
 
@@ -331,10 +334,10 @@ protected: // Networking (RPCs & RepNotifies)
 
 	UFUNCTION(NetMulticast, Reliable, Category = "Jump System")
 	void MulticastPlayLandEffects();
-	
+
 	UFUNCTION(NetMulticast, Reliable, Category = "Role Conversion")
 	void MulticastSpawnConversionAuraEffect();
-	
+
 	UFUNCTION(NetMulticast, Reliable, Category = "Role Conversion")
 	void MulticastSpawnConversionBurstEffect();
 
@@ -409,10 +412,10 @@ private: // Internal State & Cached Data
 	// === Role Conversion System ===
 	UPROPERTY()
 	TObjectPtr<AActor> ConversionAuraVFX;
-	
+
 	UPROPERTY()
 	TObjectPtr<AActor> ConversionBurstVFX;
-	
+
 	UPROPERTY()
 	TObjectPtr<USoundBase> ConversionAuraSound;
 
