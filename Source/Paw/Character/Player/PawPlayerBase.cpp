@@ -28,12 +28,15 @@ void APawPlayerBase::NotifyControllerChanged()
 	Super::NotifyControllerChanged();
 
 	// Add Input Mapping Context
-	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
+	if (DefaultMappingContext != nullptr)
 	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<
-			UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+		if (const APlayerController* PlayerController = Cast<APlayerController>(Controller))
 		{
-			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<
+				UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+			{
+				Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			}
 		}
 	}
 }
@@ -46,13 +49,16 @@ void APawPlayerBase::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
 		// Jumping
+		checkf(JumpAction, TEXT("JumpAction must be set in Blueprint for %s"), *GetNameSafe(this));
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &APawPlayerBase::TryJump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 
 		// Moving
+		checkf(MoveAction, TEXT("MoveAction must be set in Blueprint for %s"), *GetNameSafe(this));
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &APawPlayerBase::Move);
 
 		// Looking
+		checkf(LookAction, TEXT("LookAction must be set in Blueprint for %s"), *GetNameSafe(this));
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APawPlayerBase::Look);
 	}
 	else
