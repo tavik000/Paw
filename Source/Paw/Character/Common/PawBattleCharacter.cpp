@@ -8,7 +8,8 @@
 
 APawBattleCharacter::APawBattleCharacter()
 {
-	CharacterWeaponComponent = CreateDefaultSubobject<UPawCharacterWeaponComponent>(TEXT("CharacterWeaponComponent"));
+	static const FName WeaponComponentName = TEXT("CharacterWeaponComponent"); // this prevent creating multiple components with same name that looking for the hash table in FName
+	CharacterWeaponComponent = CreateDefaultSubobject<UPawCharacterWeaponComponent>(WeaponComponentName);
 }
 
 void APawBattleCharacter::BeginPlay()
