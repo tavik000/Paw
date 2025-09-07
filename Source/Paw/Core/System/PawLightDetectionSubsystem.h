@@ -7,10 +7,12 @@
 #include "Engine/World.h"
 #include "PawLightDetectionSubsystem.generated.h"
 
+class APawBubbleLight;
 class APawPlayerHider;
 class UPointLightComponent;
 class USpotLightComponent;
 class AActor;
+class APawPlayerSeeker;
 
 UENUM()
 enum class ESunLightState : uint8
@@ -31,22 +33,22 @@ public:
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void RegisterBubbleLight(AActor* LightActor, UPointLightComponent* LightComponent);
+	void RegisterBubbleLight(APawBubbleLight* Light, UPointLightComponent* LightComponent);
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void UnregisterBubbleLight(AActor* LightActor);
+	void UnregisterBubbleLight(APawBubbleLight* Light);
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void RegisterSeeker(AActor* SeekerActor, USpotLightComponent* SpotLightComponent);
+	void RegisterSeeker(APawPlayerSeeker* Seeker, USpotLightComponent* SpotLightComponent);
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void UnregisterSeeker(AActor* SeekerActor);
+	void UnregisterSeeker(APawPlayerSeeker* Seeker);
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void RegisterHider(AActor* HiderActor);
+	void RegisterHider(APawPlayerHider* Hider);
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
-	void UnregisterHider(AActor* HiderActor);
+	void UnregisterHider(APawPlayerHider* Hider);
 
 	UFUNCTION(BlueprintCallable, Category = "Light Detection")
 	AActor* GetSunLightActor() const { return CachedSunLightActor; }

@@ -11,6 +11,8 @@
 #include "Engine/Engine.h"
 #include "Paw/Character/Player/PawPlayerHider.h"
 #include "TimerManager.h"
+#include "Paw/Character/Player/PawPlayerSeeker.h"
+#include "Paw/Environment/GameplayElement/Bubble/PawBubbleLight.h"
 
 void UPawLightDetectionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -65,12 +67,12 @@ bool UPawLightDetectionSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 	return false;
 }
 
-void UPawLightDetectionSubsystem::RegisterBubbleLight(AActor* LightActor, UPointLightComponent* LightComponent)
+void UPawLightDetectionSubsystem::RegisterBubbleLight(APawBubbleLight* Light, UPointLightComponent* LightComponent)
 {
-	if (IsValid(LightActor) && IsValid(LightComponent))
+	if (IsValid(Light) && IsValid(LightComponent))
 	{
-		RegisteredBubbleLights.Add(LightActor, LightComponent);
-		UE_LOG(LogTemp, Log, TEXT("Registered bubble light: %s"), *LightActor->GetName());
+		RegisteredBubbleLights.Add(Light, LightComponent);
+		UE_LOG(LogTemp, Log, TEXT("Registered bubble light: %s"), *Light->GetName());
 	}
 	else
 	{
@@ -78,23 +80,23 @@ void UPawLightDetectionSubsystem::RegisterBubbleLight(AActor* LightActor, UPoint
 	}
 }
 
-void UPawLightDetectionSubsystem::UnregisterBubbleLight(AActor* LightActor)
+void UPawLightDetectionSubsystem::UnregisterBubbleLight(APawBubbleLight* Light)
 {
-	if (IsValid(LightActor))
+	if (IsValid(Light))
 	{
-		if (RegisteredBubbleLights.Remove(LightActor) > 0)
+		if (RegisteredBubbleLights.Remove(Light) > 0)
 		{
-			UE_LOG(LogTemp, Log, TEXT("Unregistered bubble light: %s"), *LightActor->GetName());
+			UE_LOG(LogTemp, Log, TEXT("Unregistered bubble light: %s"), *Light->GetName());
 		}
 	}
 }
 
-void UPawLightDetectionSubsystem::RegisterSeeker(AActor* SeekerActor, USpotLightComponent* SpotLightComponent)
+void UPawLightDetectionSubsystem::RegisterSeeker(APawPlayerSeeker* Seeker, USpotLightComponent* SpotLightComponent)
 {
-	if (IsValid(SeekerActor) && IsValid(SpotLightComponent))
+	if (IsValid(Seeker) && IsValid(SpotLightComponent))
 	{
-		RegisteredSeekers.Add(SeekerActor, SpotLightComponent);
-		UE_LOG(LogTemp, Log, TEXT("Registered seeker: %s"), *SeekerActor->GetName());
+		RegisteredSeekers.Add(Seeker, SpotLightComponent);
+		UE_LOG(LogTemp, Log, TEXT("Registered seeker: %s"), *Seeker->GetName());
 	}
 	else
 	{
@@ -102,13 +104,13 @@ void UPawLightDetectionSubsystem::RegisterSeeker(AActor* SeekerActor, USpotLight
 	}
 }
 
-void UPawLightDetectionSubsystem::UnregisterSeeker(AActor* SeekerActor)
+void UPawLightDetectionSubsystem::UnregisterSeeker(APawPlayerSeeker* Seeker)
 {
-	if (IsValid(SeekerActor))
+	if (IsValid(Seeker))
 	{
-		if (RegisteredSeekers.Remove(SeekerActor) > 0)
+		if (RegisteredSeekers.Remove(Seeker) > 0)
 		{
-			UE_LOG(LogTemp, Log, TEXT("Unregistered seeker: %s"), *SeekerActor->GetName());
+			UE_LOG(LogTemp, Log, TEXT("Unregistered seeker: %s"), *Seeker->GetName());
 
 			// Stop unified light detection timer if no more seekers or hiders
 			if (RegisteredSeekers.Num() == 0 && RegisteredHiders.Num() == 0)
@@ -119,12 +121,12 @@ void UPawLightDetectionSubsystem::UnregisterSeeker(AActor* SeekerActor)
 	}
 }
 
-void UPawLightDetectionSubsystem::RegisterHider(AActor* HiderActor)
+void UPawLightDetectionSubsystem::RegisterHider(APawPlayerHider* Hider)
 {
-	if (IsValid(HiderActor))
+	if (IsValid(Hider))
 	{
-		RegisteredHiders.Add(HiderActor);
-		UE_LOG(LogTemp, Log, TEXT("Registered hider: %s"), *HiderActor->GetName());
+		RegisteredHiders.Add(Hider);
+		UE_LOG(LogTemp, Log, TEXT("Registered hider: %s"), *Hider->GetName());
 	}
 	else
 	{
@@ -132,13 +134,13 @@ void UPawLightDetectionSubsystem::RegisterHider(AActor* HiderActor)
 	}
 }
 
-void UPawLightDetectionSubsystem::UnregisterHider(AActor* HiderActor)
+void UPawLightDetectionSubsystem::UnregisterHider(APawPlayerHider* Hider)
 {
-	if (IsValid(HiderActor))
+	if (IsValid(Hider))
 	{
-		if (RegisteredHiders.Remove(HiderActor) > 0)
+		if (RegisteredHiders.Remove(Hider) > 0)
 		{
-			UE_LOG(LogTemp, Log, TEXT("Unregistered hider: %s"), *HiderActor->GetName());
+			UE_LOG(LogTemp, Log, TEXT("Unregistered hider: %s"), *Hider->GetName());
 
 			// Stop unified light detection timer if no more hiders
 			if (RegisteredHiders.Num() == 0)
