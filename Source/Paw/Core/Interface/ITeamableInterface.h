@@ -5,7 +5,7 @@
 #include "../Enum/ETeamId.h"
 #include "ITeamableInterface.generated.h"
 
-UINTERFACE(MinimalAPI, Blueprintable)
+UINTERFACE(MinimalAPI, NotBlueprintable)
 class UTeamableInterface : public UInterface
 {
     GENERATED_BODY()
@@ -16,9 +16,6 @@ class PAW_API ITeamableInterface
     GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Team")
-    ETeamId GetTeamId() const;
-
-    UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "Team")
-    void SetTeamId(ETeamId NewTeamId);
+    virtual ETeamId GetTeamId() const = 0;
+    virtual void SetTeamId(ETeamId NewTeamId) = 0;
 };

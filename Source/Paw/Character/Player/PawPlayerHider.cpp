@@ -1075,8 +1075,11 @@ bool APawPlayerHider::IsViewerOnSeekerTeam() const
 			continue;
 		}
 
-		ETeamId LocalTeam = Execute_GetTeamId(LocalPawn);
-		return LocalTeam == ETeamId::Seeker;
+		if (ITeamableInterface* TeamableInterface = Cast<ITeamableInterface>(LocalPawn))
+		{
+			ETeamId LocalTeam = TeamableInterface->GetTeamId();
+			return LocalTeam == ETeamId::Seeker;
+		}
 	}
 
 	return false;

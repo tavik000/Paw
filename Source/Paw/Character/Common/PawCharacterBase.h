@@ -18,8 +18,12 @@ public:
 	APawCharacterBase();
 	virtual void Tick(float DeltaTime) override;
 
-	virtual ETeamId GetTeamId_Implementation() const;
-	virtual void SetTeamId_Implementation(ETeamId NewTeamId);
+	// ITeamableInterface implementation
+	UFUNCTION(BlueprintCallable, Category = "Team")
+	virtual ETeamId GetTeamId() const override;
+
+	UFUNCTION(BlueprintCallable, Category = "Team")
+	virtual void SetTeamId(ETeamId NewTeamId) override;
 
 protected:
 	virtual void BeginPlay() override;

@@ -32,13 +32,13 @@ void APawCharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	DOREPLIFETIME(APawCharacterBase, TeamId);
 }
 
-// Team Interface Implementation
-ETeamId APawCharacterBase::GetTeamId_Implementation() const
+// ITeamableInterface Implementation
+ETeamId APawCharacterBase::GetTeamId() const
 {
 	return TeamId;
 }
 
-void APawCharacterBase::SetTeamId_Implementation(ETeamId NewTeamId)
+void APawCharacterBase::SetTeamId(ETeamId NewTeamId)
 {
 	TeamId = NewTeamId;
 }
