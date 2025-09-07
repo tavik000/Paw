@@ -481,9 +481,12 @@ void APawPlayerHider::UpdateInvisibilityState()
 		ActivateInvisibility();
 	}
 	// Become visible if lit or captured
-	else if (bIsInvisible && (bCurrentlyLit || bIsCaptured))
+	else if (bIsInvisible)
 	{
-		DeactivateInvisibility();
+		if (bCurrentlyLit || bIsCaptured)
+		{
+			DeactivateInvisibility();
+		}
 	}
 }
 
