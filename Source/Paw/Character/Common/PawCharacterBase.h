@@ -18,12 +18,7 @@ public:
 	APawCharacterBase();
 	virtual void Tick(float DeltaTime) override;
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Team")
-	ETeamId GetTeamId() const;
 	virtual ETeamId GetTeamId_Implementation() const;
-
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Team")
-	void SetTeamId(ETeamId NewTeamId);
 	virtual void SetTeamId_Implementation(ETeamId NewTeamId);
 
 protected:
