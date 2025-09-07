@@ -23,7 +23,6 @@ void UPawLightDetectionSubsystem::Initialize(FSubsystemCollectionBase& Collectio
 
 	// Pre-allocate memory for performance optimization
 	CachedTestPoints.Reserve(5); // 5 test points for capsule detection
-	CachedHiders.Reserve(8); // Expect up to 8 hiders in typical gameplay
 
 	StartUnifiedLightDetectionTimer();
 
@@ -43,7 +42,6 @@ void UPawLightDetectionSubsystem::Deinitialize()
 	SunLightState = ESunLightState::NotSearched;
 
 	// Clear performance optimization caches
-	CachedHiders.Empty();
 	CachedTestPoints.Empty();
 
 	UE_LOG(LogTemp, Log, TEXT("PawLightDetectionSubsystem deinitialized"));
@@ -306,17 +304,11 @@ void UPawLightDetectionSubsystem::OnUnifiedLightDetectionTick()
 		return;
 	}
 
-	// Refresh hider cache if needed (much cheaper than GetAllActorsOfClass every tick)
-	RefreshHiderCache();
-
-	// For each cached hider, check all light types
-	for (int32 i = 0; i < CachedHiders.Num();)
+	// Process each registered hider directly
+	for (APawPlayerHider* Hider : RegisteredHiders)
 	{
-		APawPlayerHider* Hider = CachedHiders[i].Get();
-		if (!Hider)
+		if (!IsValid(Hider))
 		{
-			// Remove stale weak pointer
-			CachedHiders.RemoveAt(i);
 			continue;
 		}
 
@@ -324,7 +316,6 @@ void UPawLightDetectionSubsystem::OnUnifiedLightDetectionTick()
 		if (!Hider->IsAlive() || Hider->IsCaptured())
 		{
 			Hider->SetInLight(true);
-			i++;
 			continue;
 		}
 
@@ -342,13 +333,10 @@ void UPawLightDetectionSubsystem::OnUnifiedLightDetectionTick()
 		// Combine directional and bubble light results
 		bool bNewIsInLight = bDirectionalLit || bBubbleLit || bSpotlightLit;
 
-
 		if (bNewIsInLight != Hider->IsInLight())
 		{
 			Hider->SetInLight(bNewIsInLight);
 		}
-		
-		i++;
 	}
 }
 
@@ -543,57 +531,3 @@ bool UPawLightDetectionSubsystem::IsObstructedForHiderDetection(const FVector& S
 	return false; // No obstruction found
 }
 
-void UPawLightDetectionSubsystem::RefreshHiderCache()
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(PawLightDetectionSubsystem_RefreshHiderCache);
-	// Only refresh cache periodically or when needed (not every tick)
-	static int32 CacheRefreshCounter = 0;
-	const int32 CacheRefreshInterval = 50; // Refresh every ~5 seconds at 0.1s tick rate
-
-	if (++CacheRefreshCounter >= CacheRefreshInterval)
-	{
-		CacheRefreshCounter = 0;
-
-		// Get current hiders in world
-		TArray<AActor*> AllHiders;
-
-		// TODO: this is heavy
-		UGameplayStatics::GetAllActorsOfClass(this, APawPlayerHider::StaticClass(), AllHiders);
-
-		// Clear and rebuild cache
-		CachedHiders.Empty(AllHiders.Num());
-
-		for (AActor* HiderActor : AllHiders)
-		{
-			if (APawPlayerHider* Hider = Cast<APawPlayerHider>(HiderActor))
-			{
-				CachedHiders.Add(Hider);
-			}
-		}
-	}
-
-	// Always clean up stale weak pointers (lightweight operation)
-	for (int32 i = CachedHiders.Num() - 1; i >= 0; --i)
-	{
-		if (!CachedHiders[i].IsValid())
-		{
-			CachedHiders.RemoveAtSwap(i);
-		}
-	}
-}
-
-void UPawLightDetectionSubsystem::AddHiderToCache(APawPlayerHider* Hider)
-{
-	if (Hider)
-	{
-		CachedHiders.AddUnique(Hider);
-	}
-}
-
-void UPawLightDetectionSubsystem::RemoveHiderFromCache(APawPlayerHider* Hider)
-{
-	if (Hider)
-	{
-		CachedHiders.RemoveSingle(Hider);
-	}
-}

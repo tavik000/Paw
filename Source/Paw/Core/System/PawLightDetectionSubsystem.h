@@ -64,17 +64,14 @@ protected:
 	mutable TObjectPtr<AActor> CachedSunLightActor;
 
 	UPROPERTY()
-	TMap<TObjectPtr<AActor>, TObjectPtr<UPointLightComponent>> RegisteredBubbleLights;
+	TMap<TObjectPtr<APawBubbleLight>, TObjectPtr<UPointLightComponent>> RegisteredBubbleLights;
 
 	UPROPERTY()
-	TMap<TObjectPtr<AActor>, TObjectPtr<USpotLightComponent>> RegisteredSeekers;
+	TMap<TObjectPtr<APawPlayerSeeker>, TObjectPtr<USpotLightComponent>> RegisteredSeekers;
 
 	UPROPERTY()
-	TSet<TObjectPtr<AActor>> RegisteredHiders;
+	TSet<TObjectPtr<APawPlayerHider>> RegisteredHiders;
 
-	// === Performance Optimization Cache ===
-	UPROPERTY()
-	TArray<TWeakObjectPtr<APawPlayerHider>> CachedHiders;
 
 	// === Light Detection Configuration ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light Detection", meta = (ClampMin = "0.05", ClampMax = "1.0"))
@@ -100,9 +97,6 @@ private:
 	bool IsHiderCapsuleInSpotlightCone(APawPlayerHider* Hider, AActor* SeekerActor, USpotLightComponent* SpotLight);
 	bool IsPointInSpotlightCone(const FVector& Point, AActor* SeekerActor, USpotLightComponent* SpotLight);
 	bool IsObstructedForHiderDetection(const FVector& Start, const FVector& End, AActor* SeekerActor) const;
-	void RefreshHiderCache();
-	void AddHiderToCache(APawPlayerHider* Hider);
-	void RemoveHiderFromCache(APawPlayerHider* Hider);
 
 private:
 	mutable ESunLightState SunLightState = ESunLightState::NotSearched;
