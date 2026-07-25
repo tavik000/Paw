@@ -3,9 +3,19 @@
   <p align="center">Global Game Jam 2025 Unreal Engine 5 Project</p>
 </p>
 
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.ja.md">日本語</a>
+</p>
+
 ### Keyword
 
 > `UE` `Unreal Engine 5` `C++` `Hide and Seek` `Asymmetric Multiplayer` `FPS`
+
+---
+
+## Gameplay Video
+
+[![Watch the gameplay video](https://img.youtube.com/vi/U_8e_a2troo/maxresdefault.jpg)](https://www.youtube.com/watch?v=U_8e_a2troo)
 
 ---
 
